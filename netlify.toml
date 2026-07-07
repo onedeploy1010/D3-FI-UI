@@ -1,0 +1,10 @@
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm run build"
+  publish = "dist/public"
+
+# Single Page App routing (wouter): refresh /portal, /d3fi, etc.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+

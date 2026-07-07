@@ -206,6 +206,9 @@ function vitePluginStorageProxy(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
 
 export default defineConfig({
+  // GitHub Pages serves this project under the repository subpath.
+  // Example: https://onedeploy1010.github.io/D3-FI-UI/
+  base: process.env.GITHUB_PAGES === "true" ? "/D3-FI-UI/" : "/",
   plugins,
   resolve: {
     alias: {
