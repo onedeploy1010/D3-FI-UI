@@ -137,21 +137,36 @@ export function D3LogoMark({
     }
 
     let cancelled = false;
+    // Safety fallback: if any runtime/env disables animations, ensure the mark is still visible.
+    // (Some deployed environments can fail to trigger motion controllers reliably.)
+    const fallback = setTimeout(() => {
+      if (cancelled) return;
+      ghostLeft.set({ opacity: 0 });
+      ghostRight.set({ opacity: 0 });
+      ring.set({ strokeOpacity: 0.4 });
+      cube.set({ opacity: 1, scale: 1, x: 0, y: 0 });
+    }, 1200);
 
     async function run() {
-      await playLogoSequence(ghostLeft, ghostRight, cube, ring, false);
-      if (cancelled) return;
+      try {
+        await playLogoSequence(ghostLeft, ghostRight, cube, ring, false);
+        clearTimeout(fallback);
+        if (cancelled) return;
 
-      while (!cancelled) {
-        await new Promise((r) => setTimeout(r, 5600));
-        if (cancelled) break;
-        await playLogoSequence(ghostLeft, ghostRight, cube, ring, true);
+        while (!cancelled) {
+          await new Promise((r) => setTimeout(r, 5600));
+          if (cancelled) break;
+          await playLogoSequence(ghostLeft, ghostRight, cube, ring, true);
+        }
+      } catch {
+        // If motion fails for any reason, keep a static visible mark (fallback already covers).
       }
     }
 
     run();
     return () => {
       cancelled = true;
+      clearTimeout(fallback);
     };
   }, [animated, ghostLeft, ghostRight, cube, ring]);
 
