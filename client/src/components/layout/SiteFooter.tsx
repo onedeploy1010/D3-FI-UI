@@ -153,8 +153,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
         <div className="page-px py-8 sm:py-10 md:py-14">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             className="max-w-5xl mx-auto rounded-3xl relative overflow-hidden px-6 py-10 md:px-12 md:py-12"
             style={{
               background: isDark

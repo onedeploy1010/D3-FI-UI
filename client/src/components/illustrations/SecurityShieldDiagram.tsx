@@ -36,8 +36,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
         preserveAspectRatio="xMidYMid meet"
         fill="none"
         initial={{ opacity: 0, y: 12 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7 }}
       >
         {/* Orbital scan ring */}
@@ -60,8 +59,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           stroke={outerStroke}
           strokeWidth="1.5"
           initial={{ pathLength: 0, opacity: 0 }}
-          whileInView={{ pathLength: 1, opacity: 1 }}
-          viewport={{ once: true }}
+          animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 1.2, ease: 'easeOut' }}
         />
         <motion.path
@@ -70,8 +68,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           stroke={innerStroke}
           strokeWidth="1"
           initial={{ pathLength: 0, opacity: 0 }}
-          whileInView={{ pathLength: 1, opacity: 1 }}
-          viewport={{ once: true }}
+          animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 1, delay: 0.3 }}
         />
 
@@ -86,8 +83,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
             stroke={isDark ? 'rgba(201,169,110,0.12)' : 'rgba(107,26,58,0.1)'}
             strokeWidth="0.8"
             initial={{ pathLength: 0, opacity: 0 }}
-            whileInView={{ pathLength: 1, opacity: 1 }}
-            viewport={{ once: true }}
+            animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.4 + i * 0.08 }}
           />
         ))}
@@ -116,8 +112,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           <motion.g
             key={pt.label}
             initial={{ opacity: 0, scale: 0 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 + i * 0.1, type: 'spring', stiffness: 260 }}
           >
             <motion.circle

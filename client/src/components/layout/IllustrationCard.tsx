@@ -16,8 +16,7 @@ export function IllustrationCard({
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true }}
+      animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
       className={cn(
         'ios-glass-card ios-glass-highlight rounded-3xl overflow-hidden relative px-4 py-5 sm:px-5 sm:py-8 md:p-6 flex flex-col items-center justify-center min-h-[220px] sm:min-h-[280px] md:min-h-0 md:aspect-[3/2] w-full',

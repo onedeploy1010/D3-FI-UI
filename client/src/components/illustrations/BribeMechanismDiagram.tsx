@@ -148,8 +148,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
         className="block w-full h-auto max-w-[min(100%,300px)] md:max-w-[340px] mx-auto"
         fill="none"
         initial={{ opacity: 0, scale: 0.9 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
       >
         <motion.path
@@ -159,9 +158,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
           strokeDasharray="5 4"
           fill="none"
           initial={{ pathLength: 0, opacity: 0 }}
-          whileInView={{ pathLength: 1, opacity: 1 }}
-          viewport={{ once: true }}
-          animate={{ strokeDashoffset: [0, -18] }}
+          animate={{ pathLength: 1, opacity: 1, strokeDashoffset: [0, -18] }}
           transition={{
             pathLength: { duration: 1, delay: 0.5 },
             opacity: { duration: 0.4, delay: 0.5 },
@@ -181,8 +178,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
             strokeWidth="2"
             strokeLinecap="round"
             initial={{ pathLength: 0 }}
-            whileInView={{ pathLength: 1 }}
-            viewport={{ once: true }}
+            animate={{ pathLength: 1 }}
             transition={{ duration: 0.6, delay: line.delay }}
           />
         ))}
@@ -201,8 +197,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
           <motion.g
             key={`${lang}-${i}`}
             initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: node.delay, type: 'spring', stiffness: 200 }}
           >
             {'pulse' in node && node.pulse && (
