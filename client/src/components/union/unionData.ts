@@ -61,7 +61,7 @@ export const performanceDividend = {
   networkPerformanceUsd: 12_800_000,
   performanceWeightPct: 2.24,
   equitySharePct: 2.24,
-  currentEpoch: '#42',
+  currentEpoch: '—',
   currentMonthZh: '2026年7月',
   currentMonthEn: 'Jul 2026',
   hasPerformance: true,

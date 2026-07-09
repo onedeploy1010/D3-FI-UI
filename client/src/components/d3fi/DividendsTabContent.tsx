@@ -4,6 +4,7 @@ import { Gift, Zap, Coins, RefreshCw, HelpCircle, Search, ArrowUpDown, CalendarD
 import { cn } from '@/lib/utils';
 import { RulesSheet, type RuleTopic } from '@/components/d3fi/RulesSheet';
 import type { D3FiViewModel } from '@/lib/d3fiViewModel';
+import type { ProtocolEpochView } from '@/lib/protocolTypes';
 import { fmtUsd } from '@/lib/d3fiViewModel';
 
 type Lang = 'zh' | 'en';
@@ -162,6 +163,7 @@ export function DividendsTabContent({
   earnSub,
   onNavigateSub,
   vm,
+  protocolEpoch,
   isLoading,
 }: {
   lang: Lang;
@@ -169,6 +171,7 @@ export function DividendsTabContent({
   earnSub: EarnSub;
   onNavigateSub: (sub: EarnSub) => void;
   vm?: D3FiViewModel | null;
+  protocolEpoch?: ProtocolEpochView | null;
   isLoading?: boolean;
 }) {
   const t = lang === 'zh';
@@ -177,9 +180,9 @@ export function DividendsTabContent({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [rulesTopic, setRulesTopic] = useState<RuleTopic>('general');
 
-  const epoch = vm?.epoch ?? '—';
-  const bribePoolTotal = '$2.4M';
-  const bribePoolDistributableD3 = '180,000 D3';
+  const epoch = protocolEpoch?.label ?? vm?.epoch ?? (isLoading ? '…' : '—');
+  const bribePoolTotal = isLoading ? '…' : (protocolEpoch?.bribePoolTvl ?? '—');
+  const bribePoolDistributableD3 = isLoading ? '…' : (protocolEpoch?.monthlyEmission ?? '—');
   const myDt = vm?.dt.amount ?? 0;
   const totalDt = 12_450;
   const myDtRate = useMemo(() => (totalDt > 0 ? (myDt / totalDt) * 100 : 0), [myDt, totalDt]);

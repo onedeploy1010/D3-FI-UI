@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { Menu, X, ChevronDown, Shield, Zap, Users, Lock, TrendingUp, Globe, ArrowRight, ExternalLink, Flame, Eye, Ban, Activity } from 'lucide-react';
@@ -9,6 +9,7 @@ import { SecurityShieldDiagram } from '@/components/illustrations/SecurityShield
 import { IllustrationCard } from '@/components/layout/IllustrationCard';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
 
 type Lang = 'zh' | 'en';
 
@@ -186,8 +187,21 @@ export default function Landing() {
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [, navigate] = useLocation();
   const { theme } = useTheme();
+  const { epoch: protocolEpoch, isLoading: protocolLoading } = useProtocolEpoch(lang);
   const t = content[lang];
   const isDark = theme === 'dark';
+  const stats = useMemo(
+    () =>
+      t.stats.map((stat, i) =>
+        i === 0
+          ? {
+              ...stat,
+              value: protocolLoading ? '…' : (protocolEpoch?.bribePoolTvl ?? '—'),
+            }
+          : stat,
+      ),
+    [t.stats, protocolEpoch?.bribePoolTvl, protocolLoading],
+  );
 
   return (
     <div className={`min-h-screen overflow-x-hidden transition-colors duration-300 ${
@@ -340,7 +354,7 @@ export default function Landing() {
       <section className="py-14 sm:py-16 page-px">
         <div className="max-w-md mx-auto md:max-w-4xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {t.stats.map((stat, i) => (
+            {stats.map((stat, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 20 }}
