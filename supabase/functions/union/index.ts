@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
+import { isDemoModeRequest } from '../_shared/demo.ts';
 import { getPrivyToken, requirePrivyAuth } from '../_shared/privy.ts';
 import {
   createPrivyTreasuryWallet,
@@ -528,8 +529,9 @@ Deno.serve(async (req) => {
 
   try {
     const publicGet = req.method === 'GET' && (path === '/health' || path === '/protocol');
+    const demoMode = isDemoModeRequest(req);
     let privyUserId: string | undefined;
-    if (!publicGet) {
+    if (!publicGet && !demoMode) {
       const claims = await requirePrivyAuth(req);
       privyUserId = claims?.sub;
     }

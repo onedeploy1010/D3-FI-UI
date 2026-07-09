@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { readDemoWalletFromSession } from "@/lib/demoWallet";
 
 export const DEMO_WALLET = "0x1234567890abcdef1234567890abcdef12345678";
 
@@ -11,7 +12,7 @@ export function setApiWallet(wallet: string | null) {
 
 export function apiHeaders(extra?: HeadersInit): HeadersInit {
   return {
-    "X-Wallet-Address": activeWallet ?? DEMO_WALLET,
+    "X-Wallet-Address": readDemoWalletFromSession() ?? activeWallet ?? DEMO_WALLET,
     ...extra,
   };
 }

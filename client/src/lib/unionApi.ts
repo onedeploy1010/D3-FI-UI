@@ -1,4 +1,10 @@
 import type { UnionProfileBundle } from './d3fiTypes';
+import {
+  clearDemoWalletSession,
+  DEMO_LINE_LEADER_WALLET,
+  isDemoWallet,
+  readDemoWalletFromSession,
+} from './demoWallet';
 import { isSupabaseClientConfigured, supabaseUrl, supabaseAnonKey } from './supabase';
 import { formatWalletAddress } from './wallet';
 
@@ -27,7 +33,10 @@ async function buildFunctionHeaders(wallet: string): Promise<Record<string, stri
     'X-Wallet-Address': address,
   };
 
-  if (accessTokenGetter) {
+  const demoSession = readDemoWalletFromSession();
+  if (demoSession && isDemoWallet(address)) {
+    headers['X-Demo-Mode'] = '1';
+  } else if (accessTokenGetter) {
     const token = await accessTokenGetter();
     if (token) headers['X-Privy-Token'] = token;
   }
