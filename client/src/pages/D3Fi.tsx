@@ -27,6 +27,7 @@ import { useD3FiProfile, type D3FiViewModel } from '@/hooks/useD3FiProfile';
 import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
 import { TeamDynamicRewardsPanel } from '@/components/d3fi/TeamDynamicRewardsPanel';
 import { fmtNum, fmtUsd } from '@/lib/d3fiViewModel';
+import { buildReferralLink } from '@/lib/referral';
 import type { ProtocolEpochView } from '@/lib/protocolTypes';
 
 type Lang = 'zh' | 'en';
