@@ -1,4 +1,8 @@
 import type { UnionProfileBundle, DividendAccrual, FiPosition, PocScoreRow, PocScoreView } from './d3fiTypes';
+import type { UnionTeamNode } from '@/components/union/unionData';
+import { levelDiffRate as DEMO_LEVEL_DIFF, pocDimensions, pocScore as DEMO_POC_SCORE } from '@/components/d3fi/protocolData';
+import { isDemoWallet } from './demoWallet';
+import { buildTeamNodes } from './unionViewModel';
 import { shortWallet } from './wallet';
 
 const D3_USD = 2;
@@ -97,6 +101,7 @@ export type D3FiViewModel = {
     smallAreaUsd: number;
   };
   directReferralAddresses: string[];
+  teamNodes: Record<string, UnionTeamNode>;
   poc: PocScoreView;
 };
 
@@ -197,7 +202,8 @@ function mapPocScore(row: PocScoreRow | null, fallbackLevel: string, fallbackEpo
     { key: 'E', weight: 0.10, labelZh: '有效账户', labelEn: 'Valid Accounts', value: num(row?.dim_e), rawZh: row?.raw_e_zh ?? '—', rawEn: row?.raw_e_en ?? '—' },
   ];
 
-  const composite = num(row?.composite_score);
+  const compositeFromDims = Math.round(dims.reduce((s, d) => s + d.value * d.weight, 0) * 10) / 10;
+  const composite = num(row?.composite_score) || compositeFromDims;
   const floor = num(row?.diff_floor_pct) || 16;
   const ceil = num(row?.diff_ceil_pct) || 38;
   const levelDiff =
@@ -216,6 +222,42 @@ function mapPocScore(row: PocScoreRow | null, fallbackLevel: string, fallbackEpo
     settledAt: row?.settled_at ?? null,
     updatedAt: row?.updated_at ?? null,
   };
+}
+
+function buildDemoPocFallback(level: string, epoch: string): PocScoreView {
+  const floor = 16;
+  const ceil = 38;
+  const composite = DEMO_POC_SCORE;
+  const levelDiff =
+    DEMO_LEVEL_DIFF > 0
+      ? DEMO_LEVEL_DIFF
+      : Math.round((floor + (ceil - floor) * (composite / 100)) * 10) / 10;
+  return {
+    compositeScore: composite,
+    levelDiffRate: levelDiff,
+    levelLabel: level,
+    epochLabel: epoch,
+    diffFloorPct: floor,
+    diffCeilPct: ceil,
+    dimensions: pocDimensions.map((d) => ({
+      key: d.key,
+      weight: d.weight,
+      labelZh: d.labelZh,
+      labelEn: d.labelEn,
+      value: d.value,
+      rawZh: d.rawZh,
+      rawEn: d.rawEn,
+    })),
+    settledAt: '2026-07-06',
+    updatedAt: null,
+  };
+}
+
+function resolvePocScore(bundle: UnionProfileBundle, level: string, epoch: string): PocScoreView {
+  const mapped = mapPocScore(bundle.pocScore, level, epoch);
+  if (mapped.compositeScore > 0) return mapped;
+  if (isDemoWallet(bundle.profile.wallet_address)) return buildDemoPocFallback(level, epoch);
+  return mapped;
 }
 
 function isTeamDynamicDividend(d: DividendAccrual): boolean {
@@ -401,7 +443,8 @@ export function buildD3FiViewModel(bundle: UnionProfileBundle, lang: 'zh' | 'en'
       smallAreaUsd: networkPerf,
     },
     directReferralAddresses: bundle.directReferrals.map((r) => r.wallet_address),
-    poc: mapPocScore(bundle.pocScore, level, latestEpoch),
+    teamNodes: buildTeamNodes(bundle.profile.wallet_address, bundle),
+    poc: resolvePocScore(bundle, level, latestEpoch),
   };
 }
 

@@ -157,8 +157,8 @@ export default function BribeeUnion() {
         {!isSupabaseClientConfigured ? (
           <div className={`text-center py-12 px-4 text-sm leading-relaxed ${isDark ? 'text-amber-400/90' : 'text-amber-700'}`}>
             {t
-              ? 'Supabase 未配置：请在部署环境设置 VITE_SUPABASE_URL 与 VITE_SUPABASE_PUBLISHABLE_KEY 后重新构建。'
-              : 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.'}
+              ? '后端服务未配置，请联系管理员或稍后重试。'
+              : 'Backend service is not configured. Please contact support or try again later.'}
           </div>
         ) : isLoading && !vm ? (
           <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
@@ -729,8 +729,8 @@ function GovernanceTab({
         <Shield size={32} className="mx-auto mb-3 opacity-40" />
         <p className="text-sm font-medium text-pretty">
           {t
-            ? '当前钱包未关联本线多签。请使用线长或委员钱包连接，或确认 Supabase 已执行 seed。'
-            : 'No line multisig for this wallet. Connect as line leader/committee member or run Supabase seed.'}
+            ? '当前钱包未关联本线多签。请使用线长或委员钱包连接。'
+            : 'No line multisig for this wallet. Connect as line leader or committee member.'}
         </p>
       </div>
     );

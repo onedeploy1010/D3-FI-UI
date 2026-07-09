@@ -55,7 +55,7 @@ export function PocScoreTab({
         </div>
         <div className={`text-[10px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
           {isLoading
-            ? (t ? '从数据库加载…' : 'Loading from database…')
+            ? (t ? '加载中…' : 'Loading…')
             : t
               ? `当前等级 ${displayLevel} · Epoch ${epoch} 结算更新`
               : `Level ${displayLevel} · Updated at Epoch ${epoch}`}

@@ -20,7 +20,7 @@ export function setUnionAccessTokenGetter(getter: TokenGetter) {
 
 function requireSupabase() {
   if (!isSupabaseClientConfigured || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY');
+    throw new Error('Backend service not configured');
   }
 }
 

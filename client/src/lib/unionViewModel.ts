@@ -42,7 +42,7 @@ function buildUsd3View(bundle: UnionProfileBundle): Usd3AccountView {
   };
 }
 
-function buildTeamNodes(wallet: string, bundle: UnionProfileBundle): Record<string, UnionTeamNode> {
+export function buildTeamNodes(wallet: string, bundle: UnionProfileBundle): Record<string, UnionTeamNode> {
   const rows = bundle.lineTeamNodes;
   if (rows.length === 0) {
     const sh = bundle.shareholder;

@@ -5,7 +5,7 @@ export const DEMO_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
 
 export function requireSupabase() {
   if (!isSupabaseConfigured()) {
-    throw new Error('Supabase not configured');
+    throw new Error('Service not configured');
   }
   return getSupabaseAdmin();
 }
@@ -612,6 +612,6 @@ export async function getLatestAiHubSnapshot() {
     learningProgress: Number(data.learning_progress),
     totalSimAccounts: data.total_sim_accounts,
     fearGreedIndex: data.fear_greed_index,
-    source: 'supabase',
+    source: 'remote',
   };
 }

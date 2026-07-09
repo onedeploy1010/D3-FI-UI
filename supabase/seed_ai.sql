@@ -100,5 +100,5 @@ values
   ('0x1234567890abcdef1234567890abcdef12345678', '跟单执行成功', 'ETH 多头仓位已按策略自动开仓', 'trade', 'ETH', false),
   ('0x1234567890abcdef1234567890abcdef12345678', '风险预警', 'Sentinel 检测到市场波动率上升', 'alert', 'BTC', true),
   ('0x1234567890abcdef1234567890abcdef12345678', '系统更新', 'D³-AI 分析站 v2.1 已上线', 'system', null, true),
-  ('0x1234567890AbCdEf1234567890AbCdEf1234567890', 'AI 信号更新', 'BTC 突破关键阻力位，建议关注', 'ai', 'BTC', false),
-  ('0x1234567890AbCdEf1234567890AbCdEf1234567890', '跟单提醒', 'ETH 策略已触发开仓条件', 'trade', 'ETH', false);
+  ('0x1234567890AbCdEf1234567890AbCdEf12345678', 'AI 信号更新', 'BTC 突破关键阻力位，建议关注', 'ai', 'BTC', false),
+  ('0x1234567890AbCdEf1234567890AbCdEf12345678', '跟单提醒', 'ETH 策略已触发开仓条件', 'trade', 'ETH', false);

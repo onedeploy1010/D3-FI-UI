@@ -2,7 +2,7 @@ import { isSupabaseClientConfigured, supabaseAnonKey, supabaseUrl } from './supa
 
 function requireSupabase() {
   if (!isSupabaseClientConfigured || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY');
+    throw new Error('Backend service not configured');
   }
 }
 
@@ -36,12 +36,12 @@ export async function marketFetch<T>(functionPath: string, apiPath = functionPat
       return await marketPublicFetch<T>(functionPath);
     } catch (e) {
       if (import.meta.env.DEV) {
-        console.warn('[market] Supabase failed, trying local /api', e);
+        console.warn('[market] remote API failed, trying local /api', e);
         return marketDevFallback<T>(apiPath);
       }
       throw e;
     }
   }
   if (import.meta.env.DEV) return marketDevFallback<T>(apiPath);
-  throw new Error('Market API unavailable — configure VITE_SUPABASE_URL');
+  throw new Error('Market data unavailable — please try again later');
 }

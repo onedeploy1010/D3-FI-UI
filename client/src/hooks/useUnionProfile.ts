@@ -34,7 +34,7 @@ export function useUnionProfile(wallet: string | null, lang: Lang = 'zh') {
 
     if (!isSupabaseClientConfigured) {
       setBundle(null);
-      setError('Supabase 未配置 — 请在 Netlify / .env 设置 VITE_SUPABASE_URL 与 VITE_SUPABASE_PUBLISHABLE_KEY 后重新构建');
+      setError('后端服务未配置，请联系管理员或稍后重试');
       return;
     }
 

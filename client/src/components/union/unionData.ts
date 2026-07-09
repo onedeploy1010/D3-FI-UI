@@ -307,7 +307,7 @@ export const defaultUnionMember: UnionMember = {
   isShareholder: false,
   joinedAt: null,
   genesisDt: 0,
-  wallet: '0x1234567890AbCdEf1234567890AbCdEf1234567890',
+  wallet: '0x1234567890AbCdEf1234567890AbCdEf12345678',
 };
 
 export type UnionTeamNode = {
@@ -328,8 +328,8 @@ export type UnionTeamNode = {
 export const unionTeamNodes: Record<string, UnionTeamNode> = {
   me: {
     id: 'me',
-    address: '0x1234567890AbCdEf1234567890AbCdEf1234567890',
-    short: '0x1234…7890',
+    address: '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    short: '0x1234…5678',
     level: '发起人',
     personalUsd: 5000,
     teamUsd: 286400,
@@ -568,7 +568,7 @@ export const lineMultisigWallet: MultisigWallet = {
   balanceUsd3: 4280,
   balanceD3: 186.4,
   signers: [
-    { id: 'me', address: '0x1234567890AbCdEf1234567890AbCdEf1234567890', short: '0x1234…7890', roleZh: '线长（你）', roleEn: 'Line leader (you)', isSelf: true },
+    { id: 'me', address: '0x1234567890AbCdEf1234567890AbCdEf12345678', short: '0x1234…5678', roleZh: '线长（你）', roleEn: 'Line leader (you)', isSelf: true },
     { id: 's2', address: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', short: '0xAbCd…Ef01', roleZh: '委员 A', roleEn: 'Committee A' },
     { id: 's3', address: '0x9876543210FeDcBa9876543210FeDcBa98765432', short: '0x9876…5432', roleZh: '委员 B', roleEn: 'Committee B' },
   ],
@@ -607,7 +607,7 @@ export const multisigProposals: MultisigProposal[] = [
     usd3Amount: 186.4,
     d3Amount: 12.8,
     beneficiaryCount: 48,
-    proposerShort: '0x1234…7890',
+    proposerShort: '0x1234…5678',
     createdAt: '2026-07-28',
     expiresAt: '2026-08-02',
     status: 'pending',
@@ -629,7 +629,7 @@ export const multisigProposals: MultisigProposal[] = [
     usd3Amount: 142.3,
     d3Amount: 9.6,
     beneficiaryCount: 45,
-    proposerShort: '0x1234…7890',
+    proposerShort: '0x1234…5678',
     createdAt: '2026-06-28',
     expiresAt: '2026-07-02',
     status: 'executed',

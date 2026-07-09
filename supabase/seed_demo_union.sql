@@ -54,6 +54,47 @@ on conflict (wallet_address) do update set
   pending_d3 = 12.8,
   claimed_lifetime_d3 = 86.4;
 
+-- ── PoC 综合分（Epoch 结算）────────────────────────────────────────────────
+insert into public.poc_scores (
+  wallet_address, epoch_label, level_label, composite_score, level_diff_rate,
+  diff_floor_pct, diff_ceil_pct,
+  dim_h, dim_c, dim_a, dim_r, dim_e,
+  raw_h_zh, raw_h_en, raw_c_zh, raw_c_en, raw_a_zh, raw_a_en,
+  raw_r_zh, raw_r_en, raw_e_zh, raw_e_en, settled_at
+)
+select
+  p.wallet_address, '#42', 'V5', 78.4, 28.6, 16, 38,
+  72, 85, 68, 91, 56,
+  '质押 D3 价值 $3,200', 'Staked D3 value $3,200',
+  '大区+小区总业绩 $556,400', 'Large+small area $556,400',
+  '30天新增 $42,000', '30d new deposits $42,000',
+  '续投+未提现比例 91%', 'Renewal + unwithdrawn 91%',
+  '新增有效户 12 (≥100U)', '12 new valid (≥100U)',
+  '2026-07-06'::timestamptz
+from public.profiles p
+where lower(p.wallet_address) = lower('0x1234567890AbCdEf1234567890AbCdEf12345678')
+on conflict (wallet_address) do update set
+  composite_score = excluded.composite_score,
+  level_diff_rate = excluded.level_diff_rate,
+  epoch_label = excluded.epoch_label,
+  level_label = excluded.level_label,
+  dim_h = excluded.dim_h,
+  dim_c = excluded.dim_c,
+  dim_a = excluded.dim_a,
+  dim_r = excluded.dim_r,
+  dim_e = excluded.dim_e,
+  raw_h_zh = excluded.raw_h_zh,
+  raw_h_en = excluded.raw_h_en,
+  raw_c_zh = excluded.raw_c_zh,
+  raw_c_en = excluded.raw_c_en,
+  raw_a_zh = excluded.raw_a_zh,
+  raw_a_en = excluded.raw_a_en,
+  raw_r_zh = excluded.raw_r_zh,
+  raw_r_en = excluded.raw_r_en,
+  raw_e_zh = excluded.raw_e_zh,
+  raw_e_en = excluded.raw_e_en,
+  settled_at = excluded.settled_at;
+
 -- ── 线 + 多签 ────────────────────────────────────────────────────────────────
 insert into public.union_lines (id, line_leader_wallet, root_wallet, name, total_members, total_performance_usd)
 select

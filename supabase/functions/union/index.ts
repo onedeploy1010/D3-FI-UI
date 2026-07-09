@@ -1,5 +1,5 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
-import { isDemoModeRequest } from '../_shared/demo.ts';
+import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
 import { getPrivyToken, requirePrivyAuth } from '../_shared/privy.ts';
 import {
   createPrivyTreasuryWallet,
@@ -374,11 +374,22 @@ function assertWalletMatch(headerWallet: string | null, wallet: string) {
   }
 }
 
+async function ensureDemoPocScore(sb: Sb, pk: string) {
+  if (!isDemoWalletAddress(pk)) return;
+  const { data: row } = await sb.from('poc_scores').select('composite_score').eq('wallet_address', pk).maybeSingle();
+  if (row && Number(row.composite_score) > 0) return;
+  await sb.from('poc_scores').upsert(
+    { wallet_address: pk, ...DEMO_POC_SCORE },
+    { onConflict: 'wallet_address' },
+  );
+}
+
 async function fetchProfileBundle(sb: Sb, wallet: string) {
   const profile = await findProfileByWallet(sb, wallet);
   if (!profile) throw new HttpError(404, 'Profile not found');
 
   const pk = profile.wallet_address as string;
+  await ensureDemoPocScore(sb, pk);
   const [
     shareholder,
     usd3,

@@ -3,6 +3,40 @@ import { getSupabaseAdmin, isSupabaseConfigured } from '../lib/supabase.js';
 import { getWalletFromRequest, requireWallet, shortWallet, walletEquals } from '../lib/walletAuth.js';
 import { getBearerToken, isPrivyAuthConfigured, verifyPrivyAccessToken } from '../lib/privyAuth.js';
 
+const DEMO_WALLET = '0x1234567890AbCdEf1234567890AbCdEf12345678';
+
+const DEMO_POC_SCORE = {
+  epoch_label: '#42',
+  level_label: 'V5',
+  composite_score: 78.4,
+  level_diff_rate: 28.6,
+  diff_floor_pct: 16,
+  diff_ceil_pct: 38,
+  dim_h: 72,
+  dim_c: 85,
+  dim_a: 68,
+  dim_r: 91,
+  dim_e: 56,
+  raw_h_zh: '质押 D3 价值 $3,200',
+  raw_h_en: 'Staked D3 value $3,200',
+  raw_c_zh: '大区+小区总业绩 $556,400',
+  raw_c_en: 'Large+small area $556,400',
+  raw_a_zh: '30天新增 $42,000',
+  raw_a_en: '30d new deposits $42,000',
+  raw_r_zh: '续投+未提现比例 91%',
+  raw_r_en: 'Renewal + unwithdrawn 91%',
+  raw_e_zh: '新增有效户 12 (≥100U)',
+  raw_e_en: '12 new valid (≥100U)',
+  settled_at: '2026-07-06T00:00:00Z',
+} as const;
+
+async function ensureDemoPocScore(sb: ReturnType<typeof getSupabaseAdmin>, pk: string) {
+  if (!walletEquals(pk, DEMO_WALLET)) return;
+  const { data: row } = await sb.from('poc_scores').select('composite_score').eq('wallet_address', pk).maybeSingle();
+  if (row && Number(row.composite_score) > 0) return;
+  await sb.from('poc_scores').upsert({ wallet_address: pk, ...DEMO_POC_SCORE }, { onConflict: 'wallet_address' });
+}
+
 function walletQuery(sb: ReturnType<typeof getSupabaseAdmin>, wallet: string) {
   return sb.from('profiles').select('*').eq('wallet_address', wallet).maybeSingle();
 }
@@ -224,7 +258,7 @@ export function createUnionRouter(): Router {
   });
 
   router.get('/protocol', async (_req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
 
     const sb = getSupabaseAdmin();
     const { data: epoch, error: epochErr } = await sb
@@ -255,7 +289,7 @@ export function createUnionRouter(): Router {
   });
 
   router.get('/profile/:wallet', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -264,6 +298,7 @@ export function createUnionRouter(): Router {
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
 
     const pk = profile.wallet_address as string;
+    await ensureDemoPocScore(sb, pk);
 
     const [shareholder, usd3, d3, referrals, dividends, fiPositions, teamNode, directReferrals, pocScore] = await Promise.all([
       sb.from('shareholders').select('*').eq('wallet_address', pk).maybeSingle(),
@@ -339,7 +374,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/profile', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
 
     const wallet = requireWallet(req);
     const { privyUserId: bodyPrivyUserId, displayName, lang } = req.body as {
@@ -377,7 +412,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/shareholders/join', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
 
     const wallet = requireWallet(req);
     const { joinTxHash, sponsorWallet } = req.body as { joinTxHash?: string; sponsorWallet?: string };
@@ -423,7 +458,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/usd3/claim', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
 
     const wallet = requireWallet(req);
     const sb = getSupabaseAdmin();
@@ -468,7 +503,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/referrals/bind', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
 
     const wallet = requireWallet(req);
     const { sponsorWallet, referralType } = req.body as {
@@ -526,7 +561,7 @@ export function createUnionRouter(): Router {
   });
 
   router.get('/notifications', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -554,7 +589,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/notifications/:id/read', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -573,7 +608,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/notifications/read-all', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -592,7 +627,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/multisig/proposals', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -685,7 +720,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/multisig/proposals/:id/sign', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -740,7 +775,7 @@ export function createUnionRouter(): Router {
   });
 
   router.post('/multisig/committee', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -784,7 +819,7 @@ export function createUnionRouter(): Router {
   });
 
   router.patch('/multisig/committee/:memberId', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 
@@ -816,7 +851,7 @@ export function createUnionRouter(): Router {
   });
 
   router.delete('/multisig/committee/:memberId', async (req, res) => {
-    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
     if (!assertWalletMatch(req, wallet, res)) return;
 

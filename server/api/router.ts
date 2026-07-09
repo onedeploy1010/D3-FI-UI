@@ -59,7 +59,7 @@ async function withCache<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 function requireDb(_req: Request, res: Response, next: () => void) {
   if (!isSupabaseConfigured()) {
-    res.status(503).json({ error: 'Supabase not configured' });
+    res.status(503).json({ error: 'Service not configured' });
     return;
   }
   next();
