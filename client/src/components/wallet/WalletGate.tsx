@@ -3,7 +3,6 @@ import { FlaskConical, Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { DEMO_PROFILE } from '@/lib/demoWallet';
 import { GlassButton } from '@/components/ui/GlassSurface';
-import { isMobileBrowser } from '@/lib/tokenPocket';
 import { cn } from '@/lib/utils';
 
 type WalletGateProps = {
@@ -23,7 +22,7 @@ export function WalletGate({
   descEn = 'Sign in with Privy and connect your Ethereum wallet (0x address). All data is bound to your wallet.',
   lang = 'zh',
 }: WalletGateProps) {
-  const { isConnected, isPrivyReady, privyInitFailed, isConnecting, connect, connectTokenPocket, connectDemo, error } = useWallet();
+  const { isConnected, isPrivyReady, privyInitFailed, isConnecting, connect, connectDemo, error } = useWallet();
   const t = lang === 'zh';
 
   if (isConnected) return <>{children}</>;
@@ -49,7 +48,7 @@ export function WalletGate({
         <GlassButton
           variant="primary"
           className="w-full !py-3.5"
-          onClick={() => connectTokenPocket()}
+          onClick={() => connect()}
           disabled={isConnecting || !isPrivyReady}
         >
           {!isPrivyReady && !privyInitFailed
@@ -65,26 +64,9 @@ export function WalletGate({
                   ? 'Privy 不可用'
                   : 'Privy unavailable'
                 : t
-                  ? 'TokenPocket 登录'
-                  : 'Sign in with TokenPocket'}
+                  ? 'Privy 登录'
+                  : 'Sign in with Privy'}
         </GlassButton>
-
-        <GlassButton
-          variant="secondary"
-          className="w-full !py-3 mt-3"
-          onClick={() => connect()}
-          disabled={isConnecting || !isPrivyReady}
-        >
-          {t ? '其他钱包 / 邮箱' : 'Other wallets / email'}
-        </GlassButton>
-
-        {isMobileBrowser() && (
-          <p className="text-[11px] text-[#160510]/45 dark:text-white/40 mt-3 leading-relaxed">
-            {t
-              ? '在手机浏览器中，请先点「TokenPocket 登录」跳转到 TP App 内置浏览器，再完成 Privy 连接。'
-              : 'On mobile browsers, tap TokenPocket first to open this site inside the TP app.'}
-          </p>
-        )}
 
         <div className="flex items-center gap-3 my-5">
           <div className="h-px flex-1 bg-[#8A2B57]/10 dark:bg-white/10" />

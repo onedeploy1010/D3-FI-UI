@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { d3DefaultChain, d3SupportedChains } from '@/lib/chains';
-import { d3PrivyWalletList } from '@/lib/privyConfig';
 
 const appId = import.meta.env.VITE_PRIVY_APP_ID;
 const clientId = import.meta.env.VITE_PRIVY_CLIENT_ID;
@@ -23,9 +22,6 @@ export function PrivyAppProvider({ children }: { children: ReactNode }) {
         appearance: {
           theme: 'light',
           accentColor: '#8A2B57',
-          walletChainType: 'ethereum-only',
-          walletList: d3PrivyWalletList,
-          landingHeader: '登录 D3',
         },
         loginMethods: ['wallet', 'email'],
         defaultChain: d3DefaultChain,
@@ -33,11 +29,6 @@ export function PrivyAppProvider({ children }: { children: ReactNode }) {
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',
-          },
-        },
-        fundingMethodConfig: {
-          moonpay: {
-            useSandbox: false,
           },
         },
       }}
