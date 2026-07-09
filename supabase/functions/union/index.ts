@@ -1,5 +1,16 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
-import { requirePrivyAuth } from '../_shared/privy.ts';
+import { getPrivyToken, requirePrivyAuth } from '../_shared/privy.ts';
+import {
+  createPrivyTreasuryWallet,
+  executePrivyWalletRpc,
+  signRpcBodyWithPrivateKey,
+  signRpcBodyWithUserJwt,
+} from '../_shared/privyApi.ts';
+import {
+  buildDividendAttestationRpcBody,
+  getTreasuryAuthPrivateKey,
+  isPrivyOnchainEnabled,
+} from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import {
   HttpError,
@@ -170,13 +181,45 @@ async function ensureShareholderLineInfra(sb: Sb, wallet: string) {
   return { lineId, line, multisig: ms };
 }
 
+async function provisionPrivyTreasury(sb: Sb, ms: Record<string, unknown>, lineLeader: string) {
+  if (!isPrivyOnchainEnabled() || ms.privy_wallet_id) return ms;
+  const quorumId = Deno.env.get('PRIVY_LINE_KEY_QUORUM_ID');
+  if (!quorumId) return ms;
+  try {
+    const pw = await createPrivyTreasuryWallet(quorumId, `D3 Line ${shortWallet(lineLeader)}`);
+    const { data: updated } = await sb
+      .from('multisig_wallets')
+      .update({
+        privy_wallet_id: pw.id,
+        privy_key_quorum_id: quorumId,
+        treasury_address: pw.address,
+        short_address: shortWallet(pw.address),
+      })
+      .eq('id', ms.id as string)
+      .select()
+      .single();
+    return updated ?? ms;
+  } catch (e) {
+    console.warn('[privy] provision treasury:', e);
+    return ms;
+  }
+}
+
+async function ensureShareholderLineInfraWithPrivy(sb: Sb, wallet: string) {
+  const result = await ensureShareholderLineInfra(sb, wallet);
+  if (!result?.multisig) return result;
+  const pk = (await findProfileByWallet(sb, wallet))?.wallet_address as string;
+  const ms = await provisionPrivyTreasury(sb, result.multisig as Record<string, unknown>, pk ?? wallet);
+  return { ...result, multisig: ms };
+}
+
 async function resolveLineMultisigContext(sb: Sb, wallet: string) {
   const profile = await findProfileByWallet(sb, wallet);
   const pk = profile?.wallet_address as string | undefined;
 
   if (pk) {
     try {
-      await ensureShareholderLineInfra(sb, pk);
+      await ensureShareholderLineInfraWithPrivy(sb, pk);
     } catch {
       /* best-effort */
     }
@@ -226,11 +269,71 @@ async function resolveLineMultisigContext(sb: Sb, wallet: string) {
 
 async function executeMultisigProposal(sb: Sb, proposalId: string) {
   const executedAt = new Date().toISOString();
-  const txHash = `0x${'ab'.repeat(32)}`;
+  const { data: proposal } = await sb
+    .from('multisig_proposals')
+    .select('*')
+    .eq('id', proposalId)
+    .maybeSingle();
+  if (!proposal) return;
+
+  const { data: msWallet } = await sb
+    .from('multisig_wallets')
+    .select('*')
+    .eq('id', proposal.multisig_wallet_id)
+    .maybeSingle();
+
+  let txHash = `0x${'ab'.repeat(32)}`;
+  let onchainStatus: string = 'off';
+
+  const rpcBody = proposal.privy_rpc_body as Record<string, unknown> | null;
+  const privyWalletId = msWallet?.privy_wallet_id as string | undefined;
+
+  if (privyWalletId && rpcBody && isPrivyOnchainEnabled()) {
+    const { data: sigRows } = await sb
+      .from('multisig_signatures')
+      .select('authorization_signature')
+      .eq('proposal_id', proposalId);
+    const authSigs = (sigRows ?? [])
+      .map((r) => r.authorization_signature as string | null)
+      .filter((s): s is string => Boolean(s));
+
+    const treasuryKey = getTreasuryAuthPrivateKey();
+    if (treasuryKey) {
+      try {
+        const serverSig = await signRpcBodyWithPrivateKey(privyWalletId, rpcBody, treasuryKey);
+        if (!authSigs.includes(serverSig)) authSigs.push(serverSig);
+      } catch (e) {
+        console.warn('[privy] server co-sign:', e);
+      }
+    }
+
+    const threshold = Number(msWallet?.threshold ?? 2);
+    if (authSigs.length >= threshold) {
+      try {
+        const result = await executePrivyWalletRpc(privyWalletId, rpcBody, authSigs);
+        if (result.hash) {
+          txHash = result.hash;
+          onchainStatus = 'submitted';
+        } else {
+          onchainStatus = 'failed';
+        }
+      } catch (e) {
+        console.error('[privy] execute rpc:', e);
+        onchainStatus = 'failed';
+      }
+    } else {
+      onchainStatus = 'awaiting_signatures';
+    }
+  }
 
   await sb
     .from('multisig_proposals')
-    .update({ status: 'executed', executed_at: executedAt, tx_hash: txHash })
+    .update({
+      status: 'executed',
+      executed_at: executedAt,
+      tx_hash: txHash,
+      onchain_status: onchainStatus,
+    })
     .eq('id', proposalId);
 
   const { data: dividends } = await sb
@@ -308,7 +411,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
 
   if (shareholder.data?.is_shareholder && shareholder.data.status === 'active') {
     try {
-      await ensureShareholderLineInfra(sb, pk);
+      await ensureShareholderLineInfraWithPrivy(sb, pk);
     } catch (e) {
       console.warn('[union] ensureShareholderLineInfra:', e);
     }
@@ -504,7 +607,7 @@ Deno.serve(async (req) => {
       if (error) throw new HttpError(502, error.message);
 
       try {
-        await ensureShareholderLineInfra(sb, wallet);
+        await ensureShareholderLineInfraWithPrivy(sb, wallet);
       } catch (e) {
         console.warn('[union] ensureShareholderLineInfra on join:', e);
       }
@@ -719,10 +822,21 @@ Deno.serve(async (req) => {
       const teamCount = beneficiaryCount ?? wallets.length;
       const expiresAt = new Date(now.getTime() + 7 * 86400000).toISOString();
 
+      const lineMs = ctx.lineMultisig as Record<string, unknown>;
+      if (isPrivyOnchainEnabled() && !lineMs.privy_wallet_id && ctx.lineId) {
+        await provisionPrivyTreasury(sb, lineMs, wallet);
+      }
+      const { data: refreshedMs } = await sb
+        .from('multisig_wallets')
+        .select('*')
+        .eq('id', ctx.lineMultisig.id)
+        .maybeSingle();
+      const activeMs = refreshedMs ?? ctx.lineMultisig;
+
       const { data: proposal, error } = await sb
         .from('multisig_proposals')
         .insert({
-          multisig_wallet_id: ctx.lineMultisig.id,
+          multisig_wallet_id: activeMs.id,
           wallet_type: 'line',
           title_zh: `${monthZh}本线分红发放`,
           title_en: `${monthEn} line dividend distribution`,
@@ -736,12 +850,23 @@ Deno.serve(async (req) => {
           proposer_wallet: wallet,
           status: 'pending',
           expires_at: expiresAt,
+          onchain_status: isPrivyOnchainEnabled() && activeMs.privy_wallet_id ? 'awaiting_signatures' : 'off',
         })
         .select()
         .single();
       if (error) throw new HttpError(502, error.message);
 
       const proposalId = proposal.id as string;
+      let privyRpcBody: Record<string, unknown> | null = null;
+      const privyWalletId = activeMs.privy_wallet_id as string | undefined;
+      if (privyWalletId && isPrivyOnchainEnabled()) {
+        privyRpcBody = buildDividendAttestationRpcBody(proposalId, wallet);
+        await sb
+          .from('multisig_proposals')
+          .update({ privy_rpc_body: privyRpcBody })
+          .eq('id', proposalId);
+      }
+
       if (wallets.length) {
         await sb
           .from('dividend_accruals')
@@ -752,21 +877,44 @@ Deno.serve(async (req) => {
           .in('status', ['pending']);
       }
 
+      let proposerAuthSig: string | null = null;
+      const privyToken = getPrivyToken(req);
+      if (privyWalletId && privyRpcBody) {
+        if (privyToken) {
+          proposerAuthSig = await signRpcBodyWithUserJwt(privyWalletId, privyRpcBody, privyToken);
+        }
+        if (!proposerAuthSig) {
+          const treasuryKey = getTreasuryAuthPrivateKey();
+          if (treasuryKey) {
+            try {
+              proposerAuthSig = await signRpcBodyWithPrivateKey(privyWalletId, privyRpcBody, treasuryKey);
+            } catch (e) {
+              console.warn('[privy] proposer server sign:', e);
+            }
+          }
+        }
+      }
+
       await sb.from('multisig_signatures').upsert(
         {
           proposal_id: proposalId,
           signer_wallet: wallet,
           signed_at: new Date().toISOString(),
+          authorization_signature: proposerAuthSig,
         },
         { onConflict: 'proposal_id,signer_wallet' },
       );
-      return jsonResponse({ proposal });
+      return jsonResponse({
+        proposal: { ...proposal, privy_rpc_body: privyRpcBody },
+        privyOnchain: Boolean(privyWalletId),
+      });
     }
 
     // POST /multisig/proposals/:id/sign
     const signMatch = path.match(/^\/multisig\/proposals\/([^/]+)\/sign$/);
     if (req.method === 'POST' && signMatch) {
       const wallet = requireWallet(req);
+      const signBody = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.isCommitteeMember) throw new HttpError(403, 'Not a committee member');
 
@@ -785,31 +933,63 @@ Deno.serve(async (req) => {
       );
       if (!member) throw new HttpError(403, 'Not a signer for this wallet');
 
+      const { data: msWallet } = await sb
+        .from('multisig_wallets')
+        .select('*')
+        .eq('id', proposal.multisig_wallet_id)
+        .single();
+
+      const privyWalletId = msWallet?.privy_wallet_id as string | undefined;
+      const rpcBody = proposal.privy_rpc_body as Record<string, unknown> | null;
+      let authSig = (signBody as { authorizationSignature?: string }).authorizationSignature ?? null;
+
+      if (!authSig && privyWalletId && rpcBody) {
+        const privyToken = getPrivyToken(req);
+        if (privyToken) {
+          authSig = await signRpcBodyWithUserJwt(privyWalletId, rpcBody, privyToken);
+        }
+        if (!authSig) {
+          const treasuryKey = getTreasuryAuthPrivateKey();
+          if (treasuryKey) {
+            try {
+              authSig = await signRpcBodyWithPrivateKey(privyWalletId, rpcBody, treasuryKey);
+            } catch (e) {
+              console.warn('[privy] committee server sign:', e);
+            }
+          }
+        }
+      }
+
       await sb.from('multisig_signatures').upsert(
         {
           proposal_id: proposalId,
           signer_wallet: wallet,
           signed_at: new Date().toISOString(),
+          authorization_signature: authSig,
         },
         { onConflict: 'proposal_id,signer_wallet' },
       );
 
-      const { data: msWallet } = await sb
-        .from('multisig_wallets')
-        .select('threshold')
-        .eq('id', proposal.multisig_wallet_id)
-        .single();
       const { data: sigs } = await sb
         .from('multisig_signatures')
-        .select('signer_wallet, signed_at')
+        .select('signer_wallet, signed_at, authorization_signature')
         .eq('proposal_id', proposalId)
         .not('signed_at', 'is', null);
 
       const signedCount = sigs?.length ?? 0;
       const threshold = Number(msWallet?.threshold ?? 2);
-      if (signedCount >= threshold) await executeMultisigProposal(sb, proposalId);
+      const privyAuthCount = (sigs ?? []).filter((s) => s.authorization_signature).length;
+      const executed = signedCount >= threshold;
+      if (executed) await executeMultisigProposal(sb, proposalId);
 
-      return jsonResponse({ ok: true, signedCount, threshold, executed: signedCount >= threshold });
+      return jsonResponse({
+        ok: true,
+        signedCount,
+        threshold,
+        privyAuthCount,
+        executed,
+        privyOnchain: Boolean(privyWalletId),
+      });
     }
 
     // POST /multisig/committee

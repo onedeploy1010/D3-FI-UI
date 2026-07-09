@@ -533,6 +533,7 @@ export type MultisigProposal = {
   signatures: { signerId: string; signedAt: string | null }[];
   executedAt?: string;
   txHash?: string;
+  onchainStatus?: 'off' | 'awaiting_signatures' | 'submitted' | 'confirmed' | 'failed';
 };
 
 export type MultisigWallet = {

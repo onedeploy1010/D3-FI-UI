@@ -94,6 +94,8 @@ export type MultisigWalletRow = {
   total_signers: number;
   balance_usd3: number;
   balance_d3: number;
+  privy_key_quorum_id?: string | null;
+  privy_wallet_id?: string | null;
 };
 
 export type CommitteeMemberRow = {
@@ -126,6 +128,7 @@ export type MultisigProposalRow = {
   expires_at: string | null;
   executed_at: string | null;
   tx_hash: string | null;
+  onchain_status?: 'off' | 'awaiting_signatures' | 'submitted' | 'confirmed' | 'failed';
 };
 
 export type MultisigSignatureRow = {

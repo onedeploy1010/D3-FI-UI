@@ -710,7 +710,14 @@ function GovernanceTab({
           </GlassButton>
         )}
         {p.status === 'executed' && p.txHash && (
-          <div className={`text-[10px] font-mono truncate ${muted}`}>tx: {p.txHash.slice(0, 18)}…</div>
+          <div className={`text-[10px] font-mono truncate ${muted}`}>
+            {p.onchainStatus && p.onchainStatus !== 'off' && (
+              <span className="text-emerald-500 mr-1">
+                {p.onchainStatus === 'submitted' ? (t ? '链上已广播' : 'On-chain') : p.onchainStatus}
+              </span>
+            )}
+            tx: {p.txHash.slice(0, 18)}…
+          </div>
         )}
       </div>
     );

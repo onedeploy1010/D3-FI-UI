@@ -93,7 +93,28 @@ Netlify 只需静态构建 `pnpm run build`，**不需要** Node API。所有股
 
 OpenRouter / 行情等仍含密钥，需单独 Edge Function 或保留开发用 Express；与 Union 无关。
 
-## 7. 验证
+## 7. Privy 真多签（Key Quorum + 链上执行）
+
+在 Supabase Secrets 中配置：
+
+```bash
+supabase secrets set \
+  PRIVY_APP_ID=cmr8vygpn00o20cl5oil97sgj \
+  PRIVY_APP_SECRET=privy_app_secret_... \
+  PRIVY_LINE_KEY_QUORUM_ID=pz0hdt8qtma7uyhujq1hzdbw \
+  PRIVY_TREASURY_AUTH_PRIVATE_KEY='wallet-auth:<Dashboard 创建的私钥>' \
+  PRIVY_CHAIN_CAIP2=eip155:56
+```
+
+说明：
+
+- `PRIVY_LINE_KEY_QUORUM_ID`：Dashboard → Keys and quorums 里的 **Key quorum ID**（你的是 `pz0hdt8q...`）
+- `PRIVY_TREASURY_AUTH_PRIVATE_KEY`：创建 authorization key 时 **一次性下载的私钥**（`wallet-auth:` 前缀）。你贴的 `MIGHAgEA...` 是**公钥**，不能用来签名
+- 线长成为股东后，Edge Function 会自动用 quorum 创建 **Privy 金库钱包**（`multisig_wallets.privy_wallet_id`）
+- 发起提案 → 委员签名 → 凑够 threshold 个 **Privy authorization signature** → `eth_sendTransaction` 广播到 BSC
+- 应用层仍会解锁 USD3 分红状态；链上 tx 为分红发放 attestation（后续可扩展为 ERC20 批量转账）
+
+## 8. 验证
 
 ```bash
 curl -s "$VITE_SUPABASE_URL/functions/v1/union/health" \

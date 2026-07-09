@@ -184,6 +184,7 @@ function mapProposals(bundle: UnionProfileBundle, wallet: string): MultisigPropo
       }),
       executedAt: p.executed_at ?? undefined,
       txHash: p.tx_hash ?? undefined,
+      onchainStatus: p.onchain_status ?? 'off',
     };
   });
 }
