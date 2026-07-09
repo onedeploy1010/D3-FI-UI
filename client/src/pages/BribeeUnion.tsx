@@ -36,6 +36,7 @@ import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { buildReferralLink } from '@/lib/referral';
 import { cn } from '@/lib/utils';
 import { UnionRevenueStreams } from '@/components/union/UnionRevenueStreams';
+import { UnionRulesCarousel } from '@/components/union/UnionRulesCarousel';
 import {
   UNION_JOIN_FEE_USDT,
   UNION_SELF_SHARE,
@@ -43,11 +44,8 @@ import {
   splitPerformanceUsd3,
   unionEquityStructure,
   unionRevenueStreams,
-  unionRewardQualification,
   usd3DividendFormula,
   d3DividendFormula,
-  lineMultisigWallet as fallbackLineMultisigWallet,
-  daoMultisigWallet as fallbackDaoMultisigWallet,
   type UnionMember,
   type UnionTeamNode,
   type MultisigProposal,
@@ -55,7 +53,8 @@ import {
 } from '@/components/union/unionData';
 import { UnionProfileContext, useUnionVm } from '@/contexts/UnionProfileContext';
 import { useUnionProfile } from '@/hooks/useUnionProfile';
-import { claimUsd3, joinShareholder } from '@/lib/unionApi';
+import { isSupabaseClientConfigured } from '@/lib/supabase';
+import { claimUsd3, joinShareholder, createMultisigProposal, signMultisigProposal, addCommitteeMember, updateCommitteeMember, removeCommitteeMember } from '@/lib/unionApi';
 
 type Lang = 'zh' | 'en';
 
@@ -85,7 +84,8 @@ export default function BribeeUnion() {
   const [, navigate] = useLocation();
   const { theme } = useTheme();
   const { wallet } = useWallet();
-  const { vm, isLoading, refetch } = useUnionProfile(wallet, lang);
+  const { vm, fallbackVm, isLoading, error, refetch } = useUnionProfile(wallet, lang);
+  const displayVm = vm ?? fallbackVm;
   const isDark = theme === 'dark';
   const t = lang === 'zh';
 
@@ -127,6 +127,7 @@ export default function BribeeUnion() {
         onLangToggle={() => setLang(lang === 'zh' ? 'en' : 'zh')}
         logoTo="/"
         logoSize={48}
+        isDark={isDark}
         onDisconnect={() => navigate('/portal')}
         leftSlot={
           <GlassIconButton onClick={() => navigate('/portal')} aria-label="Back to portal" className="!h-8 !w-8">
@@ -153,12 +154,28 @@ export default function BribeeUnion() {
       </div>
 
       <main className="page-px py-4 pb-28 max-w-md mx-auto md:max-w-xl flex-1 w-full">
-        {!vm && isLoading ? (
+        {!isSupabaseClientConfigured ? (
+          <div className={`text-center py-12 px-4 text-sm leading-relaxed ${isDark ? 'text-amber-400/90' : 'text-amber-700'}`}>
+            {t
+              ? 'Supabase 未配置：请在部署环境设置 VITE_SUPABASE_URL 与 VITE_SUPABASE_PUBLISHABLE_KEY 后重新构建。'
+              : 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.'}
+          </div>
+        ) : isLoading && !vm ? (
           <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
             {t ? '加载个人数据…' : 'Loading your data…'}
           </div>
-        ) : vm ? (
-        <UnionProfileContext.Provider value={vm}>
+        ) : displayVm && wallet ? (
+        <>
+        {error && (
+          <div className={cn(glassCardClass('default', 'p-4 mb-4'), 'border border-amber-500/25')}>
+            <p className={`text-xs font-semibold text-amber-500 mb-2`}>{t ? '数据加载失败' : 'Failed to load data'}</p>
+            <p className={`text-xs leading-relaxed mb-3 ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>{error}</p>
+            <GlassButton variant="secondary" className="w-full !py-2.5 !text-xs" onClick={() => void refetch()}>
+              {t ? '重试' : 'Retry'}
+            </GlassButton>
+          </div>
+        )}
+        <UnionProfileContext.Provider value={displayVm}>
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -184,7 +201,9 @@ export default function BribeeUnion() {
                 onGovernance={() => goTab('governance')}
               />
             )}
-            {tab === 'governance' && <GovernanceTab lang={lang} isDark={isDark} usd3Pending={usd3State.pending} />}
+            {tab === 'governance' && (
+              <GovernanceTab lang={lang} isDark={isDark} wallet={wallet} onRefetch={refetch} onGoAssets={() => goTab('assets')} />
+            )}
             {tab === 'assets' && (
               <AssetsTab
                 lang={lang}
@@ -202,6 +221,7 @@ export default function BribeeUnion() {
           </motion.div>
         </AnimatePresence>
         </UnionProfileContext.Provider>
+        </>
         ) : (
           <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
             {t ? '连接钱包以加载数据' : 'Connect wallet to load data'}
@@ -453,15 +473,11 @@ function HomeTab({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22 }}
             className="overflow-hidden -mt-2"
           >
-            <div className={glassCardClass('default', 'p-4 space-y-3')}>
-              <ul className={`space-y-1.5 text-xs font-semibold leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-                {(t ? unionRewardQualification.zh : unionRewardQualification.en).map((line) => (
-                  <li key={line}>· {line}</li>
-                ))}
-              </ul>
+            <div className={glassCardClass('default', 'p-4 sm:p-5')}>
+              <UnionRulesCarousel lang={lang} isDark={isDark} />
             </div>
           </motion.div>
         )}
@@ -527,20 +543,32 @@ function HomeTab({
   );
 }
 
-function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: boolean; usd3Pending: number }) {
+function GovernanceTab({
+  lang,
+  isDark,
+  wallet,
+  onRefetch,
+  onGoAssets,
+}: {
+  lang: Lang;
+  isDark: boolean;
+  wallet: string | null;
+  onRefetch: () => Promise<void>;
+  onGoAssets: () => void;
+}) {
   const t = lang === 'zh';
   const ud = useUnionVm();
-  const lineMultisigWallet = ud.lineMultisigWallet ?? fallbackLineMultisigWallet;
-  const daoMultisigWallet = ud.daoMultisigWallet ?? fallbackDaoMultisigWallet;
-  const { currentMultisigRole, performanceDividend, d3PerformanceDividend, teamNodes: unionTeamNodes } = ud;
+  const lineMultisigWallet = ud.lineMultisigWallet;
+  const daoMultisigWallet = ud.daoMultisigWallet;
+  const proposals = ud.multisigProposals;
+  const { currentMultisigRole, performanceDividend, usd3PerformanceDividend, d3PerformanceDividend, teamNodes: unionTeamNodes } = ud;
   const accent = isDark ? '#E0568F' : '#8A2B57';
   const muted = isDark ? 'text-white/55' : 'text-[#160510]/55';
-  const [view, setView] = useState<'pending' | 'history' | 'create'>('pending');
-  const [proposals, setProposals] = useState(ud.multisigProposals);
-
-  useEffect(() => {
-    setProposals(ud.multisigProposals);
-  }, [ud.multisigProposals]);
+  const [view, setView] = useState<'pending' | 'history' | 'create' | 'committee'>('pending');
+  const [busy, setBusy] = useState(false);
+  const [newSigner, setNewSigner] = useState('');
+  const [newRole, setNewRole] = useState('');
+  const [newWeight, setNewWeight] = useState('');
 
   const linePending = proposals.filter((p) => p.walletType === 'line' && p.status === 'pending');
   const lineHistory = proposals.filter((p) => p.walletType === 'line' && p.status !== 'pending');
@@ -549,51 +577,77 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
     return mySig && !mySig.signedAt;
   });
 
-  const signProposal = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const updated = p.signatures.map((s) =>
-          s.signerId === currentMultisigRole.signerId ? { ...s, signedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') } : s,
-        );
-        const signedCount = updated.filter((s) => s.signedAt).length;
-        const wallet = p.walletType === 'line' ? lineMultisigWallet : daoMultisigWallet;
-        if (signedCount >= wallet.threshold) {
-          return { ...p, signatures: updated, status: 'executed' as const, executedAt: new Date().toISOString().slice(0, 10), txHash: '0x' + 'ab'.repeat(32) };
-        }
-        return { ...p, signatures: updated };
-      }),
-    );
+  const signProposal = async (id: string) => {
+    if (!wallet || busy) return;
+    setBusy(true);
+    try {
+      await signMultisigProposal(wallet, id);
+      await onRefetch();
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const createProposal = () => {
-    const newP: MultisigProposal = {
-      id: `p${Date.now()}`,
-      walletType: 'line',
-      titleZh: `${performanceDividend.currentMonthZh}本线分红发放`,
-      titleEn: `${performanceDividend.currentMonthEn} line dividend`,
-      descZh: `向本线 ${unionTeamNodes.me.teamCount} 名成员按业绩分配`,
-      descEn: `Distribute to ${unionTeamNodes.me.teamCount} line members by performance`,
-      periodZh: performanceDividend.currentMonthZh,
-      periodEn: performanceDividend.currentMonthEn,
-      usd3Amount: usd3Pending,
-      d3Amount: d3PerformanceDividend.pending,
-      beneficiaryCount: unionTeamNodes.me.teamCount,
-      proposerShort: lineMultisigWallet.signers[0].short,
-      createdAt: new Date().toISOString().slice(0, 10),
-      expiresAt: '2026-08-05',
-      status: 'pending',
-      signatures: lineMultisigWallet.signers.map((s) => ({
-        signerId: s.id,
-        signedAt: s.id === 'me' ? new Date().toISOString().slice(0, 16).replace('T', ' ') : null,
-      })),
-    };
-    setProposals((prev) => [newP, ...prev]);
-    setView('pending');
+  const createProposal = async () => {
+    if (!wallet || busy) return;
+    setBusy(true);
+    try {
+      await createMultisigProposal(wallet, {
+        periodZh: performanceDividend.currentMonthZh,
+        periodEn: performanceDividend.currentMonthEn,
+        beneficiaryCount: unionTeamNodes.me?.teamCount ?? 0,
+      });
+      await onRefetch();
+      setView('pending');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addSigner = async () => {
+    if (!wallet || !newSigner.trim() || busy) return;
+    setBusy(true);
+    try {
+      await addCommitteeMember(wallet, {
+        signerWallet: newSigner.trim(),
+        roleZh: newRole.trim() || '委员',
+        roleEn: newRole.trim() || 'Committee',
+        dividendWeightPct: newWeight ? Number(newWeight) : undefined,
+      });
+      setNewSigner('');
+      setNewRole('');
+      setNewWeight('');
+      await onRefetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveSignerWeight = async (memberId: string, weight: number) => {
+    if (!wallet || busy) return;
+    setBusy(true);
+    try {
+      await updateCommitteeMember(wallet, memberId, { dividendWeightPct: weight });
+      await onRefetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeSigner = async (memberId: string) => {
+    if (!wallet || busy) return;
+    setBusy(true);
+    try {
+      await removeCommitteeMember(wallet, memberId);
+      await onRefetch();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const renderProposal = (p: MultisigProposal) => {
-    const wallet = p.walletType === 'line' ? lineMultisigWallet : daoMultisigWallet;
+    const msWallet = p.walletType === 'line' ? lineMultisigWallet : daoMultisigWallet;
+    if (!msWallet) return null;
     const signed = p.signatures.filter((s) => s.signedAt).length;
     const mySig = p.signatures.find((s) => s.signerId === currentMultisigRole.signerId);
     const canSign = p.status === 'pending' && mySig && !mySig.signedAt && currentMultisigRole.isCommitteeMember;
@@ -625,14 +679,14 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
             <span className={muted}>{t ? '签名进度' : 'Signatures'}</span>
-            <span style={{ color: accent }}>{signed}/{wallet.threshold}</span>
+            <span style={{ color: accent }}>{signed}/{msWallet.threshold}</span>
           </div>
           <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${(signed / wallet.threshold) * 100}%`, background: isLine ? '#6366f1' : '#22c55e' }} />
+            <div className="h-full rounded-full transition-all" style={{ width: `${(signed / msWallet.threshold) * 100}%`, background: isLine ? '#6366f1' : '#22c55e' }} />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {p.signatures.map((sig) => {
-              const signer = wallet.signers.find((s) => s.id === sig.signerId);
+              const signer = msWallet.signers.find((s) => s.id === sig.signerId);
               return (
                 <span
                   key={sig.signerId}
@@ -650,7 +704,7 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
         </div>
 
         {canSign && (
-          <GlassButton variant="primary" className="w-full !py-2.5 !text-xs flex items-center justify-center gap-1.5" onClick={() => signProposal(p.id)}>
+          <GlassButton variant="primary" className="w-full !py-2.5 !text-xs flex items-center justify-center gap-1.5" disabled={busy} onClick={() => void signProposal(p.id)}>
             <PenLine size={14} />
             {t ? '确认签名' : 'Sign proposal'}
           </GlassButton>
@@ -661,6 +715,19 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
       </div>
     );
   };
+
+  if (!lineMultisigWallet) {
+    return (
+      <div className={`text-center py-12 px-4 ${muted}`}>
+        <Shield size={32} className="mx-auto mb-3 opacity-40" />
+        <p className="text-sm font-medium text-pretty">
+          {t
+            ? '当前钱包未关联本线多签。请使用线长或委员钱包连接，或确认 Supabase 已执行 seed。'
+            : 'No line multisig for this wallet. Connect as line leader/committee member or run Supabase seed.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -676,7 +743,7 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
             </div>
           </div>
           <GlassChip className="!py-1 !px-2 text-[10px] font-bold text-indigo-400 !bg-indigo-500/10">
-            {currentMultisigRole.isLineLeader ? (t ? '线长' : 'Leader') : (t ? '委员' : 'Committee')}
+            {currentMultisigRole.isLineLeader ? (t ? '线长' : 'Leader') : currentMultisigRole.isCommitteeMember ? (t ? '委员' : 'Committee') : (t ? '只读' : 'Read-only')}
           </GlassChip>
         </div>
 
@@ -694,20 +761,44 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
         </div>
       </div>
 
-      <div className="ios-glass-tab-bar flex gap-1">
+      {(usd3PerformanceDividend.multisigPending > 0 || d3PerformanceDividend.multisigPending > 0) && (
+        <div className={glassCardClass('accent', 'p-4')}>
+          <div className="text-xs font-bold text-amber-500 mb-1">{t ? '关联分红 · 多签待签名' : 'Linked dividends · awaiting multisig'}</div>
+          <p className={`text-xs leading-relaxed mb-3 ${muted}`}>
+            {t
+              ? '市值/分线月度分红已锁定，待本线委员签名通过后入账资产页。'
+              : 'Monthly treasury/line dividends are locked until this line multisig approves.'}
+          </p>
+          <div className="flex flex-wrap gap-3 text-xs font-semibold mb-3">
+            {usd3PerformanceDividend.multisigPending > 0 && (
+              <span className="text-emerald-500">{usd3PerformanceDividend.multisigPending} USD3</span>
+            )}
+            {d3PerformanceDividend.multisigPending > 0 && (
+              <span style={{ color: accent }}>{d3PerformanceDividend.multisigPending} D3</span>
+            )}
+          </div>
+          <button type="button" onClick={onGoAssets} className="text-xs font-semibold text-indigo-500 ios-glass-pressable">
+            {t ? '查看资产页分红 →' : 'View dividends on Assets →'}
+          </button>
+        </div>
+      )}
+
+      <div className="ios-glass-tab-bar flex gap-1 flex-wrap">
         {([
           { id: 'pending' as const, zh: `待签${myPending.length ? ` (${myPending.length})` : ''}`, en: `Pending${myPending.length ? ` (${myPending.length})` : ''}` },
           { id: 'history' as const, zh: '历史', en: 'History' },
           { id: 'create' as const, zh: '发起', en: 'Propose' },
+          { id: 'committee' as const, zh: '委员会', en: 'Committee' },
         ]).map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setView(item.id)}
             className={cn(
-              'flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition',
+              'flex-1 min-w-[4.5rem] py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition',
               view === item.id ? 'ios-glass-tab-active text-indigo-500' : isDark ? 'text-white/55' : 'text-[#160510]/45',
               item.id === 'create' && !currentMultisigRole.isLineLeader && 'opacity-40 pointer-events-none',
+              item.id === 'committee' && !currentMultisigRole.isLineLeader && 'opacity-40 pointer-events-none',
             )}
           >
             {t ? item.zh : item.en}
@@ -722,7 +813,7 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
           ) : (
             linePending.map(renderProposal)
           )}
-          {proposals.filter((p) => p.walletType === 'dao' && p.status === 'pending').map(renderProposal)}
+          {daoMultisigWallet && proposals.filter((p) => p.walletType === 'dao' && p.status === 'pending').map(renderProposal)}
         </div>
       )}
 
@@ -743,40 +834,90 @@ function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: bool
           </div>
           <div className={`text-xs font-medium leading-relaxed text-pretty ${muted}`}>
             {t
-              ? `线长发起后，需 ${lineMultisigWallet.threshold}/${lineMultisigWallet.totalSigners} 委员在 Privy Key Quorum 内签名确认，达标后自动执行发放。`
-              : `Line leader proposes; ${lineMultisigWallet.threshold}/${lineMultisigWallet.totalSigners} committee signatures via Privy Key Quorum required to execute.`}
+              ? `线长发起后，需 ${lineMultisigWallet.threshold}/${lineMultisigWallet.totalSigners} 委员签名确认，达标后自动执行发放。`
+              : `Line leader proposes; ${lineMultisigWallet.threshold}/${lineMultisigWallet.totalSigners} committee signatures required to execute.`}
           </div>
           <div className="ios-glass-inset p-3 space-y-2 text-xs font-semibold">
             <div className="flex justify-between"><span className={muted}>{t ? '结算周期' : 'Period'}</span><span>{t ? performanceDividend.currentMonthZh : performanceDividend.currentMonthEn}</span></div>
             <div className="flex justify-between"><span className={muted}>{t ? '本线业绩' : 'Line perf.'}</span><span>${performanceDividend.linePerformanceUsd.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className={muted}>USD3</span><span className="text-emerald-500">{usd3Pending} pending</span></div>
-            <div className="flex justify-between"><span className={muted}>D3</span><span style={{ color: accent }}>{d3PerformanceDividend.pending} pending</span></div>
+            <div className="flex justify-between"><span className={muted}>{t ? '月度待多签 USD3' : 'Monthly USD3 (multisig)'}</span><span className="text-amber-500">{usd3PerformanceDividend.multisigPending || '—'}</span></div>
+            <div className="flex justify-between"><span className={muted}>{t ? '月度待多签 D3' : 'Monthly D3 (multisig)'}</span><span className="text-amber-500">{d3PerformanceDividend.multisigPending || '—'}</span></div>
           </div>
-          <GlassButton variant="primary" className="w-full !py-3 !text-sm" onClick={createProposal}>
-            {t ? '发起多签提案' : 'Submit proposal'}
+          <GlassButton variant="primary" className="w-full !py-3 !text-sm" disabled={busy} onClick={() => void createProposal()}>
+            {busy ? (t ? '提交中…' : 'Submitting…') : (t ? '发起多签提案' : 'Submit proposal')}
           </GlassButton>
         </div>
       )}
 
-      <div className={glassCardClass('default', 'p-4')}>
-        <div className="flex items-center gap-2 mb-2">
-          <Shield size={14} className="text-emerald-500" />
-          <span className={`text-xs font-bold uppercase tracking-wider ${muted}`}>{t ? daoMultisigWallet.labelZh : daoMultisigWallet.labelEn}</span>
-        </div>
-        <div className={`text-xs font-medium mb-2 ${muted}`}>
-          {daoMultisigWallet.threshold}/{daoMultisigWallet.totalSigners} · {t ? '协议层多签，只读查看' : 'Protocol-level multisig · read-only'}
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-          <div className="ios-glass-inset p-2 rounded-xl">
-            <div className={muted}>USD3</div>
-            <div className="font-bold font-stat text-emerald-500/80 mt-0.5">{(daoMultisigWallet.balanceUsd3 / 1000).toFixed(0)}K</div>
+      {view === 'committee' && currentMultisigRole.isLineLeader && (
+        <div className="space-y-3">
+          {lineMultisigWallet.signers.map((s) => (
+            <div key={s.id} className={glassCardClass('default', 'p-4')}>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? s.roleZh : s.roleEn}</div>
+                  <div className={`text-[10px] font-mono mt-0.5 ${muted}`}>{s.short}</div>
+                </div>
+                {s.isSelf && (
+                  <GlassChip className="!py-0.5 !px-2 text-[10px] font-bold text-indigo-400 !bg-indigo-500/10">
+                    {t ? '你' : 'You'}
+                  </GlassChip>
+                )}
+              </div>
+              {!s.isSelf && s.id !== 'me' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <label className={`text-[10px] font-semibold shrink-0 ${muted}`}>{t ? '分红权重 %' : 'Weight %'}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    defaultValue={s.dividendWeightPct ?? ''}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isNaN(v) && s.id) void saveSignerWeight(s.id, v);
+                    }}
+                    className={`flex-1 ios-glass-inset px-2 py-1 text-xs outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`}
+                  />
+                  <button type="button" onClick={() => void removeSigner(s.id)} className="text-[10px] font-semibold text-red-400 ios-glass-pressable px-2">
+                    {t ? '移除' : 'Remove'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          <div className={glassCardClass('default', 'p-4 space-y-3')}>
+            <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? '任命委员' : 'Appoint committee member'}</div>
+            <input value={newSigner} onChange={(e) => setNewSigner(e.target.value)} placeholder="0x…" className={`w-full ios-glass-inset px-3 py-2 text-xs font-mono outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`} />
+            <input value={newRole} onChange={(e) => setNewRole(e.target.value)} placeholder={t ? '角色名称' : 'Role label'} className={`w-full ios-glass-inset px-3 py-2 text-xs outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`} />
+            <input value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder={t ? '分红权重 %（可选）' : 'Dividend weight % (optional)'} className={`w-full ios-glass-inset px-3 py-2 text-xs outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`} />
+            <GlassButton variant="secondary" className="w-full !py-2.5 !text-xs" disabled={busy || !newSigner.trim()} onClick={() => void addSigner()}>
+              {t ? '添加委员' : 'Add member'}
+            </GlassButton>
           </div>
-          <div className="ios-glass-inset p-2 rounded-xl">
-            <div className={muted}>D3</div>
-            <div className="font-bold font-stat mt-0.5" style={{ color: accent }}>{(daoMultisigWallet.balanceD3 / 1000).toFixed(1)}K</div>
+        </div>
+      )}
+
+      {daoMultisigWallet && (
+        <div className={glassCardClass('default', 'p-4')}>
+          <div className="flex items-center gap-2 mb-2">
+            <Shield size={14} className="text-emerald-500" />
+            <span className={`text-xs font-bold uppercase tracking-wider ${muted}`}>{t ? daoMultisigWallet.labelZh : daoMultisigWallet.labelEn}</span>
+          </div>
+          <div className={`text-xs font-medium mb-2 ${muted}`}>
+            {daoMultisigWallet.threshold}/{daoMultisigWallet.totalSigners} · {t ? '协议层多签，只读查看' : 'Protocol-level multisig · read-only'}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+            <div className="ios-glass-inset p-2 rounded-xl">
+              <div className={muted}>USD3</div>
+              <div className="font-bold font-stat text-emerald-500/80 mt-0.5">{(daoMultisigWallet.balanceUsd3 / 1000).toFixed(0)}K</div>
+            </div>
+            <div className="ios-glass-inset p-2 rounded-xl">
+              <div className={muted}>D3</div>
+              <div className="font-bold font-stat mt-0.5" style={{ color: accent }}>{(daoMultisigWallet.balanceD3 / 1000).toFixed(1)}K</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <p className={`text-[11px] sm:text-xs font-semibold text-center leading-relaxed px-2 text-pretty ${muted}`}>
         {t ? '分线收益由线长发起、委员多签复核后发放。协议 DAO 储备由独立多签管理。' : 'Line dividends: leader proposes, committee multisig confirms. DAO reserve managed separately.'}
@@ -915,12 +1056,21 @@ function AssetsTab({
         ))}
       </div>
 
-      <div className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-        {t ? `PPT 股东章 · Epoch ${performanceDividend.currentEpoch} · ${performanceDividend.currentMonthZh}` : `PPT Ch6 · Epoch ${performanceDividend.currentEpoch} · ${performanceDividend.currentMonthEn}`}
-      </div>
-
       {dividendAsset === 'usd3' ? (
         <>
+          {(usd3PerformanceDividend.multisigPending > 0) && (
+            <div className={glassCardClass('accent', 'p-4')}>
+              <div className="flex items-center gap-2 mb-2">
+                <Shield size={14} className="text-amber-500" />
+                <span className="text-xs font-bold text-amber-500">{t ? '多签待签名 · 月度分红' : 'Multisig pending · monthly dividends'}</span>
+              </div>
+              <p className={`text-xs leading-relaxed mb-2 ${muted}`}>
+                {t
+                  ? `${usd3PerformanceDividend.multisigPending} USD3 已关联待签提案，委员签名通过后可在本页领取。`
+                  : `${usd3PerformanceDividend.multisigPending} USD3 is locked until the line multisig proposal is signed.`}
+              </p>
+            </div>
+          )}
           <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500/45 to-transparent" />
             <div className="flex items-start justify-between gap-2 mb-3">
@@ -1058,9 +1208,17 @@ function AssetsTab({
               {usd3PerformanceDividend.breakdown.map((row) => {
                 const stream = unionRevenueStreams.find((s) => s.id === row.streamId)!;
                 return (
-                  <div key={row.streamId} className="flex justify-between items-center ios-glass-inset px-3 py-2 rounded-xl">
-                    <span className={`text-xs font-semibold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>{t ? stream.zh : stream.en}</span>
-                    <span className="font-bold font-stat text-emerald-500">{row.amount} USD3</span>
+                  <div key={row.streamId} className="ios-glass-inset px-3 py-2 rounded-xl space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className={`text-xs font-semibold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>{t ? stream.zh : stream.en}</span>
+                      <span className="font-bold font-stat text-emerald-500">{row.amount} USD3</span>
+                    </div>
+                    {row.multisigPending > 0 && (
+                      <div className="flex justify-between text-[10px] font-semibold text-amber-500">
+                        <span>{t ? '多签待签' : 'Multisig pending'}</span>
+                        <span>{row.multisigPending} USD3</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1082,8 +1240,14 @@ function AssetsTab({
                     {r.amount > 0 ? (
                       <>
                         <div className="font-bold font-stat text-emerald-500">+{r.amount} USD3</div>
-                        <div className={`text-sm font-medium mt-0.5 ${r.status === 'claimed' ? 'text-emerald-500/70' : ''}`}>
-                          {r.status === 'claimed' ? (t ? '已领取' : 'Claimed') : ''}
+                        <div className={`text-sm font-medium mt-0.5 ${r.status === 'claimed' ? 'text-emerald-500/70' : r.status === 'multisig_pending' ? 'text-amber-500/80' : ''}`}>
+                          {r.status === 'claimed'
+                            ? (t ? '已领取' : 'Claimed')
+                            : r.status === 'multisig_pending'
+                              ? (t ? '多签待签' : 'Multisig pending')
+                              : r.status === 'claimable'
+                                ? (t ? '可领取' : 'Claimable')
+                                : ''}
                         </div>
                       </>
                     ) : (

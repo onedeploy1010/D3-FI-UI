@@ -1,64 +1,102 @@
-# Supabase setup — D3 Shareholder Alliance
+# Supabase — D³ Union / D³-Fi
 
-## 1. Configure environment
+## Keys（不需要额外 KEY）
 
-Copy keys into `.env` (never commit `.env`):
+| 变量 | 用途 |
+|------|------|
+| `VITE_SUPABASE_URL` | 浏览器 + Edge Function |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | 浏览器调用 Function 的 `Authorization` / `apikey` |
+| `SUPABASE_SECRET_KEY` | **仅** Supabase Dashboard / Edge Function 密钥，**不要**放进前端 |
 
-```bash
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-SUPABASE_SECRET_KEY=sb_secret_...
-VITE_SUPABASE_URL=$SUPABASE_URL
-VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
-```
+Privy 登录后，浏览器把 **Privy access token** 放在 `X-Privy-Token` 请求头；Edge Function 验证后使用 **service role** 读写数据库。
 
-Server uses `SUPABASE_SECRET_KEY` (service role). Client uses publishable key only.
+## 1. 数据库迁移
 
-## 2. Run migration
+在 [SQL Editor](https://supabase.com/dashboard/project/_/sql) 依次执行 `supabase/migrations/001` … `008`，再运行 `supabase/seed.sql`（可选）。
 
-In [Supabase SQL Editor](https://supabase.com/dashboard/project/_/sql):
-
-1. Paste and run `supabase/migrations/001_d3_union_schema.sql`
-2. Optionally run `supabase/seed.sql` for demo data
-
-Or with Supabase CLI:
+或 CLI：
 
 ```bash
-supabase link --project-ref gvyvdnegsxiykxffddwb
+supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
 ```
 
-## 3. Verify connection
+## 2. 部署 Edge Function `union`
+
+在 Supabase 项目里设置 **Function secrets**（Dashboard → Edge Functions → Secrets）：
 
 ```bash
-curl http://localhost:3000/api/union/health
+PRIVY_APP_ID=your-privy-app-id
+# 可选，默认 https://auth.privy.io/api/v1/apps/{PRIVY_APP_ID}/jwks.json
+PRIVY_JWKS_URL=
 ```
 
-## Schema overview
+`SUPABASE_URL` 与 `SUPABASE_SERVICE_ROLE_KEY` 由 Supabase 自动注入，无需手动配置。
 
-| Table | Purpose |
-|-------|---------|
-| `profiles` | Wallet users (Privy / auth link) |
-| `referrals` | Sponsor → downline referral graph |
-| `shareholders` | Genesis DT / 发起人股东 |
-| `union_lines` | 分线 |
-| `team_nodes` | Team tree per line |
-| `multisig_wallets` | Line / DAO treasuries (Privy Key Quorum) |
-| `committee_members` | 委员会签名人 |
-| `multisig_proposals` | 分红 / 发放提案 |
-| `multisig_signatures` | 多签签名记录 |
-| `usd3_accounts` | USD3 业绩分红资产账户 |
-| `d3_accounts` | D3 链上分红账户 |
-| `dividend_accruals` | 三路收益明细账 |
-| `usd3_transfers` | 转 D3-Fi / 转伞下 |
-| `fi_positions` | D3-Fi 投资持仓 |
+部署：
 
-## API routes (`/api/union/*`)
+```bash
+supabase functions deploy union --no-verify-jwt
+```
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Supabase connectivity |
-| GET | `/profile/:wallet` | Full user bundle |
-| POST | `/profile` | Create/update profile + empty accounts |
-| POST | `/shareholders/join` | Activate shareholder + optional referral |
-| POST | `/usd3/claim` | Claim pending USD3 → account balance |
+本地调试：
+
+```bash
+supabase secrets set PRIVY_APP_ID=your-privy-app-id
+supabase functions serve union --no-verify-jwt --env-file .env
+```
+
+## 3. 前端环境（Netlify / 本地）
+
+`.env`：
+
+```bash
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_PRIVY_APP_ID=your-privy-app-id
+```
+
+Netlify 只需静态构建 `pnpm run build`，**不需要** Node API。所有股东联盟 / D³-Fi 数据走：
+
+`https://xxx.supabase.co/functions/v1/union/*`
+
+## 4. 架构
+
+```
+浏览器 (publishable key + Privy token)
+    → Supabase Edge Function `union`
+        → 验证 Privy JWT
+        → service role 读写 Postgres (RLS 由服务端绕过)
+```
+
+公开只读（Epoch / Bribe）同样经 Function 的 `GET /protocol`，无需 Privy。
+
+## 5. Function 路由
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/health` | 连通性 |
+| GET | `/protocol` | 当前 Epoch + Bribe 项目 |
+| GET | `/profile/:wallet` | 用户完整 bundle |
+| POST | `/profile` | 创建/更新 profile |
+| POST | `/shareholders/join` | 加入股东 |
+| POST | `/usd3/claim` | 领取 USD3 |
+| POST | `/referrals/bind` | 绑定推荐人 |
+| GET | `/notifications` | 通知列表 |
+| POST | `/notifications/:id/read` | 标记已读 |
+| POST | `/notifications/read-all` | 全部已读 |
+| POST | `/multisig/proposals` | 发起分红提案 |
+| POST | `/multisig/proposals/:id/sign` | 多签 |
+| POST/PATCH/DELETE | `/multisig/committee` | 委员会管理 |
+
+## 6. D³-AI
+
+OpenRouter / 行情等仍含密钥，需单独 Edge Function 或保留开发用 Express；与 Union 无关。
+
+## 7. 验证
+
+```bash
+curl -s "$VITE_SUPABASE_URL/functions/v1/union/health" \
+  -H "Authorization: Bearer $VITE_SUPABASE_PUBLISHABLE_KEY" \
+  -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY"
+```

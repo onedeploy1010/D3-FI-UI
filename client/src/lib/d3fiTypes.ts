@@ -37,9 +37,10 @@ export type DividendAccrual = {
   amount: number;
   period_label: string | null;
   cycle_type: string;
-  status: 'pending' | 'claimable' | 'claimed' | 'none';
+  status: 'pending' | 'multisig_pending' | 'claimable' | 'claimed' | 'none';
   source_zh: string | null;
   source_en: string | null;
+  multisig_proposal_id?: string | null;
   settled_at: string | null;
   claimed_at: string | null;
   created_at: string;
@@ -103,6 +104,7 @@ export type CommitteeMemberRow = {
   role_en: string | null;
   is_line_leader: boolean;
   sort_order: number;
+  dividend_weight_pct?: number | null;
 };
 
 export type MultisigProposalRow = {

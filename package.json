@@ -12,6 +12,7 @@
     "db:check": "tsx scripts/supabase-check.ts",
     "db:migrate:ai": "tsx scripts/supabase-migrate-ai.ts",
     "db:seed:ai": "tsx scripts/supabase-seed-ai.ts",
+    "supabase:deploy": "supabase secrets set PRIVY_APP_ID=$PRIVY_APP_ID PRIVY_JWKS_URL=$PRIVY_JWKS_URL && supabase functions deploy union --no-verify-jwt",
     "format": "prettier --write ."
   },
   "dependencies": {

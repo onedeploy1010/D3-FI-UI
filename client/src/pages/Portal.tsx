@@ -160,6 +160,7 @@ export default function Portal() {
         onLangToggle={() => setLang(lang === 'zh' ? 'en' : 'zh')}
         logoTo="/"
         logoSize={48}
+        isDark={isDark}
         onDisconnect={() => navigate('/')}
       />
 

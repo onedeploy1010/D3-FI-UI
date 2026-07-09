@@ -28,10 +28,10 @@ const PNG_2X: Record<PngVariant, string> = {
   mono: brandLogo.mono2x,
 };
 
-/** Official seal: light theme → light seal, dark theme → primary seal */
-function resolveVariant(variant: LogoVariant, isDark: boolean): Exclude<LogoVariant, 'auto'> {
+/** Official seal — same asset for light/dark (self-contained circular mark) */
+function resolveVariant(variant: LogoVariant, _isDark: boolean): Exclude<LogoVariant, 'auto'> {
   if (variant !== 'auto') return variant;
-  return isDark ? 'primary' : 'light';
+  return 'primary';
 }
 
 function pngSrc(variant: PngVariant) {

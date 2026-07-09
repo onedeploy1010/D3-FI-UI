@@ -1,4 +1,5 @@
 import type { UnionProfileBundle } from './d3fiTypes';
+import { isSupabaseClientConfigured, supabaseUrl, supabaseAnonKey } from './supabase';
 import { formatWalletAddress } from './wallet';
 
 export type { UnionProfileBundle };
@@ -11,32 +12,60 @@ export function setUnionAccessTokenGetter(getter: TokenGetter) {
   accessTokenGetter = getter;
 }
 
-async function buildAuthHeaders(wallet: string): Promise<Record<string, string>> {
+function requireSupabase() {
+  if (!isSupabaseClientConfigured || !supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY');
+  }
+}
+
+async function buildFunctionHeaders(wallet: string): Promise<Record<string, string>> {
   const address = formatWalletAddress(wallet);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    Authorization: `Bearer ${supabaseAnonKey}`,
+    apikey: supabaseAnonKey!,
     'X-Wallet-Address': address,
   };
 
   if (accessTokenGetter) {
     const token = await accessTokenGetter();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) headers['X-Privy-Token'] = token;
   }
 
   return headers;
 }
 
+/** Call Supabase Edge Function `union` (replaces local /api/union). */
 export async function unionFetch<T>(
   path: string,
   wallet: string,
   init?: RequestInit,
 ): Promise<T> {
-  const authHeaders = await buildAuthHeaders(wallet);
-  const res = await fetch(`/api/union${path}`, {
+  requireSupabase();
+  const authHeaders = await buildFunctionHeaders(wallet);
+  const url = `${supabaseUrl}/functions/v1/union${path}`;
+  const res = await fetch(url, {
     ...init,
     headers: {
       ...authHeaders,
       ...(init?.headers ?? {}),
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body as { error?: string }).error ?? res.statusText);
+  }
+  return body as T;
+}
+
+/** Public reads — no wallet / Privy required. */
+export async function unionPublicFetch<T>(path: string): Promise<T> {
+  requireSupabase();
+  const url = `${supabaseUrl}/functions/v1/union${path}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      apikey: supabaseAnonKey!,
     },
   });
   const body = await res.json().catch(() => ({}));
@@ -53,9 +82,7 @@ export function ensureUnionProfile(
   return unionFetch<{ profile: unknown; created: boolean }>('/profile', wallet, {
     method: 'POST',
     body: JSON.stringify({
-      walletAddress: wallet,
       lang: opts?.lang ?? 'zh',
-      privyUserId: opts?.privyUserId,
       displayName: opts?.displayName,
     }),
   });
@@ -84,5 +111,50 @@ export function bindReferral(
   return unionFetch<{ referral: unknown; created: boolean }>('/referrals/bind', wallet, {
     method: 'POST',
     body: JSON.stringify({ sponsorWallet, referralType }),
+  });
+}
+
+export function createMultisigProposal(
+  wallet: string,
+  body?: { periodZh?: string; periodEn?: string; beneficiaryCount?: number },
+) {
+  return unionFetch<{ proposal: unknown }>('/multisig/proposals', wallet, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function signMultisigProposal(wallet: string, proposalId: string) {
+  return unionFetch<{ ok: boolean; signedCount: number; threshold: number; executed: boolean }>(
+    `/multisig/proposals/${encodeURIComponent(proposalId)}/sign`,
+    wallet,
+    { method: 'POST' },
+  );
+}
+
+export function addCommitteeMember(
+  wallet: string,
+  body: { signerWallet: string; roleZh?: string; roleEn?: string; dividendWeightPct?: number },
+) {
+  return unionFetch<{ member: unknown }>('/multisig/committee', wallet, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateCommitteeMember(
+  wallet: string,
+  memberId: string,
+  body: { roleZh?: string; roleEn?: string; dividendWeightPct?: number },
+) {
+  return unionFetch<{ member: unknown }>(`/multisig/committee/${encodeURIComponent(memberId)}`, wallet, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function removeCommitteeMember(wallet: string, memberId: string) {
+  return unionFetch<{ ok: boolean }>(`/multisig/committee/${encodeURIComponent(memberId)}`, wallet, {
+    method: 'DELETE',
   });
 }

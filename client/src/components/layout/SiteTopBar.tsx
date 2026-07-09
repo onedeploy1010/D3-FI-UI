@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { D3Logo } from '@/components/D3Logo';
 import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
+import { SiteNotificationBell } from '@/components/layout/SiteNotificationBell';
 import { cn } from '@/lib/utils';
 
 type SiteTopBarProps = {
@@ -11,6 +12,8 @@ type SiteTopBarProps = {
   leftSlot?: ReactNode;
   rightSlot?: ReactNode;
   onDisconnect?: () => void;
+  showNotifications?: boolean;
+  isDark?: boolean;
   className?: string;
 };
 
@@ -22,6 +25,8 @@ export function SiteTopBar({
   leftSlot,
   rightSlot,
   onDisconnect,
+  showNotifications = true,
+  isDark,
   className,
 }: SiteTopBarProps) {
   return (
@@ -39,6 +44,7 @@ export function SiteTopBar({
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {rightSlot}
+          {showNotifications && <SiteNotificationBell lang={lang} isDark={isDark} />}
           <button
             type="button"
             onClick={onLangToggle}

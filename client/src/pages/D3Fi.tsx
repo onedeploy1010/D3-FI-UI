@@ -20,7 +20,7 @@ import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/Gl
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { SiteTopBar } from '@/components/layout/SiteTopBar';
+import { SiteNotificationBell } from '@/components/layout/SiteNotificationBell';
 import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 import { WalletGate } from '@/components/wallet/WalletGate';
 import { useD3FiProfile, type D3FiViewModel } from '@/hooks/useD3FiProfile';
@@ -217,6 +217,7 @@ export default function D3Fi() {
       <nav className="ios-glass-topbar sticky top-0 z-40 md:hidden page-px py-2.5 sm:py-3 flex items-center justify-between gap-2 safe-area-pt">
         <D3Logo size={32} showText to="/" className="min-w-0 shrink" textClassName={`text-sm ${isDark ? 'text-white' : 'text-[#8A2B57]'}`} />
         <div className="flex items-center gap-1.5 shrink-0">
+          <SiteNotificationBell lang={lang} isDark={isDark} />
           <GlassIconButton onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} className="text-[10px] px-2 py-1.5 font-medium">
             {lang === 'zh' ? 'EN' : '中文'}
           </GlassIconButton>
@@ -235,6 +236,7 @@ export default function D3Fi() {
       }`}>
         <SitePageHeader title={pageTitle} subtitle={pageDesc} />
         <div className="flex items-center gap-3">
+          <SiteNotificationBell lang={lang} isDark={isDark} />
           <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
             isDark ? 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1]' : 'bg-[#8A2B57]/[0.06] text-[#8A2B57]/60 hover:bg-[#8A2B57]/[0.1]'
           }`}>

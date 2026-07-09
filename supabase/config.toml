@@ -1,0 +1,10 @@
+# Supabase local / deploy config — https://supabase.com/docs/guides/cli/config
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[functions.union]
+verify_jwt = false

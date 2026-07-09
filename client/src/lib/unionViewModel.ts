@@ -136,6 +136,7 @@ function mapMultisigWallet(
       roleZh: m.role_zh ?? '',
       roleEn: m.role_en ?? '',
       isSelf: m.signer_wallet.toLowerCase() === wallet.toLowerCase(),
+      dividendWeightPct: m.dividend_weight_pct != null ? num(m.dividend_weight_pct) : null,
     }));
   return {
     id: row.id,
@@ -203,6 +204,7 @@ export type UnionViewModel = {
   };
   usd3PerformanceDividend: {
     pending: number;
+    multisigPending: number;
     claimedLifetime: number;
     settlementZh: string;
     settlementEn: string;
@@ -210,10 +212,11 @@ export type UnionViewModel = {
     nextEpochSettlementEn: string;
     nextMonthlySettlementZh: string;
     nextMonthlySettlementEn: string;
-    breakdown: { streamId: 'fees' | 'treasury' | 'line'; amount: number; cycleZh: string; cycleEn: string }[];
+    breakdown: { streamId: 'fees' | 'treasury' | 'line'; amount: number; multisigPending: number; cycleZh: string; cycleEn: string }[];
   };
   d3PerformanceDividend: {
     pending: number;
+    multisigPending: number;
     claimedLifetime: number;
     settlementZh: string;
     settlementEn: string;
@@ -221,10 +224,10 @@ export type UnionViewModel = {
     nextMonthlySettlementEn: string;
     nextEpochSettlementZh: string;
     nextEpochSettlementEn: string;
-    breakdown: { streamId: 'fees' | 'treasury' | 'line'; amount: number; cycleZh: string; cycleEn: string }[];
+    breakdown: { streamId: 'fees' | 'treasury' | 'line'; amount: number; multisigPending: number; cycleZh: string; cycleEn: string }[];
   };
-  recentUsd3Dividends: { id: string; period: string; date: string; amount: number; sourceZh: string; sourceEn: string; status: 'claimed' | 'claimable' | 'none' | 'pending' }[];
-  recentD3Dividends: { id: string; period: string; date: string; amount: number; sourceZh: string; sourceEn: string; status: 'claimed' | 'claimable' | 'none' | 'pending' }[];
+  recentUsd3Dividends: { id: string; period: string; date: string; amount: number; sourceZh: string; sourceEn: string; status: 'claimed' | 'claimable' | 'none' | 'pending' | 'multisig_pending' }[];
+  recentD3Dividends: { id: string; period: string; date: string; amount: number; sourceZh: string; sourceEn: string; status: 'claimed' | 'claimable' | 'none' | 'pending' | 'multisig_pending' }[];
   teamNodes: Record<string, UnionTeamNode>;
   lineMultisigWallet: MultisigWallet | null;
   daoMultisigWallet: MultisigWallet | null;
@@ -242,17 +245,34 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
 
   const breakdownUsd3 = (['fees', 'treasury', 'line'] as const).map((streamId) => ({
     streamId,
-    amount: usd3Divs.filter((d) => d.stream_id === streamId && d.status !== 'claimed').reduce((s, d) => s + num(d.amount), 0),
+    amount: usd3Divs
+      .filter((d) => d.stream_id === streamId && d.status !== 'claimed' && d.status !== 'multisig_pending')
+      .reduce((s, d) => s + num(d.amount), 0),
+    multisigPending: usd3Divs
+      .filter((d) => d.stream_id === streamId && d.status === 'multisig_pending')
+      .reduce((s, d) => s + num(d.amount), 0),
     cycleZh: usd3Divs.find((d) => d.stream_id === streamId)?.period_label ?? '—',
     cycleEn: usd3Divs.find((d) => d.stream_id === streamId)?.period_label ?? '—',
   }));
 
   const breakdownD3 = (['fees', 'treasury', 'line'] as const).map((streamId) => ({
     streamId,
-    amount: d3Divs.filter((d) => d.stream_id === streamId && d.status !== 'claimed').reduce((s, d) => s + num(d.amount), 0),
+    amount: d3Divs
+      .filter((d) => d.stream_id === streamId && d.status !== 'claimed' && d.status !== 'multisig_pending')
+      .reduce((s, d) => s + num(d.amount), 0),
+    multisigPending: d3Divs
+      .filter((d) => d.stream_id === streamId && d.status === 'multisig_pending')
+      .reduce((s, d) => s + num(d.amount), 0),
     cycleZh: d3Divs.find((d) => d.stream_id === streamId)?.period_label ?? '—',
     cycleEn: d3Divs.find((d) => d.stream_id === streamId)?.period_label ?? '—',
   }));
+
+  const multisigPendingUsd3 = usd3Divs
+    .filter((d) => d.status === 'multisig_pending')
+    .reduce((s, d) => s + num(d.amount), 0);
+  const multisigPendingD3 = d3Divs
+    .filter((d) => d.status === 'multisig_pending')
+    .reduce((s, d) => s + num(d.amount), 0);
 
   const latestPeriod = bundle.dividends[0]?.period_label ?? '#—';
   const now = new Date();
@@ -262,9 +282,14 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
   const lineMs = bundle.multisigWallets.find((w) => w.wallet_type === 'line');
   const daoMs = bundle.multisigWallets.find((w) => w.wallet_type === 'dao');
 
-  const isLineLeader = bundle.committeeMembers.some(
-    (m) => m.is_line_leader && m.signer_wallet.toLowerCase() === wallet.toLowerCase(),
-  );
+  const isLineLeader =
+    bundle.committeeMembers.some(
+      (m) => m.is_line_leader && m.signer_wallet.toLowerCase() === wallet.toLowerCase(),
+    ) ||
+    Boolean(
+      bundle.unionLine?.line_leader_wallet &&
+        bundle.unionLine.line_leader_wallet.toLowerCase() === wallet.toLowerCase(),
+    );
   const isCommitteeMember = bundle.committeeMembers.some(
     (m) => m.signer_wallet.toLowerCase() === wallet.toLowerCase(),
   );
@@ -290,6 +315,7 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
     },
     usd3PerformanceDividend: {
       pending: usd3View.pending,
+      multisigPending: multisigPendingUsd3,
       claimedLifetime: usd3View.claimedLifetime,
       settlementZh: 'USD3 资产 · 不可提现到钱包',
       settlementEn: 'USD3 balance · not withdrawable to wallet',
@@ -301,11 +327,12 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
     },
     d3PerformanceDividend: {
       pending: num(d3?.pending_d3),
+      multisigPending: multisigPendingD3,
       claimedLifetime: num(d3?.claimed_lifetime_d3),
       settlementZh: '链上转账 · 透明可查',
       settlementEn: 'On-chain transfer · transparent',
-      nextMonthlySettlementZh: `${monthZh}（线长发起多签）`,
-      nextMonthlySettlementEn: `${monthEn} (line-leader multisig)`,
+      nextMonthlySettlementZh: monthZh,
+      nextMonthlySettlementEn: monthEn,
       nextEpochSettlementZh: `Epoch ${latestPeriod}`,
       nextEpochSettlementEn: `Epoch ${latestPeriod}`,
       breakdown: breakdownD3,
@@ -317,7 +344,16 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
       amount: num(d.amount),
       sourceZh: d.source_zh ?? d.stream_id,
       sourceEn: d.source_en ?? d.stream_id,
-      status: d.status === 'none' ? 'none' : d.status === 'claimed' ? 'claimed' : d.status === 'claimable' ? 'claimable' : 'pending',
+      status:
+        d.status === 'none'
+          ? 'none'
+          : d.status === 'claimed'
+            ? 'claimed'
+            : d.status === 'claimable'
+              ? 'claimable'
+              : d.status === 'multisig_pending'
+                ? 'multisig_pending'
+                : 'pending',
     })),
     recentD3Dividends: d3Divs.slice(0, 10).map((d) => ({
       id: d.id,
@@ -326,7 +362,16 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
       amount: num(d.amount),
       sourceZh: d.source_zh ?? d.stream_id,
       sourceEn: d.source_en ?? d.stream_id,
-      status: d.status === 'none' ? 'none' : d.status === 'claimed' ? 'claimed' : d.status === 'claimable' ? 'claimable' : 'pending',
+      status:
+        d.status === 'none'
+          ? 'none'
+          : d.status === 'claimed'
+            ? 'claimed'
+            : d.status === 'claimable'
+              ? 'claimable'
+              : d.status === 'multisig_pending'
+                ? 'multisig_pending'
+                : 'pending',
     })),
     teamNodes: buildTeamNodes(wallet, bundle),
     lineMultisigWallet: lineMs ? mapMultisigWallet(lineMs, bundle.committeeMembers, wallet) : null,
@@ -341,3 +386,77 @@ export function buildUnionViewModel(bundle: UnionProfileBundle, wallet: string):
 }
 
 export { UNION_SELF_SHARE, UNION_TRANSFERABLE_SHARE, splitPerformanceUsd3 };
+
+/** Placeholder view model when wallet is connected but Supabase profile is not loaded yet. */
+export function buildEmptyUnionViewModel(wallet: string): UnionViewModel {
+  const now = new Date();
+  const monthZh = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+  const monthEn = now.toLocaleString('en', { month: 'short', year: 'numeric' });
+  const emptyBreakdown = (['fees', 'treasury', 'line'] as const).map((streamId) => ({
+    streamId,
+    amount: 0,
+    multisigPending: 0,
+    cycleZh: '—',
+    cycleEn: '—',
+  }));
+
+  return {
+    member: { isShareholder: false, joinedAt: null, genesisDt: 0, wallet },
+    usd3State: {
+      pending: 0,
+      claimedLifetime: 0,
+      total: 0,
+      available: 0,
+      selfPoolRemaining: 0,
+      downlinePoolRemaining: 0,
+      movedToFi: 0,
+      transferredToDownline: 0,
+      extractableToFi: 0,
+      transferableLeft: 0,
+      selfQuota: 0,
+      downlineQuota: 0,
+    },
+    performanceDividend: {
+      genesisDt: 0,
+      linePerformanceUsd: 0,
+      networkPerformanceUsd: 0,
+      performanceWeightPct: 0,
+      equitySharePct: 0,
+      currentEpoch: '—',
+      currentMonthZh: monthZh,
+      currentMonthEn: monthEn,
+      hasPerformance: false,
+    },
+    usd3PerformanceDividend: {
+      pending: 0,
+      multisigPending: 0,
+      claimedLifetime: 0,
+      settlementZh: 'USD3 资产 · 不可提现到钱包',
+      settlementEn: 'USD3 balance · not withdrawable to wallet',
+      nextEpochSettlementZh: '—',
+      nextEpochSettlementEn: '—',
+      nextMonthlySettlementZh: `${monthZh}（多签复核后发放）`,
+      nextMonthlySettlementEn: `${monthEn} (after multisig review)`,
+      breakdown: emptyBreakdown,
+    },
+    d3PerformanceDividend: {
+      pending: 0,
+      multisigPending: 0,
+      claimedLifetime: 0,
+      settlementZh: '链上转账 · 透明可查',
+      settlementEn: 'On-chain transfer · transparent',
+      nextMonthlySettlementZh: monthZh,
+      nextMonthlySettlementEn: monthEn,
+      nextEpochSettlementZh: '—',
+      nextEpochSettlementEn: '—',
+      breakdown: emptyBreakdown,
+    },
+    recentUsd3Dividends: [],
+    recentD3Dividends: [],
+    teamNodes: {},
+    lineMultisigWallet: null,
+    daoMultisigWallet: null,
+    multisigProposals: [],
+    currentMultisigRole: { isLineLeader: false, isCommitteeMember: false, signerId: '' },
+  };
+}

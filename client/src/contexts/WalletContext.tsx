@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -62,7 +63,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setUnionAccessTokenGetter(async () => {
       if (!authenticated) return null;
       try {

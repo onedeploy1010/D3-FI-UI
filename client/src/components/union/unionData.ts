@@ -91,8 +91,8 @@ export const d3PerformanceDividend = {
   /** PPT：分红形式 D3 代币结算 */
   settlementZh: '链上转账 · 透明可查',
   settlementEn: 'On-chain transfer · transparent',
-  nextMonthlySettlementZh: '2026-08-01（线长发起多签）',
-  nextMonthlySettlementEn: 'Aug 1, 2026 (line-leader multisig)',
+  nextMonthlySettlementZh: '2026-08-01',
+  nextMonthlySettlementEn: 'Aug 1, 2026',
   nextEpochSettlementZh: 'Epoch #43 · 2026-08-06',
   nextEpochSettlementEn: 'Epoch #43 · Aug 6, 2026',
   breakdown: [
@@ -226,23 +226,73 @@ export function claimUsd3Pending(view: Usd3AccountView): Usd3AccountView {
 /** @deprecated use buildUsd3AccountView — kept for grep compatibility */
 export const usd3Account = buildUsd3AccountView();
 
+export const unionRuleCards = [
+  {
+    id: 'qualify',
+    titleZh: '股东资格',
+    titleEn: 'Qualification',
+    bodyZh: '支付 5,000 USDT 认购创世 DT，成为发起人股东，解锁资产与团队。',
+    bodyEn: 'Pay 5,000 USDT for Genesis DT to become a founding shareholder and unlock Assets & Team.',
+    tagZh: '入盟门槛',
+    tagEn: 'Entry',
+    accent: '#E0568F',
+  },
+  {
+    id: 'channels',
+    titleZh: '业绩分红',
+    titleEn: 'Performance dividends',
+    bodyZh: 'USD3 协议内资产 + D3 链上代币，两条独立结算通道，分别入账。',
+    bodyEn: 'USD3 in-app asset and D3 on-chain token — two separate settlement channels.',
+    tagZh: '双通道',
+    tagEn: 'Dual channel',
+    accent: '#6366f1',
+  },
+  {
+    id: 'usd3-source',
+    titleZh: 'USD3 来源',
+    titleEn: 'USD3 sources',
+    bodyZh: '手续费滑点（每 Epoch 30 天）+ 市值管理 + 分线收益，统一结算为 USD3 协议资产。',
+    bodyEn: 'Trading fees (per 30-day Epoch) + treasury yield + line revenue — settled as USD3.',
+    tagZh: '协议内',
+    tagEn: 'In-app',
+    accent: '#22c55e',
+  },
+  {
+    id: 'usd3-use',
+    titleZh: 'USD3 用途',
+    titleEn: 'USD3 usage',
+    bodyZh: '50% 转入 D3-Fi 投资质押，50% 可转给伞下线的 D3-Fi 账户；不可提现到钱包。',
+    bodyEn: '50% to D3-Fi staking, 50% transferable to downline D3-Fi — not withdrawable to wallet.',
+    tagZh: '50 / 50',
+    tagEn: '50 / 50',
+    accent: '#f59e0b',
+  },
+  {
+    id: 'd3',
+    titleZh: 'D3 分红',
+    titleEn: 'D3 dividends',
+    bodyZh: '按权益占比折算的代币分红，链上透明结算，每月由多签 / 线长复核发放。',
+    bodyEn: 'Equity-weighted token dividends — on-chain, distributed monthly via multisig.',
+    tagZh: '链上',
+    tagEn: 'On-chain',
+    accent: '#B23A6E',
+  },
+  {
+    id: 'principle',
+    titleZh: '分红原则',
+    titleEn: 'Core rule',
+    bodyZh: '有业绩才有分红，无业绩不保底。所有分配与全网真实业绩挂钩。',
+    bodyEn: 'Performance required — no floor guarantee. All payouts tied to real network results.',
+    tagZh: '底线',
+    tagEn: 'No floor',
+    accent: '#8A2B57',
+  },
+] as const;
+
+/** @deprecated use unionRuleCards */
 export const unionRewardQualification = {
-  zh: [
-    '资格：支付 5,000 USDT 认购创世 DT，成为发起人股东，解锁资产与团队。',
-    '业绩分红：USD3 协议内资产 + D3 链上代币，两条结算通道。',
-    'USD3：手续费滑点（Epoch 30天）+ 市值管理 + 分线，结算为 USD3 资产，不可提现到钱包。',
-    'USD3 用途：50% 转 D3-Fi 投资质押，50% 可转给伞下线的 D3-Fi 账户。',
-    'D3：按权益折算的代币分红，链上结算，每月多签/线长发放。',
-    '原则：有业绩才有分红，无业绩不保底。',
-  ],
-  en: [
-    'Qualification: pay 5,000 USDT for Genesis DT to unlock Assets & Team.',
-    'Performance dividends: USD3 in-app asset + D3 on-chain token — two channels.',
-    'USD3: fees (Epoch 30d) + treasury + line — settled as USD3, not withdrawable.',
-    'USD3 use: 50% to D3-Fi for staking, 50% transferable to downline D3-Fi.',
-    'D3: equity-weighted token dividends — on-chain, monthly multisig.',
-    'Rule: performance required — no floor guarantee.',
-  ],
+  zh: unionRuleCards.map((c) => `${c.titleZh}：${c.bodyZh}`),
+  en: unionRuleCards.map((c) => `${c.titleEn}: ${c.bodyEn}`),
 };
 
 export type UnionMember = {
@@ -459,6 +509,7 @@ export type MultisigSigner = {
   roleZh: string;
   roleEn: string;
   isSelf?: boolean;
+  dividendWeightPct?: number | null;
 };
 
 export type MultisigProposalStatus = 'pending' | 'executed' | 'rejected';

@@ -99,6 +99,7 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+supabase/.temp/
 
 # Database
 *.db

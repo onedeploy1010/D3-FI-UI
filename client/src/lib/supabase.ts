@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@shared/types/database';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
-export const isSupabaseClientConfigured = Boolean(url && key);
+export const isSupabaseClientConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseClientConfigured
-  ? createClient<Database>(url!, key!)
+  ? createClient<Database>(supabaseUrl!, supabaseAnonKey!)
   : null;

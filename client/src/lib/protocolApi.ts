@@ -1,4 +1,5 @@
 import type { BribeProjectRow, BribeProjectView, ProtocolBundle, ProtocolEpochRow, ProtocolEpochView } from './protocolTypes';
+import { unionPublicFetch } from './unionApi';
 import {
   formatCompactD3,
   formatCompactUsd,
@@ -11,10 +12,7 @@ import {
 } from './protocolFormat';
 
 export async function fetchProtocolBundle(): Promise<ProtocolBundle> {
-  const res = await fetch('/api/union/protocol');
-  const body = (await res.json().catch(() => ({}))) as ProtocolBundle & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? res.statusText);
-  return body;
+  return unionPublicFetch<ProtocolBundle>('/protocol');
 }
 
 function num(v: unknown) {
