@@ -1,7 +1,9 @@
 import { ChevronRight, Users } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
-import { teamPerformance, teamTree, vLevelTable, type TeamNode } from './protocolData';
+import { shortWallet } from '@/lib/wallet';
+import type { D3FiViewModel } from '@/lib/d3fiViewModel';
+import { teamTree as mockTeamTree, vLevelTable, type TeamNode } from './protocolData';
 
 type Lang = 'zh' | 'en';
 
@@ -37,9 +39,45 @@ function TreeNode({ node, lang, isDark, defaultOpen = true }: { node: TeamNode; 
   );
 }
 
-export function TeamTreeTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
+export function TeamTreeTab({
+  lang,
+  isDark,
+  vm,
+  wallet,
+}: {
+  lang: Lang;
+  isDark: boolean;
+  vm?: D3FiViewModel | null;
+  wallet?: string | null;
+}) {
   const t = lang === 'zh';
-  const perf = teamPerformance;
+  const perf = vm?.teamPerformance ?? {
+    level: 'V0',
+    levelRange: 'V0',
+    directCount: 0,
+    teamCount: 0,
+    validCount: 0,
+    largeAreaUsd: 0,
+    smallAreaUsd: 0,
+  };
+
+  const teamTree: TeamNode = wallet
+    ? {
+        id: 'root',
+        address: shortWallet(wallet),
+        level: perf.level,
+        personal: `$${perf.largeAreaUsd.toLocaleString()}`,
+        depth: 0,
+        children: (vm?.directReferralAddresses ?? []).map((addr, i) => ({
+          id: `d-${i}`,
+          address: shortWallet(addr),
+          level: 'V0',
+          personal: '—',
+          depth: 1,
+          isDirect: true,
+        })),
+      }
+    : mockTeamTree;
 
   return (
     <div className="space-y-5">
@@ -47,8 +85,8 @@ export function TeamTreeTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className={`text-xs ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? '当前等级' : 'Current Level'}</div>
-            <div className="text-2xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{perf.level}</div>
+            <div className="site-stat-label">{t ? '当前等级' : 'Current Level'}</div>
+            <div className="site-stat-value-lg site-stat-value-accent">{perf.level}</div>
           </div>
           <div className="text-right">
             <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{t ? '级差范围' : 'Level Diff'}</div>
@@ -62,8 +100,8 @@ export function TeamTreeTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
             { value: String(perf.validCount), label: t ? '有效户' : 'Valid' },
           ].map((stat) => (
             <div key={stat.label} className="ios-glass-inset p-2.5">
-              <div className="text-lg font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{stat.value}</div>
-              <div className={`text-[9px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{stat.label}</div>
+              <div className="site-stat-value-md site-stat-value-accent">{stat.value}</div>
+              <div className="site-stat-label">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -78,9 +116,9 @@ export function TeamTreeTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
           {t ? 'V5 及以上需同时考核大区与小区；小区业绩 = 大区业绩 × 30%' : 'V5+ requires both areas; small area = large area × 30%'}
         </p>
         {[
-          { label: t ? '个人业绩' : 'Personal', current: perf.personal, req: perf.personalReq, pct: 107 },
-          { label: t ? '大区业绩' : 'Large Area', current: perf.largeArea, req: perf.largeAreaReq, pct: 107 },
-          { label: t ? '小区业绩' : 'Small Area', current: perf.smallArea, req: perf.smallAreaReq, pct: 107 },
+          { label: t ? '个人业绩' : 'Personal', current: `$${perf.largeAreaUsd.toLocaleString()}`, req: '—', pct: perf.largeAreaUsd > 0 ? 100 : 0 },
+          { label: t ? '大区业绩' : 'Large Area', current: `$${perf.largeAreaUsd.toLocaleString()}`, req: '—', pct: perf.largeAreaUsd > 0 ? 100 : 0 },
+          { label: t ? '小区业绩' : 'Small Area', current: `$${perf.smallAreaUsd.toLocaleString()}`, req: '—', pct: perf.smallAreaUsd > 0 ? 100 : 0 },
         ].map((row) => (
           <div key={row.label} className="mb-3 last:mb-0">
             <div className="flex items-center justify-between text-xs mb-1">
@@ -94,8 +132,8 @@ export function TeamTreeTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
             </div>
           </div>
         ))}
-        <div className={`mt-3 text-[10px] px-2 py-1.5 rounded-lg ${isDark ? 'bg-emerald-500/10 text-emerald-500/80' : 'bg-emerald-500/8 text-emerald-600'}`}>
-          {t ? `距 ${perf.nextLevel} 还需小区业绩 +$0（已达标）` : `To ${perf.nextLevel}: small area requirement met`}
+        <div className={`mt-3 text-[10px] px-2 py-1.5 rounded-lg ${isDark ? 'bg-white/[0.04] text-white/50' : 'bg-[#8A2B57]/[0.04] text-[#160510]/50'}`}>
+          {t ? `数据来自 Supabase 团队节点 · 直推 ${perf.directCount} 人` : `From Supabase team data · ${perf.directCount} direct referrals`}
         </div>
       </div>
 

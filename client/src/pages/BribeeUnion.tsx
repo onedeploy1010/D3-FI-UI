@@ -26,44 +26,50 @@ import {
   Circle,
 } from 'lucide-react';
 import { SiteFooter } from '@/components/layout/SiteFooter';
+import { SitePageHeader, SiteStat } from '@/components/layout/SitePageHeader';
 import { glassCardClass, GlassButton, GlassIconButton, GlassChip } from '@/components/ui/GlassSurface';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { WalletGate } from '@/components/wallet/WalletGate';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
-import { shortWallet } from '@/lib/wallet';
+import { buildReferralLink } from '@/lib/referral';
 import { cn } from '@/lib/utils';
+import { UnionRevenueStreams } from '@/components/union/UnionRevenueStreams';
 import {
   UNION_JOIN_FEE_USDT,
   UNION_SELF_SHARE,
   UNION_TRANSFERABLE_SHARE,
   splitPerformanceUsd3,
-  buildUsd3AccountView,
-  claimUsd3Pending,
-  defaultUnionMember,
-  performanceDividend,
-  usd3PerformanceDividend,
-  d3PerformanceDividend,
-  usd3DividendFormula,
-  d3DividendFormula,
-  recentUsd3Dividends,
-  recentD3Dividends,
   unionEquityStructure,
   unionRevenueStreams,
   unionRewardQualification,
-  unionTeamNodes,
-  lineMultisigWallet,
-  daoMultisigWallet,
-  multisigProposals,
-  currentMultisigRole,
+  usd3DividendFormula,
+  d3DividendFormula,
+  lineMultisigWallet as fallbackLineMultisigWallet,
+  daoMultisigWallet as fallbackDaoMultisigWallet,
   type UnionMember,
   type UnionTeamNode,
   type MultisigProposal,
   type Usd3AccountView,
 } from '@/components/union/unionData';
+import { UnionProfileContext, useUnionVm } from '@/contexts/UnionProfileContext';
+import { useUnionProfile } from '@/hooks/useUnionProfile';
+import { claimUsd3, joinShareholder } from '@/lib/unionApi';
 
 type Lang = 'zh' | 'en';
+
+function teamDepthFromMe(teamNodes: Record<string, UnionTeamNode>, nodeId: string): number {
+  let depth = 0;
+  let id = nodeId;
+  while (id !== 'me') {
+    const node = teamNodes[id];
+    if (!node?.parentId) return depth;
+    depth += 1;
+    id = node.parentId;
+  }
+  return depth;
+}
 type UnionTab = 'home' | 'governance' | 'assets' | 'team';
 
 const tabs: { id: UnionTab; icon: typeof Home; zh: string; en: string; needsShareholder?: boolean }[] = [
@@ -76,22 +82,33 @@ const tabs: { id: UnionTab; icon: typeof Home; zh: string; en: string; needsShar
 export default function BribeeUnion() {
   const [lang, setLang] = useState<Lang>('zh');
   const [tab, setTab] = useState<UnionTab>('home');
-  const [member, setMember] = useState<UnionMember>(defaultUnionMember);
-  const [usd3State, setUsd3State] = useState<Usd3AccountView>(() => buildUsd3AccountView());
   const [, navigate] = useLocation();
   const { theme } = useTheme();
   const { wallet } = useWallet();
+  const { vm, isLoading, refetch } = useUnionProfile(wallet, lang);
   const isDark = theme === 'dark';
   const t = lang === 'zh';
 
-  useEffect(() => {
-    if (!wallet) return;
-    setMember((prev) => ({
-      ...prev,
-      wallet,
-      short: shortWallet(wallet),
-    }));
-  }, [wallet]);
+  const member = vm?.member ?? {
+    isShareholder: false,
+    joinedAt: null,
+    genesisDt: 0,
+    wallet: wallet ?? '',
+  };
+  const usd3State = vm?.usd3State ?? {
+    pending: 0,
+    claimedLifetime: 0,
+    total: 0,
+    available: 0,
+    selfPoolRemaining: 0,
+    downlinePoolRemaining: 0,
+    movedToFi: 0,
+    transferredToDownline: 0,
+    extractableToFi: 0,
+    transferableLeft: 0,
+    selfQuota: 0,
+    downlineQuota: 0,
+  };
 
   const goTab = (id: UnionTab) => {
     const meta = tabs.find((x) => x.id === id);
@@ -136,6 +153,12 @@ export default function BribeeUnion() {
       </div>
 
       <main className="page-px py-4 pb-28 max-w-md mx-auto md:max-w-xl flex-1 w-full">
+        {!vm && isLoading ? (
+          <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+            {t ? '加载个人数据…' : 'Loading your data…'}
+          </div>
+        ) : vm ? (
+        <UnionProfileContext.Provider value={vm}>
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -150,8 +173,10 @@ export default function BribeeUnion() {
                 isDark={isDark}
                 member={member}
                 usd3Pending={usd3State.pending}
-                onJoined={(m) => {
-                  setMember(m);
+                onJoined={async () => {
+                  if (!wallet) return;
+                  await joinShareholder(wallet);
+                  await refetch();
                   setTab('assets');
                 }}
                 onAssets={() => goTab('assets')}
@@ -165,13 +190,23 @@ export default function BribeeUnion() {
                 lang={lang}
                 isDark={isDark}
                 usd3State={usd3State}
-                onClaimUsd3={() => setUsd3State((s) => claimUsd3Pending(s))}
+                onClaimUsd3={async () => {
+                  if (!wallet) return;
+                  await claimUsd3(wallet);
+                  await refetch();
+                }}
                 onGoFi={() => navigate('/d3fi')}
               />
             )}
             {tab === 'team' && <TeamTab lang={lang} isDark={isDark} wallet={wallet} />}
           </motion.div>
         </AnimatePresence>
+        </UnionProfileContext.Provider>
+        ) : (
+          <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+            {t ? '连接钱包以加载数据' : 'Connect wallet to load data'}
+          </div>
+        )}
       </main>
 
       <SiteFooter lang={lang} variant="compact" showCta={false} />
@@ -222,12 +257,6 @@ const equityBarColors: Record<string, string> = {
   dao: '#22c55e',
 };
 
-const streamMeta: Record<string, { icon: typeof Coins; color: string }> = {
-  fees: { icon: Coins, color: '#22c55e' },
-  treasury: { icon: TrendingUp, color: '#6366f1' },
-  line: { icon: Layers, color: '#f59e0b' },
-};
-
 function HomeTab({
   lang,
   isDark,
@@ -242,21 +271,22 @@ function HomeTab({
   isDark: boolean;
   member: UnionMember;
   usd3Pending: number;
-  onJoined: (m: UnionMember) => void;
+  onJoined: () => void | Promise<void>;
   onAssets: () => void;
   onTeam: () => void;
   onGovernance: () => void;
 }) {
   const t = lang === 'zh';
+  const ud = useUnionVm();
   const [showRules, setShowRules] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const joinRef = useRef<HTMLDivElement>(null);
   const accent = isDark ? '#E0568F' : '#8A2B57';
   const muted = isDark ? 'text-white/55' : 'text-[#160510]/55';
-  const sectionTitle = `text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider ${isDark ? 'text-white/65' : 'text-[#160510]/50'}`;
+  const sectionTitle = 'site-section-title';
   const perfRow = unionEquityStructure.find((x) => x.key === 'perf') ?? unionEquityStructure[0];
   const otherEquity = unionEquityStructure.filter((x) => x.key !== 'perf');
-  const pendingMultisig = multisigProposals.filter((p) => p.status === 'pending' && p.walletType === 'line').length;
+  const pendingMultisig = ud.multisigProposals.filter((p) => p.status === 'pending' && p.walletType === 'line').length;
   const scrollToJoin = () => joinRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const listParent = {
     hidden: { opacity: 0 },
@@ -280,12 +310,11 @@ function HomeTab({
             <Crown size={26} style={{ color: accent }} />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className={`text-[1.625rem] sm:text-3xl font-bold font-stat leading-tight ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>
-              {t ? '股东联盟' : 'Shareholder Alliance'}
-            </h1>
-            <p className={`text-xs sm:text-sm font-medium mt-1.5 leading-relaxed text-pretty ${muted}`}>
-              {t ? '认购创世 DT，共享协议收益' : 'Subscribe Genesis DT · share protocol growth'}
-            </p>
+            <SitePageHeader
+              variant="content"
+              title={t ? '股东联盟' : 'Shareholder Alliance'}
+              subtitle={t ? '认购创世 DT，共享协议收益' : 'Subscribe Genesis DT · share protocol growth'}
+            />
           </div>
         </div>
       </div>
@@ -296,7 +325,7 @@ function HomeTab({
             ? { label: t ? '创世 DT' : 'Genesis DT', value: String(member.genesisDt), unit: t ? '凭证' : 'cert', action: onGovernance }
             : { label: t ? '入股门槛' : 'Join fee', value: `${(UNION_JOIN_FEE_USDT / 1000).toFixed(0)}K`, unit: 'USDT', action: scrollToJoin },
           { label: t ? '待领 USD3' : 'USD3 pending', value: usd3Pending.toFixed(0), unit: 'USD3', action: onAssets, locked: !member.isShareholder },
-          { label: t ? '待领 D3' : 'D3 pending', value: String(d3PerformanceDividend.pending), unit: 'D3', action: onAssets, locked: !member.isShareholder },
+          { label: t ? '待领 D3' : 'D3 pending', value: String(ud.d3PerformanceDividend.pending), unit: 'D3', action: onAssets, locked: !member.isShareholder },
           { label: t ? '待签提案' : 'Pending sig.', value: String(pendingMultisig), unit: '', action: onGovernance, locked: !member.isShareholder },
         ].map((item) => (
           <button
@@ -305,11 +334,7 @@ function HomeTab({
             onClick={item.locked ? scrollToJoin : item.action}
             className={cn(glassCardClass('default', 'p-4 text-left ios-glass-pressable relative'), item.locked && 'opacity-55')}
           >
-            <div className={`text-xs font-semibold mb-1 leading-snug ${muted}`}>{item.label}</div>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <span className="text-lg sm:text-xl font-bold font-stat" style={{ color: accent }}>{item.value}</span>
-              {item.unit && <span className={`text-xs font-semibold ${muted}`}>{item.unit}</span>}
-            </div>
+            <SiteStat label={item.label} value={item.value} unit={item.unit || undefined} accent />
             {item.locked && <Lock size={9} className="absolute top-2 right-2 opacity-70" />}
           </button>
         ))}
@@ -378,50 +403,7 @@ function HomeTab({
       </div>
 
       <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-          {t ? '三路收益' : 'Revenue streams'}
-        </div>
-        <motion.div className="relative pl-4 space-y-2" variants={listParent} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-20px' }}>
-          <div className={cn('absolute left-1 top-2 bottom-2 w-px', isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.08]')} />
-          {unionRevenueStreams.map((stream) => {
-            const meta = streamMeta[stream.id];
-            const Icon = meta.icon;
-            const CadenceIcon = stream.id === 'fees' ? Clock : Shield;
-            return (
-              <motion.div key={stream.id} variants={listItem} className="relative ios-glass-inset rounded-3xl p-3.5 sm:p-4">
-                <span className="absolute left-[-14px] top-5 w-2.5 h-2.5 rounded-full" style={{ background: meta.color }} />
-                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `${meta.color}18` }}>
-                      <Icon size={18} style={{ color: meta.color }} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-bold leading-snug ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? stream.zh : stream.en}</div>
-                      <div className={`text-xs font-medium mt-1 leading-relaxed text-pretty ${muted}`}>{t ? stream.sourceZh : stream.sourceEn}</div>
-                    </div>
-                  </div>
-                  <div className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold shrink-0 ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>
-                    <CadenceIcon size={14} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />
-                    <span className="text-pretty">{t ? stream.cycleZh : stream.cycleEn}</span>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      </div>
-
-      <div className={glassCardClass('accent', 'p-4')}>
-        <div className="flex items-center gap-2 mb-2">
-          <Coins size={14} style={{ color: accent }} />
-          <span className={`text-xs font-bold uppercase tracking-wider ${muted}`}>{t ? '业绩分红' : 'Dividends'}</span>
-        </div>
-        <div className={`text-xs sm:text-sm font-semibold mb-1 leading-snug ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-          {t ? 'USD3 协议资产 + D3 链上结算' : 'USD3 in-app + D3 on-chain'}
-        </div>
-        <div className={`text-[11px] sm:text-xs font-medium leading-relaxed text-pretty ${muted}`}>
-          {t ? 'USD3 可转 D3-Fi 投资，或转给伞下线的 D3-Fi 账户' : 'USD3 → D3-Fi staking or downline D3-Fi transfer'}
-        </div>
+        <UnionRevenueStreams lang={lang} isDark={isDark} />
       </div>
 
       <div className={glassCardClass('default', 'p-5')}>
@@ -512,15 +494,13 @@ function HomeTab({
             className="w-full !py-3.5 !text-sm flex items-center justify-center gap-2"
             onClick={() => {
               setConfirming(true);
-              window.setTimeout(() => {
-                onJoined({
-                  isShareholder: true,
-                  joinedAt: '2026-07-08',
-                  genesisDt: 1,
-                  wallet: member.wallet,
-                });
-                setConfirming(false);
-              }, 600);
+              void (async () => {
+                try {
+                  await onJoined();
+                } finally {
+                  setConfirming(false);
+                }
+              })();
             }}
           >
             {confirming ? (
@@ -549,10 +529,18 @@ function HomeTab({
 
 function GovernanceTab({ lang, isDark, usd3Pending }: { lang: Lang; isDark: boolean; usd3Pending: number }) {
   const t = lang === 'zh';
+  const ud = useUnionVm();
+  const lineMultisigWallet = ud.lineMultisigWallet ?? fallbackLineMultisigWallet;
+  const daoMultisigWallet = ud.daoMultisigWallet ?? fallbackDaoMultisigWallet;
+  const { currentMultisigRole, performanceDividend, d3PerformanceDividend, teamNodes: unionTeamNodes } = ud;
   const accent = isDark ? '#E0568F' : '#8A2B57';
   const muted = isDark ? 'text-white/55' : 'text-[#160510]/55';
   const [view, setView] = useState<'pending' | 'history' | 'create'>('pending');
-  const [proposals, setProposals] = useState(multisigProposals);
+  const [proposals, setProposals] = useState(ud.multisigProposals);
+
+  useEffect(() => {
+    setProposals(ud.multisigProposals);
+  }, [ud.multisigProposals]);
 
   const linePending = proposals.filter((p) => p.walletType === 'line' && p.status === 'pending');
   const lineHistory = proposals.filter((p) => p.walletType === 'line' && p.status !== 'pending');
@@ -811,6 +799,8 @@ function AssetsTab({
   onGoFi: () => void;
 }) {
   const t = lang === 'zh';
+  const ud = useUnionVm();
+  const { performanceDividend, usd3PerformanceDividend, d3PerformanceDividend, recentUsd3Dividends, recentD3Dividends } = ud;
   const [dividendAsset, setDividendAsset] = useState<'usd3' | 'd3'>('usd3');
   const [mode, setMode] = useState<'overview' | 'transfer' | 'extract'>('overview');
   const [amount, setAmount] = useState('');
@@ -829,8 +819,8 @@ function AssetsTab({
         <div className={glassCardClass('accent', 'p-4')}>
           <div className={`text-sm font-medium leading-relaxed ${isDark ? 'text-[#E0568F]/85' : 'text-[#8A2B57]/80'}`}>
             {t
-              ? '可转让额度来自业绩分红 USD3 的 50%，转入伞下成员的 D3-Fi 账户用于投资质押。'
-              : 'Transferable quota is 50% of performance USD3, credited to downline D3-Fi accounts for staking.'}
+              ? '可转让额度来自 USD3 收益的 50%，转入伞下成员的 D3-Fi 账户用于投资质押。'
+              : 'Transferable quota is 50% of USD3 revenue, credited to downline D3-Fi accounts for staking.'}
           </div>
         </div>
         <div className={glassCardClass('default', 'p-5')}>
@@ -874,7 +864,7 @@ function AssetsTab({
             {t ? '转入 D3-Fi 投资' : 'Move to D3-Fi'}
           </div>
           <p className={`text-sm font-medium mb-4 leading-relaxed ${isDark ? 'text-white/55' : 'text-[#160510]/45'}`}>
-            {t ? '将业绩分红 USD3 转入自己的 D3-Fi 账户，用于 LP / 销毁债券质押。' : 'Move performance USD3 into your D3-Fi account for LP / burn-bond staking.'}
+            {t ? '将 USD3 转入自己的 D3-Fi 账户，用于 LP / 销毁债券质押。' : 'Move USD3 into your D3-Fi account for LP / burn-bond staking.'}
           </p>
           <div className="ios-glass-inset p-3 mb-4 flex justify-between text-xs">
             <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>{t ? '可转入' : 'Available'}</span>
@@ -936,7 +926,7 @@ function AssetsTab({
             <div className="flex items-start justify-between gap-2 mb-3">
               <div>
                 <div className="text-sm font-bold uppercase tracking-wider text-emerald-600">
-                  {t ? 'USD3 业绩分红 · 待领取' : 'USD3 performance · pending'}
+                  {t ? 'USD3 待领取' : 'USD3 pending'}
                 </div>
                 <div className={`text-xs font-semibold mt-1 ${isDark ? 'text-white/55' : 'text-[#160510]/45'}`}>
                   {t ? usd3PerformanceDividend.settlementZh : usd3PerformanceDividend.settlementEn}
@@ -1011,7 +1001,7 @@ function AssetsTab({
               {t ? 'USD3 资产账户' : 'USD3 balance'}
             </div>
             <div className={`text-xs font-medium mb-3 ${muted}`}>
-              {t ? '已领取的业绩分红余额（= 累计已领 − 已转出）' : 'Claimed performance balance (= lifetime − moved out)'}
+              {t ? '已领取余额（= 累计已领 − 已转出）' : 'Claimed balance (= lifetime − moved out)'}
             </div>
             <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-semibold">
               <div className="ios-glass-inset p-3">
@@ -1061,19 +1051,16 @@ function AssetsTab({
 
           <div className={glassCardClass('default', 'p-5')}>
             <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-              {t ? 'USD3 构成（三路收益）' : 'USD3 breakdown (3 streams)'}
+              {t ? 'USD3 构成' : 'USD3 breakdown'}
             </div>
-            <div className="space-y-2">
+            <UnionRevenueStreams lang={lang} isDark={isDark} compact />
+            <div className="mt-3 space-y-2">
               {usd3PerformanceDividend.breakdown.map((row) => {
                 const stream = unionRevenueStreams.find((s) => s.id === row.streamId)!;
                 return (
-                  <div key={row.streamId} className="ios-glass-inset p-3">
-                    <div className="flex justify-between gap-2 mb-1">
-                      <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? stream.zh : stream.en}</span>
-                      <span className="font-bold font-stat text-emerald-500">{row.amount} USD3</span>
-                    </div>
-                    <p className={`text-sm font-medium ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>{t ? stream.usd3Zh : stream.usd3En}</p>
-                    <p className={`text-sm font-medium mt-0.5 ${isDark ? 'text-white/25' : 'text-[#160510]/45'}`}>{t ? row.cycleZh : row.cycleEn}</p>
+                  <div key={row.streamId} className="flex justify-between items-center ios-glass-inset px-3 py-2 rounded-xl">
+                    <span className={`text-xs font-semibold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>{t ? stream.zh : stream.en}</span>
+                    <span className="font-bold font-stat text-emerald-500">{row.amount} USD3</span>
                   </div>
                 );
               })}
@@ -1115,7 +1102,7 @@ function AssetsTab({
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div>
                     <div className="text-sm font-bold uppercase tracking-wider" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>
-                      {t ? 'D3 业绩分红' : 'D3 Performance Dividend'}
+                      {t ? 'D3 待领取' : 'D3 pending'}
                     </div>
                     <div className={`text-xs font-semibold mt-1 ${isDark ? 'text-white/55' : 'text-[#160510]/45'}`}>
                       {t ? d3PerformanceDividend.settlementZh : d3PerformanceDividend.settlementEn}
@@ -1160,19 +1147,16 @@ function AssetsTab({
 
               <div className={glassCardClass('default', 'p-5')}>
                 <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-                  {t ? 'D3 构成（PPT 三路收益）' : 'D3 breakdown (PPT 3 streams)'}
+                  {t ? 'D3 构成' : 'D3 breakdown'}
                 </div>
-                <div className="space-y-2">
+                <UnionRevenueStreams lang={lang} isDark={isDark} compact />
+                <div className="mt-3 space-y-2">
                   {d3PerformanceDividend.breakdown.map((row) => {
                     const stream = unionRevenueStreams.find((s) => s.id === row.streamId)!;
                     return (
-                      <div key={row.streamId} className="ios-glass-inset p-3">
-                        <div className="flex justify-between gap-2 mb-1">
-                          <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? stream.zh : stream.en}</span>
-                          <span className="font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{row.amount} D3</span>
-                        </div>
-                        <p className={`text-sm font-medium ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>{t ? stream.d3Zh : stream.d3En}</p>
-                        <p className={`text-sm font-medium mt-0.5 ${isDark ? 'text-white/25' : 'text-[#160510]/45'}`}>{t ? row.cycleZh : row.cycleEn}</p>
+                      <div key={row.streamId} className="flex justify-between items-center ios-glass-inset px-3 py-2 rounded-xl">
+                        <span className={`text-xs font-semibold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>{t ? stream.zh : stream.en}</span>
+                        <span className="font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{row.amount} D3</span>
                       </div>
                     );
                   })}
@@ -1222,8 +1206,8 @@ function AssetsTab({
 
       <p className={`text-[11px] sm:text-xs font-semibold text-center leading-relaxed px-2 text-pretty ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
         {t
-          ? '仅业绩分红（三路收益），无推荐通道。USD3 协议内使用，D3 链上领取。月度部分需多签通过后到账。'
-          : 'Performance dividends only (3 streams), no referral channel. USD3 in-app, D3 on-chain. Monthly portions require multisig approval.'}
+          ? '三路收益结算，无推荐通道。USD3 协议内使用，D3 链上领取。月度部分需多签通过后到账。'
+          : 'Three revenue streams, no referral channel. USD3 in-app, D3 on-chain. Monthly portions require multisig approval.'}
       </p>
     </div>
   );
@@ -1231,21 +1215,33 @@ function AssetsTab({
 
 function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet: string | null }) {
   const t = lang === 'zh';
+  const ud = useUnionVm();
+  const teamNodes = ud.teamNodes;
   const [focusId, setFocusId] = useState('me');
   const [q, setQ] = useState('');
-  const referralLink = wallet ? `https://d3.fi/union/r/${wallet}` : 'https://d3.fi/union/r/';
+  const referralLink = buildReferralLink(wallet);
 
-  const focus = unionTeamNodes[focusId] ?? unionTeamNodes.me;
-  const parent = focus.parentId ? unionTeamNodes[focus.parentId] : null;
-  const children = focus.childrenIds.map((id) => unionTeamNodes[id]).filter(Boolean);
+  const focus = teamNodes[focusId] ?? teamNodes.me;
+  const parent = focus.parentId ? teamNodes[focus.parentId] : null;
+  const children = focus.childrenIds.map((id) => teamNodes[id]).filter(Boolean);
+  const currentDepth = useMemo(() => teamDepthFromMe(teamNodes, focusId), [teamNodes, focusId]);
+  const layerLabel =
+    focusId === 'me'
+      ? t
+        ? `第 ${currentDepth} 层 · 我`
+        : `Layer ${currentDepth} · You`
+      : t
+        ? `第 ${currentDepth} 层`
+        : `Layer ${currentDepth}`;
+  const childLayerLabel = t ? `第 ${currentDepth + 1} 层 · 下级节点` : `Layer ${currentDepth + 1} · Downline`;
 
   const searchHits = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return [] as UnionTeamNode[];
-    return Object.values(unionTeamNodes).filter(
+    return Object.values(teamNodes).filter(
       (n) => n.id !== 'me' && (n.address.toLowerCase().includes(needle) || n.short.toLowerCase().includes(needle) || n.level.toLowerCase().includes(needle)),
     );
-  }, [q]);
+  }, [q, teamNodes]);
 
   return (
     <div className="space-y-5">
@@ -1253,19 +1249,32 @@ function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet
         <div className="site-section-title mb-2">{t ? '我的推荐链接' : 'My Referral Link'}</div>
         <p className={`text-xs mb-3 leading-relaxed ${isDark ? 'text-white/50' : 'text-muted-foreground'}`}>
           {t
-            ? '分享链接邀请股东加入联盟。对方通过链接完成 5,000 USDT 入股后，将绑定为您的直推下线。'
-            : 'Share to invite shareholders. After they join with 5,000 USDT via your link, they bind as your direct downline.'}
+            ? '与 D3-Fi 相同的 member 推荐链接。对方连接钱包并绑定后，将作为您的直推下线。'
+            : 'Same member referral link as D3-Fi. After they connect and bind, they join as your direct downline.'}
         </p>
         <AddressBlock value={referralLink} isDark={isDark} />
       </div>
 
       <div className={glassCardClass('highlight', 'p-5')}>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div>
-            <div className={`text-xs font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>{t ? '当前节点' : 'Current node'}</div>
-            <div className={`text-sm font-bold font-mono break-all ${isDark ? 'text-white' : 'text-[#160510]'}`}>{focus.short}</div>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <div className={`text-xs font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+                {t ? '当前层' : 'Current layer'}
+              </div>
+              <GlassChip className="!py-1 !px-2 text-[10px] font-bold flex items-center gap-1" style={{ color: '#E0568F' }}>
+                <Layers size={11} />
+                {layerLabel}
+              </GlassChip>
+            </div>
+            <AddressBlock
+              label={t ? '节点地址' : 'Node address'}
+              value={focus.address}
+              isDark={isDark}
+              compact
+            />
           </div>
-          <GlassChip className="!py-1 !px-2 text-xs font-bold" style={{ color: '#E0568F' }}>
+          <GlassChip className="!py-1 !px-2 text-xs font-bold shrink-0" style={{ color: '#E0568F' }}>
             {focus.level}
           </GlassChip>
         </div>
@@ -1288,7 +1297,7 @@ function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet
           </div>
         </div>
         <div className={`text-xs font-semibold mt-3 leading-relaxed ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-          {t ? '团队业绩影响业绩分红权重。' : 'Team performance affects dividend weight.'}
+          {t ? '团队业绩影响收益权重。' : 'Team performance affects revenue weight.'}
         </div>
         <div className="flex gap-2 mt-4">
           <GlassButton
@@ -1326,13 +1335,17 @@ function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet
                   setFocusId(n.id);
                   setQ('');
                 }}
-                className={`w-full text-left ios-glass-pressable rounded-xl px-3 py-2.5 flex items-center justify-between ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-[#8A2B57]/[0.04]'}`}
+                className={`w-full text-left ios-glass-pressable rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-[#8A2B57]/[0.04]'}`}
               >
-                <div>
-                  <div className={`text-xs font-mono ${isDark ? 'text-white' : 'text-[#160510]'}`}>{n.short}</div>
-                  <div className={`text-xs font-semibold ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{n.level}</div>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-[10px] font-semibold mb-1.5 ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
+                    {t ? `第 ${teamDepthFromMe(teamNodes, n.id)} 层` : `Layer ${teamDepthFromMe(teamNodes, n.id)}`}
+                    {' · '}
+                    {n.level}
+                  </div>
+                  <AddressBlock value={n.address} isDark={isDark} compact showCopy />
                 </div>
-                <ChevronRight size={14} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />
+                <ChevronRight size={14} className={`shrink-0 ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`} />
               </button>
             ))}
           </div>
@@ -1340,9 +1353,12 @@ function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet
       </div>
 
       <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-          {t ? '下一层节点' : 'Next layer'}
+        <div className={`text-sm font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
+          {childLayerLabel}
         </div>
+        <p className={`text-[10px] font-medium mb-3 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+          {t ? `从当前第 ${currentDepth} 层向下查看` : `Drill down from layer ${currentDepth}`}
+        </p>
         {children.length === 0 ? (
           <div className={`text-sm font-medium text-center py-6 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{t ? '没有更下层节点' : 'No deeper nodes'}</div>
         ) : (
@@ -1352,15 +1368,16 @@ function TeamTab({ lang, isDark, wallet }: { lang: Lang; isDark: boolean; wallet
                 key={n.id}
                 type="button"
                 onClick={() => setFocusId(n.id)}
-                className={`w-full text-left rounded-xl px-3 py-3 ios-glass-inset ios-glass-pressable flex items-center justify-between gap-2`}
+                className={`w-full text-left rounded-xl px-3 py-3 ios-glass-inset ios-glass-pressable flex items-start justify-between gap-2`}
               >
-                <div className="min-w-0">
-                  <div className={`text-xs font-mono break-all ${isDark ? 'text-white' : 'text-[#160510]'}`}>{n.short}</div>
-                  <div className={`text-xs font-semibold mt-0.5 flex flex-wrap gap-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-[10px] font-semibold mb-1.5 flex flex-wrap gap-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+                    <span>{t ? `第 ${currentDepth + 1} 层` : `Layer ${currentDepth + 1}`}</span>
                     <span>{n.level}</span>
                     <span>${n.teamUsd.toLocaleString()}</span>
                     {n.isDirect && <span className="text-[#E0568F]">{t ? '直推' : 'Direct'}</span>}
                   </div>
+                  <AddressBlock value={n.address} isDark={isDark} compact />
                 </div>
                 <span className={`shrink-0 text-xs font-semibold flex items-center gap-0.5 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
                   {t ? '进入' : 'Open'} <ArrowRight size={12} />

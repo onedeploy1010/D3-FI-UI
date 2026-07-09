@@ -13,11 +13,21 @@ export const brand = {
   },
 } as const;
 
+/** Resolve public/brand assets for Vite base path (e.g. GitHub Pages /D3-FI-UI/) */
+export function brandAsset(path: string) {
+  const base = import.meta.env.BASE_URL ?? '/';
+  const normalized = path.replace(/^\//, '');
+  return `${base}${normalized}`;
+}
+
 export const brandLogo = {
-  svg: '/brand/logo/D3-logo-mark.svg',
-  light: '/brand/logo/D3-logo-light.png',
-  light2x: '/brand/logo/D3-logo-light-2x.png',
-  crimson: '/brand/logo/D3-logo-crimson.png',
-  primary: '/brand/logo/D3-logo-primary.png',
-  mono: '/brand/logo/D3-logo-mono.png',
+  svg: brandAsset('brand/logo/D3-logo-mark.svg'),
+  light: brandAsset('brand/logo/D3-logo-light.png'),
+  light2x: brandAsset('brand/logo/D3-logo-light-2x.png'),
+  crimson: brandAsset('brand/logo/D3-logo-crimson.png'),
+  crimson2x: brandAsset('brand/logo/D3-logo-crimson-2x.png'),
+  primary: brandAsset('brand/logo/D3-logo-primary.png'),
+  primary2x: brandAsset('brand/logo/D3-logo-primary-2x.png'),
+  mono: brandAsset('brand/logo/D3-logo-mono.png'),
+  mono2x: brandAsset('brand/logo/D3-logo-mono-2x.png'),
 } as const;

@@ -10,6 +10,7 @@ import Portal from "./pages/Portal";
 import D3Fi from "./pages/D3Fi";
 import BribeeUnion from "./pages/BribeeUnion";
 import D3AISite from "./pages/D3AISite";
+import { ReferralLanding } from "./components/wallet/ReferralLanding";
 
 
 function Router() {
@@ -17,6 +18,8 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Landing} />
       <Route path={"/portal"} component={Portal} />
+      <Route path={"/r/:wallet"} component={ReferralLanding} />
+      <Route path={"/union/r/:wallet"} component={ReferralLanding} />
       <Route path={"/d3fi"} component={D3Fi} />
       <Route path={"/union"} component={BribeeUnion} />
       <Route path="/ai" nest>

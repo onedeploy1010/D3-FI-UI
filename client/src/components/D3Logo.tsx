@@ -1,11 +1,12 @@
 /**
- * D³ Finance Logo — SVG mark (transparent), PNG optional fallback
+ * D³ Finance Logo — official seal PNGs (user-provided brand assets)
  */
 import { useState } from 'react';
 import { Link } from 'wouter';
 import { brandLogo } from '@/brand';
+import { useTheme } from '@/contexts/ThemeContext';
 
-type LogoVariant = 'svg' | 'light' | 'primary' | 'crimson' | 'mono';
+type LogoVariant = 'auto' | 'svg' | 'light' | 'primary' | 'crimson' | 'mono';
 
 interface D3LogoProps {
   size?: number;
@@ -18,41 +19,83 @@ interface D3LogoProps {
   animated?: boolean;
 }
 
-const SVG_MARK = '/brand/logo/D3-logo-mark.svg';
+type PngVariant = Exclude<LogoVariant, 'svg' | 'auto'>;
 
-function pngSrc(variant: Exclude<LogoVariant, 'svg'>) {
-  if (variant === 'light') return { src: brandLogo.light, srcSet: `${brandLogo.light} 1x, ${brandLogo.light2x} 2x` };
-  return { src: brandLogo[variant], srcSet: undefined };
+const PNG_2X: Record<PngVariant, string> = {
+  light: brandLogo.light2x,
+  primary: brandLogo.primary2x,
+  crimson: brandLogo.crimson2x,
+  mono: brandLogo.mono2x,
+};
+
+/** Official seal: light theme → light seal, dark theme → primary seal */
+function resolveVariant(variant: LogoVariant, isDark: boolean): Exclude<LogoVariant, 'auto'> {
+  if (variant !== 'auto') return variant;
+  return isDark ? 'primary' : 'light';
+}
+
+function pngSrc(variant: PngVariant) {
+  return {
+    src: brandLogo[variant],
+    srcSet: `${brandLogo[variant]} 1x, ${PNG_2X[variant]} 2x`,
+  };
+}
+
+function InlineSvgMark({ size, className }: { size: number; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 64"
+      width={size}
+      height={size}
+      role="img"
+      aria-label="D³ Finance"
+      className={`shrink-0 ${className ?? ''}`}
+      style={{ width: size, height: size }}
+    >
+      <defs>
+        <linearGradient id="d3-logo-ring" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#5E1A3C" />
+          <stop offset="0.45" stopColor="#8A2B57" />
+          <stop offset="1" stopColor="#E0568F" />
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="28" stroke="url(#d3-logo-ring)" strokeWidth="3.5" fill="none" />
+      <text
+        x="32"
+        y="38.5"
+        textAnchor="middle"
+        fill="url(#d3-logo-ring)"
+        fontFamily="Nunito, Varela Round, PingFang SC, sans-serif"
+        fontSize="17"
+        fontWeight="800"
+      >
+        D³
+      </text>
+    </svg>
+  );
 }
 
 export function D3LogoMark({
   size = 46,
   className = '',
-  variant = 'svg',
+  variant = 'auto',
 }: {
   size?: number;
   className?: string;
   animated?: boolean;
   variant?: LogoVariant;
 }) {
-  const [pngFailed, setPngFailed] = useState(false);
-  const useSvg = variant === 'svg' || pngFailed;
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const resolved = resolveVariant(variant, isDark);
+  const [imgFailed, setImgFailed] = useState(false);
 
-  if (useSvg) {
-    return (
-      <img
-        src={SVG_MARK}
-        alt="D³ Finance"
-        width={size}
-        height={size}
-        className={`object-contain shrink-0 ${className}`}
-        style={{ width: size, height: size }}
-        draggable={false}
-      />
-    );
+  if (resolved === 'svg' || imgFailed) {
+    return <InlineSvgMark size={size} className={className} />;
   }
 
-  const { src, srcSet } = pngSrc(variant);
+  const { src, srcSet } = pngSrc(resolved);
 
   return (
     <img
@@ -61,12 +104,11 @@ export function D3LogoMark({
       alt="D³ Finance"
       width={size}
       height={size}
-      onError={() => setPngFailed(true)}
-      className={`object-contain shrink-0 ${className} ${
-        variant === 'light' ? 'mix-blend-multiply dark:mix-blend-normal' : ''
-      }`}
+      onError={() => setImgFailed(true)}
+      className={`object-contain shrink-0 select-none ${className}`}
       style={{ width: size, height: size }}
       draggable={false}
+      decoding="async"
     />
   );
 }
@@ -77,7 +119,7 @@ export function D3Logo({
   showText = false,
   textClassName = '',
   to,
-  variant = 'svg',
+  variant = 'auto',
 }: D3LogoProps) {
   const content = (
     <div className={`flex items-center gap-2.5 ${className}`}>

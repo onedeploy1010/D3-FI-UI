@@ -3,6 +3,8 @@ import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/Gl
 import { Gift, Zap, Coins, RefreshCw, HelpCircle, Search, ArrowUpDown, CalendarDays, Vote, Shield, Crown, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RulesSheet, type RuleTopic } from '@/components/d3fi/RulesSheet';
+import type { D3FiViewModel } from '@/lib/d3fiViewModel';
+import { fmtUsd } from '@/lib/d3fiViewModel';
 
 type Lang = 'zh' | 'en';
 export type EarnSub = 'overview' | 'breakdown' | 'history';
@@ -159,11 +161,15 @@ export function DividendsTabContent({
   isDark,
   earnSub,
   onNavigateSub,
+  vm,
+  isLoading,
 }: {
   lang: Lang;
   isDark: boolean;
   earnSub: EarnSub;
   onNavigateSub: (sub: EarnSub) => void;
+  vm?: D3FiViewModel | null;
+  isLoading?: boolean;
 }) {
   const t = lang === 'zh';
   const stakingRate = 62.4;
@@ -171,42 +177,31 @@ export function DividendsTabContent({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [rulesTopic, setRulesTopic] = useState<RuleTopic>('general');
 
-  const epoch = '#42';
+  const epoch = vm?.epoch ?? '—';
   const bribePoolTotal = '$2.4M';
   const bribePoolDistributableD3 = '180,000 D3';
-  const myDt = 120;
+  const myDt = vm?.dt.amount ?? 0;
   const totalDt = 12_450;
-  const myDtRate = useMemo(() => (myDt / totalDt) * 100, [myDt, totalDt]);
+  const myDtRate = useMemo(() => (totalDt > 0 ? (myDt / totalDt) * 100 : 0), [myDt, totalDt]);
   const distributableUsdtNum = 180_000;
   const estimatedDtUsdt = useMemo(() => Math.round((myDt / totalDt) * distributableUsdtNum * 0.01), [myDt, totalDt]);
-  const myVeD3 = 800;
-  const estimatedVoteUsd = 400.5;
+  const myVeD3 = vm?.veD3Weight ?? 0;
+  const estimatedVoteUsd = myVeD3 > 0 ? Math.round(myVeD3 * 0.17 * 10) / 10 : 0;
 
   const claimable = {
-    usdt: 420.5,
+    usdt: vm?.claimableUsdt ?? 0,
   };
 
   const breakdownItems = useMemo<BreakdownItem[]>(
-    () => [
-      { id: 'b1', epoch: '#42', date: '2026-07-05', category: 'bribe', sourceZh: '贿赂池分成 (veD3)', sourceEn: 'Bribe share (veD3)', asset: 'USDT', amount: 280.3, status: 'claimable' },
-      { id: 'b2', epoch: '#42', date: '2026-07-05', category: 'lp', sourceZh: 'LP 手续费 (100%)', sourceEn: 'LP fees (100%)', asset: 'USDT', amount: 85.2, status: 'claimable' },
-      { id: 'b3', epoch: '#42', date: '2026-07-05', category: 'emission', sourceZh: 'Gauge 排放分红', sourceEn: 'Gauge emission dividend', asset: 'USDT', amount: 28, status: 'claimable' },
-      { id: 'b4', epoch: '#42', date: '2026-07-05', category: 'dt', sourceZh: 'DT 权重分红', sourceEn: 'DT weight dividend', asset: 'USDT', amount: 27, status: 'claimable' },
-      { id: 'b5', epoch: '#42', date: '2026-07-04', category: 'bribe', sourceZh: 'Alpha 协议 · 贿赂', sourceEn: 'Project Alpha · bribe', asset: 'USDT', amount: 42.1, status: 'pending' },
-    ],
-    [],
+    () =>
+      (vm?.breakdownItems ?? []).map((item) => ({
+        ...item,
+        asset: item.asset === 'USD3' ? 'USDT' : item.asset,
+      })),
+    [vm],
   );
 
-  const historyItems = useMemo<HistoryItem[]>(
-    () => [
-      { id: 'h1', date: '2026-07-05', epoch: '#41', usdt: 340.2 },
-      { id: 'h2', date: '2026-06-28', epoch: '#40', usdt: 285.6 },
-      { id: 'h3', date: '2026-06-21', epoch: '#39', usdt: 310.8 },
-      { id: 'h4', date: '2026-06-14', epoch: '#38', usdt: 298.1 },
-      { id: 'h5', date: '2026-06-07', epoch: '#37', usdt: 265.4 },
-    ],
-    [],
-  );
+  const historyItems = useMemo<HistoryItem[]>(() => vm?.historyItems ?? [], [vm]);
 
   const [breakdownQ, setBreakdownQ] = useState('');
   const [breakdownRange, setBreakdownRange] = useState<'7d' | '30d' | 'all'>('30d');

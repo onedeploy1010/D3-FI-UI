@@ -1,23 +1,44 @@
 import { useState } from 'react';
 import { ArrowDownToLine, ArrowRightLeft, Lock, Send, Info } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
-import {
-  dUsdAccount,
-  referralEpoch,
-  referralPending,
-  transferableQuota,
-} from '@/components/d3fi/rewardData';
+import type { D3FiViewModel } from '@/lib/d3fiViewModel';
+import { claimUsd3 } from '@/lib/unionApi';
+import { fmtNum } from '@/lib/d3fiViewModel';
 
 type Lang = 'zh' | 'en';
 
-export function DUsdTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
+export function DUsdTab({
+  lang,
+  isDark,
+  vm,
+  isLoading,
+  onClaim,
+  wallet,
+}: {
+  lang: Lang;
+  isDark: boolean;
+  vm: D3FiViewModel | null;
+  isLoading?: boolean;
+  onClaim?: () => void;
+  wallet?: string | null;
+}) {
   const t = lang === 'zh';
   const [mode, setMode] = useState<'overview' | 'deposit' | 'transfer'>('overview');
   const [depositAmount, setDepositAmount] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [transferTo, setTransferTo] = useState('');
 
+  const usd3 = vm?.usd3 ?? { total: 0, available: 0, staked: 0, transferable: 0, pending: 0, selfPool: 0, downlinePool: 0 };
+  const pending = vm?.pendingReferral ?? { total: 0, self: 0, transferable: 0, epoch: '—' };
+  const transferableQuota = vm?.transferableQuota ?? { credited: 0, used: 0, remaining: 0 };
   const transferableLeft = transferableQuota.remaining;
+  const stakedPositions = (vm?.positions ?? []).filter((p) => p.type.toLowerCase().includes('lp') || p.amount.includes('USD3'));
+
+  const handleClaim = async () => {
+    if (!wallet || pending.total <= 0) return;
+    await claimUsd3(wallet);
+    onClaim?.();
+  };
 
   if (mode === 'deposit') {
     return (
@@ -116,18 +137,18 @@ export function DUsdTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
             <div className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{t ? '质押专用资产' : 'Staking asset'}</div>
           </div>
         </div>
-        <div className="text-3xl font-bold font-stat mb-3" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>
-          {dUsdAccount.total.toLocaleString()} <span className="text-lg font-heading">USD3</span>
+        <div className="site-stat-value-lg site-stat-value-accent mb-3">
+          {fmtNum(usd3.total)} <span className="text-lg font-heading">USD3</span>
         </div>
         <div className="grid grid-cols-2 gap-2 text-[10px]">
           <div className="ios-glass-inset p-2.5">
             <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '可用' : 'Available'}</div>
-            <div className={`font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{dUsdAccount.available}</div>
+            <div className={`font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{fmtNum(usd3.available)}</div>
           </div>
           <div className="ios-glass-inset p-2.5">
             <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '质押中' : 'Staked'}</div>
             <div className={`font-semibold mt-0.5 flex items-center gap-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-              <Lock size={10} className="text-[#E0568F]" /> {dUsdAccount.staked}
+              <Lock size={10} className="text-[#E0568F]" /> {fmtNum(usd3.staked)}
             </div>
           </div>
         </div>
@@ -166,20 +187,20 @@ export function DUsdTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className={isDark ? 'text-white/50' : 'text-[#160510]/50'}>
-              {t ? `本期累计推荐（Epoch ${referralEpoch.epoch}）` : `Epoch ${referralEpoch.epoch} referral total`}
+              {t ? `本期累计推荐（Epoch ${pending.epoch}）` : `Epoch ${pending.epoch} referral total`}
             </span>
-            <span className="font-semibold">{referralEpoch.total} USD3</span>
+            <span className="font-semibold">{fmtNum(vm?.cumulativeReferralUsd3 ?? 0)} USD3</span>
           </div>
           <div className={`flex justify-between text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
-            <span>{t ? `已入账 ${referralEpoch.claimed} USD3` : `${referralEpoch.claimed} USD3 credited`}</span>
-            <span>{t ? `待领取 ${referralPending.total} USD3` : `${referralPending.total} USD3 pending`}</span>
+            <span>{t ? `已入账 ${fmtNum(vm?.cumulativeReferralUsd3 ?? 0)} USD3` : `${fmtNum(vm?.cumulativeReferralUsd3 ?? 0)} USD3 credited`}</span>
+            <span>{t ? `待领取 ${pending.total} USD3` : `${pending.total} USD3 pending`}</span>
           </div>
           <div className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
             {t ? '全部为 USD3，入账后用于质押投资（非钱包提现）' : 'All USD3 — credits for staking/investment, not wallet withdrawal'}
           </div>
-          {referralPending.total > 0 && (
-            <GlassButton variant="primary" className="w-full !py-2.5 !text-xs">
-              {t ? `领取 ${referralPending.total} USD3 至余额` : `Credit ${referralPending.total} USD3 to balance`}
+          {pending.total > 0 && (
+            <GlassButton variant="primary" className="w-full !py-2.5 !text-xs" onClick={() => void handleClaim()}>
+              {t ? `领取 ${pending.total} USD3 至余额` : `Credit ${pending.total} USD3 to balance`}
             </GlassButton>
           )}
           <div className={`text-[10px] font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
@@ -188,11 +209,11 @@ export function DUsdTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
           <div className="grid grid-cols-2 gap-2">
             <div className="ios-glass-inset p-3 text-center">
               <div className={`text-[9px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{t ? '自留 USD3' : 'Self USD3'}</div>
-              <div className="text-sm font-bold mt-1" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{referralPending.self}</div>
+              <div className="text-sm font-bold mt-1" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{pending.self}</div>
             </div>
             <div className="ios-glass-inset p-3 text-center ring-1 ring-emerald-500/20">
               <div className={`text-[9px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{t ? '可转让 USD3' : 'Transferable USD3'}</div>
-              <div className="text-sm font-bold mt-1 text-emerald-500">{referralPending.transferable}</div>
+              <div className="text-sm font-bold mt-1 text-emerald-500">{pending.transferable}</div>
             </div>
           </div>
 
@@ -226,18 +247,21 @@ export function DUsdTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
           {t ? '质押中的 USD3' : 'Staked USD3'}
         </div>
         <div className="space-y-2">
-          {[
-            { type: t ? 'LP 债券质押' : 'LP Bond Stake', amount: '1,200 USD3', lock: '180d', status: t ? '释放中' : 'Vesting' },
-            { type: t ? 'LP 债券质押' : 'LP Bond Stake', amount: '800 USD3', lock: '360d', status: t ? '释放中' : 'Vesting' },
-          ].map((pos, i) => (
-            <div key={i} className="ios-glass-inset p-3 flex items-center justify-between">
-              <div>
-                <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.type}</div>
-                <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{pos.lock} · {pos.status}</div>
-              </div>
-              <span className={`text-xs font-semibold ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>{pos.amount}</span>
+          {stakedPositions.length === 0 ? (
+            <div className={`text-xs py-4 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+              {isLoading ? (t ? '加载中…' : 'Loading…') : (t ? '暂无质押仓位' : 'No staked positions')}
             </div>
-          ))}
+          ) : (
+            stakedPositions.map((pos, i) => (
+              <div key={i} className="ios-glass-inset p-3 flex items-center justify-between">
+                <div>
+                  <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.type}</div>
+                  <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{pos.remaining}</div>
+                </div>
+                <span className={`text-xs font-semibold ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>{pos.amount}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

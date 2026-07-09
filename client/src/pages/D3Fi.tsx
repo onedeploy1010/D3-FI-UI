@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
-import { Home, Wallet, Vote, Coins, User, ArrowDownToLine, Gift, Shield, TrendingUp, Clock, Zap, RefreshCw, ExternalLink, ChevronDown, AlertTriangle, Flame, Eye, Lock, HelpCircle } from 'lucide-react';
+import { TrendingUp, Home, Wallet, Vote, Coins, User, ArrowDownToLine, Gift, Shield, Clock, Zap, RefreshCw, ExternalLink, ChevronDown, AlertTriangle, Flame, Eye, Lock, HelpCircle } from 'lucide-react';
 import { D3Logo } from '@/components/D3Logo';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { SecurityShieldDiagram } from '@/components/illustrations/SecurityShieldDiagram';
@@ -14,14 +14,20 @@ import { TeamTreeTab } from '@/components/d3fi/TeamTreeTab';
 import { PocScoreTab } from '@/components/d3fi/PocScoreTab';
 import { DUsdTab } from '@/components/d3fi/DUsdTab';
 import { RulesSheet } from '@/components/d3fi/RulesSheet';
-import { recentTeamRewards, teamRewardPending } from '@/components/d3fi/rewardData';
 import { SiteFooter } from '@/components/layout/SiteFooter';
+import { SitePageHeader } from '@/components/layout/SitePageHeader';
 import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
+import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 import { WalletGate } from '@/components/wallet/WalletGate';
+import { useD3FiProfile, type D3FiViewModel } from '@/hooks/useD3FiProfile';
+import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
+import { TeamDynamicRewardsPanel } from '@/components/d3fi/TeamDynamicRewardsPanel';
+import { fmtNum, fmtUsd } from '@/lib/d3fiViewModel';
+import type { ProtocolEpochView } from '@/lib/protocolTypes';
 
 type Lang = 'zh' | 'en';
 type Section = 'home' | 'assets' | 'govern' | 'earn' | 'me';
@@ -76,6 +82,8 @@ export default function D3Fi() {
   const [, navigate] = useLocation();
   const { theme } = useTheme();
   const { wallet, shortAddress } = useWallet();
+  const { vm, isLoading, refetch } = useD3FiProfile(wallet, lang);
+  const { epoch: protocolEpoch, bribeProjects, activeProjects, isLoading: protocolLoading } = useProtocolEpoch(lang);
   const isDark = theme === 'dark';
 
   const current = sections.find((s) => s.id === section)!;
@@ -212,24 +220,19 @@ export default function D3Fi() {
             {lang === 'zh' ? 'EN' : '中文'}
           </GlassIconButton>
           <WalletConnectButton lang={lang} showDisconnect={false} />
-          <div className={`hidden min-[380px]:flex ios-glass-chip !py-1.5 !px-2 text-[10px] font-mono ${isDark ? 'text-white/60' : 'text-[#8A2B57]/60'}`}>{shortAddress ?? '—'}</div>
         </div>
       </nav>
 
       {/* Mobile page title */}
       <div className="md:hidden page-px pt-4 pb-1">
-        <h1 className={`text-lg font-bold font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{pageTitle}</h1>
-        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>{pageDesc}</p>
+        <SitePageHeader title={pageTitle} subtitle={pageDesc} />
       </div>
 
       {/* Desktop Top Bar */}
       <div className={`hidden md:flex sticky top-0 z-40 backdrop-blur-2xl border-b px-8 py-4 items-center justify-between transition-colors duration-300 ${
         isDark ? 'bg-dark-surface border-[#E0568F]/[0.06]' : 'bg-light-surface border-[#8A2B57]/[0.06]'
       }`}>
-        <div>
-          <h1 className={`text-lg font-bold font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{pageTitle}</h1>
-          <p className={`text-xs mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>{pageDesc}</p>
-        </div>
+        <SitePageHeader title={pageTitle} subtitle={pageDesc} />
         <div className="flex items-center gap-3">
           <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
             isDark ? 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1]' : 'bg-[#8A2B57]/[0.06] text-[#8A2B57]/60 hover:bg-[#8A2B57]/[0.1]'
@@ -312,22 +315,38 @@ export default function D3Fi() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22 }}
           >
-            {section === 'home' && <DashboardTab lang={lang} isDark={isDark} onNavigate={goSection} />}
-            {section === 'assets' && assetsSub === 'holdings' && <AssetsTab lang={lang} isDark={isDark} onNavigate={goSection} />}
-            {section === 'assets' && assetsSub === 'dusd' && <DUsdTab lang={lang} isDark={isDark} />}
-            {section === 'assets' && assetsSub === 'enter' && <EnterTab lang={lang} isDark={isDark} />}
+            {section === 'home' && (
+              <DashboardTab
+                lang={lang}
+                isDark={isDark}
+                vm={vm}
+                protocolEpoch={protocolEpoch}
+                isLoading={isLoading || protocolLoading}
+                onNavigate={goSection}
+              />
+            )}
+            {section === 'assets' && assetsSub === 'holdings' && <AssetsTab lang={lang} isDark={isDark} vm={vm} isLoading={isLoading} onNavigate={goSection} />}
+            {section === 'assets' && assetsSub === 'dusd' && <DUsdTab lang={lang} isDark={isDark} vm={vm} isLoading={isLoading} onClaim={refetch} wallet={wallet} />}
+            {section === 'assets' && assetsSub === 'enter' && <EnterTab lang={lang} isDark={isDark} vm={vm} />}
             {section === 'govern' && governSub === 'vote' && (
               <VoteTabContent
                 lang={lang}
                 isDark={isDark}
+                totalPower={vm?.veD3Weight ?? 0}
                 focusProjectId={voteFocusProject}
                 onFocusHandled={() => setVoteFocusProject(null)}
+                epoch={protocolEpoch}
+                projects={activeProjects}
+                isLoading={protocolLoading}
               />
             )}
             {section === 'govern' && governSub === 'bribe' && (
               <BribeMarketTab
                 lang={lang}
                 isDark={isDark}
+                epoch={protocolEpoch}
+                projects={bribeProjects}
+                isLoading={protocolLoading}
                 onGoVote={(projectId) => {
                   setVoteFocusProject(projectId);
                   goSection('govern', 'vote');
@@ -335,11 +354,23 @@ export default function D3Fi() {
               />
             )}
             {section === 'earn' && (
-              <DividendsTabContent lang={lang} isDark={isDark} earnSub={earnSub} onNavigateSub={setEarnSub} />
+              <DividendsTabContent
+                lang={lang}
+                isDark={isDark}
+                earnSub={earnSub}
+                onNavigateSub={setEarnSub}
+                vm={vm}
+                protocolEpoch={protocolEpoch}
+                isLoading={isLoading || protocolLoading}
+              />
             )}
-            {section === 'me' && meSub === 'network' && <NetworkTab lang={lang} isDark={isDark} wallet={wallet} onNavigate={goSection} />}
-            {section === 'me' && meSub === 'team' && <TeamTreeTab lang={lang} isDark={isDark} />}
-            {section === 'me' && meSub === 'score' && <PocScoreTab lang={lang} isDark={isDark} />}
+            {section === 'me' && meSub === 'network' && (
+              <NetworkTab lang={lang} isDark={isDark} wallet={wallet} vm={vm} onNavigate={goSection} />
+            )}
+            {section === 'me' && meSub === 'team' && <TeamTreeTab lang={lang} isDark={isDark} vm={vm} wallet={wallet} />}
+            {section === 'me' && meSub === 'score' && (
+              <PocScoreTab lang={lang} isDark={isDark} poc={vm?.poc} isLoading={isLoading} />
+            )}
             {section === 'me' && meSub === 'safety' && <SafetyTab lang={lang} isDark={isDark} />}
             {section === 'me' && meSub === 'help' && <HelpTab lang={lang} isDark={isDark} />}
           </motion.div>
@@ -389,30 +420,45 @@ export default function D3Fi() {
 function DashboardTab({
   lang,
   isDark,
+  vm,
+  protocolEpoch,
+  isLoading,
   onNavigate,
 }: {
   lang: Lang;
   isDark: boolean;
+  vm: D3FiViewModel | null;
+  protocolEpoch: ProtocolEpochView | null;
+  isLoading: boolean;
   onNavigate: (section: Section, sub?: string) => void;
 }) {
   const t = lang === 'zh';
+  const portfolio = vm ? fmtUsd(vm.portfolioTotalUsd) : isLoading ? '…' : fmtUsd(0);
+  const claimable = vm ? fmtUsd(vm.claimableUsdt) : isLoading ? '…' : fmtUsd(0);
+  const veD3 = vm ? fmtNum(vm.veD3Weight) : isLoading ? '…' : '0';
+  const level = vm?.level ?? (isLoading ? '…' : 'V0');
+  const epoch = protocolEpoch?.label ?? (isLoading ? '…' : '—');
+  const activity = vm?.recentActivity ?? [];
+
   return (
     <div className="space-y-5">
       <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
         <div className={`text-xs mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? '资产总价值' : 'Total Portfolio'}</div>
-        <div className="text-3xl font-bold mb-1 font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>$12,450.80</div>
-        <div className="flex items-center gap-1 text-xs text-emerald-500">
-          <TrendingUp size={12} /> +$340.20 (2.8%)
-        </div>
+        <div className="site-stat-value-lg site-stat-value-accent mb-1">{portfolio}</div>
+        {vm && vm.portfolioTotalUsd > 0 && (
+          <div className={`text-xs ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+            {t ? '基于 Supabase 账户与仓位' : 'From Supabase accounts & positions'}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: t ? '待领取收益' : 'Claimable', value: '$420.50', color: 'text-emerald-500', action: () => onNavigate('earn') },
-          { label: t ? 'veD3 权重' : 'veD3 Weight', value: '2,400', color: '', action: () => onNavigate('govern', 'vote') },
-          { label: t ? '身份等级' : 'Level', value: 'V5', color: '', action: () => onNavigate('me', 'team') },
-          { label: t ? '当前 Epoch' : 'Current Epoch', value: '#42', color: '', action: () => onNavigate('govern', 'bribe') },
+          { label: t ? '待领取收益' : 'Claimable', value: claimable, color: 'text-emerald-500', action: () => onNavigate('earn') },
+          { label: t ? 'veD3 权重' : 'veD3 Weight', value: veD3, color: '', action: () => onNavigate('govern', 'vote') },
+          { label: t ? '身份等级' : 'Level', value: level, color: '', action: () => onNavigate('me', 'team') },
+          { label: t ? '当前 Epoch' : 'Current Epoch', value: epoch, color: '', action: () => onNavigate('govern', 'bribe') },
         ].map((item, i) => (
           <button
             key={i}
@@ -421,7 +467,7 @@ function DashboardTab({
             className={glassCardClass('default', 'p-4 text-left ios-glass-pressable')}
           >
             <div className={`text-[10px] mb-1 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{item.label}</div>
-            <div className={`text-lg font-bold font-stat ${item.color || (isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]')}`} style={!item.color ? { color: isDark ? '#E0568F' : '#8A2B57' } : {}}>{item.value}</div>
+            <div className={cn('site-stat-value-md', !item.color && 'site-stat-value-accent', item.color)}>{item.value}</div>
           </button>
         ))}
       </div>
@@ -452,19 +498,21 @@ function DashboardTab({
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>{t ? '最近活动' : 'Recent Activity'}</div>
         <div className="space-y-3">
-          {[
-            { action: t ? '领取贿赂分红' : 'Claimed bribe dividends', amount: '+$120.50', time: '2h ago', positive: true },
-            { action: t ? '投票给 Gauge #3' : 'Voted Gauge #3', amount: '800 veD3', time: '1d ago', positive: false },
-            { action: t ? 'LP 债券入场' : 'LP Bond entry', amount: '-$2,000', time: '3d ago', positive: false },
-          ].map((item, i) => (
-            <div key={i} className={`flex items-center justify-between py-2 border-b last:border-0 ${isDark ? 'border-white/[0.03]' : 'border-[#8A2B57]/[0.04]'}`}>
-              <div>
-                <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{item.action}</div>
-                <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{item.time}</div>
-              </div>
-              <div className={`text-xs font-semibold ${item.positive ? 'text-emerald-500' : (isDark ? 'text-white/60' : 'text-[#160510]/60')}`}>{item.amount}</div>
+          {activity.length === 0 ? (
+            <div className={`text-xs py-4 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+              {isLoading ? (t ? '加载中…' : 'Loading…') : (t ? '暂无活动记录' : 'No activity yet')}
             </div>
-          ))}
+          ) : (
+            activity.map((item, i) => (
+              <div key={i} className={`flex items-center justify-between py-2 border-b last:border-0 ${isDark ? 'border-white/[0.03]' : 'border-[#8A2B57]/[0.04]'}`}>
+                <div>
+                  <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? item.actionZh : item.actionEn}</div>
+                  <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{item.time}</div>
+                </div>
+                <div className={`text-xs font-semibold ${item.positive ? 'text-emerald-500' : (isDark ? 'text-white/60' : 'text-[#160510]/60')}`}>{item.amount}</div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -472,14 +520,30 @@ function DashboardTab({
 }
 
 // ===== ASSETS TAB =====
-function AssetsTab({ lang, isDark, onNavigate }: { lang: Lang; isDark: boolean; onNavigate: (section: Section, sub?: string) => void }) {
+function AssetsTab({
+  lang,
+  isDark,
+  vm,
+  isLoading,
+  onNavigate,
+}: {
+  lang: Lang;
+  isDark: boolean;
+  vm: D3FiViewModel | null;
+  isLoading: boolean;
+  onNavigate: (section: Section, sub?: string) => void;
+}) {
   const t = lang === 'zh';
+  const positions = vm?.positions ?? [];
+
   return (
     <div className="space-y-5">
       <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
-        <div className={`text-xs mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? '资产总览' : 'Asset Overview'}</div>
-        <div className="text-3xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>$12,450.80</div>
+        <div className="site-stat-label mb-2">{t ? '资产总览' : 'Asset Overview'}</div>
+        <div className="site-stat-value-lg site-stat-value-accent mb-3">
+          {vm ? fmtUsd(vm.portfolioTotalUsd) : isLoading ? '…' : fmtUsd(0)}
+        </div>
       </div>
 
       {/* USD3 quick access */}
@@ -492,7 +556,9 @@ function AssetsTab({ lang, isDark, onNavigate }: { lang: Lang; isDark: boolean; 
           <div className="flex items-center gap-3">
             <div className="ios-glass-inset w-10 h-10 flex items-center justify-center text-xs font-bold text-[#E0568F]">d$</div>
             <div>
-              <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>3,200 USD3</div>
+              <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                {fmtNum(vm?.usd3.total ?? 0)} USD3
+              </div>
               <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{t ? '质押专用 · 可充值/转让' : 'For staking · Deposit/Transfer'}</div>
             </div>
           </div>
@@ -501,23 +567,37 @@ function AssetsTab({ lang, isDark, onNavigate }: { lang: Lang; isDark: boolean; 
         <div className="grid grid-cols-3 gap-2 mt-3 text-[10px]">
           <div className="ios-glass-inset p-2 text-center">
             <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '可用' : 'Free'}</div>
-            <div className="font-semibold mt-0.5">1,200</div>
+            <div className="font-semibold mt-0.5">{fmtNum(vm?.usd3.available ?? 0)}</div>
           </div>
           <div className="ios-glass-inset p-2 text-center">
             <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '质押中' : 'Staked'}</div>
-            <div className="font-semibold mt-0.5">2,000</div>
+            <div className="font-semibold mt-0.5">{fmtNum(vm?.usd3.staked ?? 0)}</div>
           </div>
           <div className="ios-glass-inset p-2 text-center">
             <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '可转让' : 'Transfer'}</div>
-            <div className="font-semibold mt-0.5 text-emerald-500">300</div>
+            <div className="font-semibold mt-0.5 text-emerald-500">{fmtNum(vm?.usd3.transferable ?? 0)}</div>
           </div>
         </div>
       </button>
 
       <div className="space-y-3">
         {[
-          { token: 'D3', amount: '4,200', value: '$8,400', change: '+5.2%', locked: '2,400 veD3', desc: '' },
-          { token: 'DT', amount: '120', value: '$3,600', change: '+2.1%', locked: '', desc: t ? '权重分红' : 'Weight dividends' },
+          {
+            token: 'D3',
+            amount: fmtNum(vm?.d3.amount ?? 0),
+            value: fmtUsd(vm?.d3.valueUsd ?? 0),
+            change: '',
+            locked: vm && vm.d3.veLocked > 0 ? `${fmtNum(vm.d3.veLocked)} veD3` : '',
+            desc: '',
+          },
+          {
+            token: 'DT',
+            amount: fmtNum(vm?.dt.amount ?? 0),
+            value: fmtUsd(vm?.dt.valueUsd ?? 0),
+            change: '',
+            locked: '',
+            desc: t ? '权重分红' : 'Weight dividends',
+          },
         ].map((item, i) => (
           <div key={i} className={glassCardClass('default', 'p-4 flex items-center justify-between')}>
             <div className="flex items-center gap-3">
@@ -532,7 +612,9 @@ function AssetsTab({ lang, isDark, onNavigate }: { lang: Lang; isDark: boolean; 
             </div>
             <div className="text-right">
               <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{item.value}</div>
-              <div className={`text-[10px] ${item.change.startsWith('+') ? 'text-emerald-500' : 'text-red-400'}`}>{item.change}</div>
+              {item.change && (
+                <div className={`text-[10px] ${item.change.startsWith('+') ? 'text-emerald-500' : 'text-red-400'}`}>{item.change}</div>
+              )}
             </div>
           </div>
         ))}
@@ -541,24 +623,27 @@ function AssetsTab({ lang, isDark, onNavigate }: { lang: Lang; isDark: boolean; 
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>{t ? '活跃仓位' : 'Active Positions'}</div>
         <div className="space-y-3">
-          {[
-            { type: t ? 'USD3 → LP 债券' : 'USD3 → LP Bond', amount: '1,200 USD3', progress: 65, remaining: '45d', apy: '12.5%' },
-            { type: t ? 'veD3 锁仓' : 'veD3 Lock', amount: '2,400 D3', progress: 30, remaining: '180d', apy: '8.2%' },
-          ].map((pos, i) => (
-            <div key={i} className="ios-glass-inset p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.type}</span>
-                <span className="text-[10px] text-[#E0568F] font-medium">APY {pos.apy}</span>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.amount}</span>
-                <span className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{t ? '剩余' : 'Remaining'}: {pos.remaining}</span>
-              </div>
-              <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
-                <div className="h-full rounded-full" style={{ width: `${pos.progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />
-              </div>
+          {positions.length === 0 ? (
+            <div className={`text-xs py-6 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+              {isLoading ? (t ? '加载中…' : 'Loading…') : (t ? '暂无活跃仓位' : 'No active positions')}
             </div>
-          ))}
+          ) : (
+            positions.map((pos, i) => (
+              <div key={i} className="ios-glass-inset p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.type}</span>
+                  {pos.apy !== '—' && <span className="text-[10px] text-[#E0568F] font-medium">APY {pos.apy}</span>}
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{pos.amount}</span>
+                  <span className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{t ? '剩余' : 'Remaining'}: {pos.remaining}</span>
+                </div>
+                <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
+                  <div className="h-full rounded-full" style={{ width: `${pos.progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -681,7 +766,7 @@ function LpPeriodTable({
   );
 }
 
-function EnterTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
+function EnterTab({ lang, isDark, vm }: { lang: Lang; isDark: boolean; vm: D3FiViewModel | null }) {
   const t = lang === 'zh';
   const [method, setMethod] = useState<'swap' | 'lp' | 'burn'>('swap');
   const [lockDays, setLockDays] = useState(180);
@@ -725,7 +810,7 @@ function EnterTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
           <span className={`text-sm font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{method === 'swap' ? 'USDT' : 'USD3'}</span>
         </div>
         <div className={`flex items-center justify-between text-[10px] mb-5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
-          <span>{t ? '余额' : 'Balance'}: {method === 'swap' ? '5,000 USDT' : '1,200 USD3'}</span>
+          <span>{t ? '余额' : 'Balance'}: {method === 'swap' ? (t ? '链上 USDT' : 'On-chain USDT') : `${fmtNum(vm?.usd3.available ?? 0)} USD3`}</span>
           <button className="text-[#E0568F] font-medium">{t ? '最大' : 'MAX'}</button>
         </div>
 
@@ -788,146 +873,94 @@ function NetworkTab({
   lang,
   isDark,
   wallet,
+  vm,
   onNavigate,
 }: {
   lang: Lang;
   isDark: boolean;
   wallet: string | null;
+  vm: D3FiViewModel | null;
   onNavigate: (section: Section, sub?: string) => void;
 }) {
   const t = lang === 'zh';
-  const referralLink = wallet ? `https://d3.fi/r/${wallet}` : 'https://d3.fi/r/';
-  const cumulativeDusd = recentTeamRewards.reduce((sum, r) => sum + r.dusd, 0) + 1050;
+  const referralLink = buildReferralLink(wallet);
+  const dynamicPending = vm?.teamDynamicPending ?? { usdt: 0, d3: 0, epoch: '—' };
+  const dynamicTotal = dynamicPending.usdt + dynamicPending.d3 * 2;
 
   return (
     <div className="space-y-5">
-      <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
-        <div className={`text-xs mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? '推荐网络' : 'Referral Network'}</div>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}
+      >
+        <motion.div
+          className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent"
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div className="site-stat-label mb-2">{t ? '推荐网络' : 'Referral Network'}</div>
         <div className="grid grid-cols-3 gap-3 mt-3">
-          <div>
-            <div className="text-xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>24</div>
-            <div className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{t ? '直推' : 'Direct'}</div>
-          </div>
-          <div>
-            <div className={`text-xl font-bold font-stat ${isDark ? 'text-white' : 'text-[#160510]'}`}>156</div>
-            <div className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{t ? '团队' : 'Team'}</div>
-          </div>
-          <div>
-            <div className="text-xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>
-              {cumulativeDusd.toLocaleString()}
-              <span className="text-sm ml-0.5 font-heading">USD3</span>
-            </div>
-            <div className={`text-[10px] ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{t ? '累计推荐奖励' : 'Referral rewards'}</div>
-          </div>
-        </div>
-      </div>
-
-      {teamRewardPending.total > 0 && (
-        <div className={glassCardClass('accent', 'p-5')}>
-          <div className={`text-xs mb-1 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-            {t ? `待入账推荐奖励 · Epoch ${teamRewardPending.epoch}` : `Pending referral · Epoch ${teamRewardPending.epoch}`}
-          </div>
-          <div className="text-2xl font-bold font-stat mb-1" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>
-            {teamRewardPending.total} <span className="text-base font-heading">USD3</span>
-          </div>
-          <div className={`text-[10px] mb-4 leading-relaxed ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-            {t
-              ? '下级入金 30% 全部以 USD3 发放，入账后用于质押投资，不可提现'
-              : '30% of downline entry paid entirely in USD3 for staking/investment — not withdrawable'}
-          </div>
-          <div className="grid grid-cols-2 gap-2 mb-4 text-[10px]">
-            <div className="ios-glass-inset p-2.5 text-center">
-              <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '自留' : 'Self'}</div>
-              <div className="font-bold mt-0.5">{teamRewardPending.self} USD3</div>
-            </div>
-            <div className="ios-glass-inset p-2.5 text-center">
-              <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{t ? '可转让' : 'Transfer'}</div>
-              <div className="font-bold mt-0.5 text-emerald-500">{teamRewardPending.transferable} USD3</div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <GlassButton variant="primary" className="flex-1 !py-2.5 !text-xs">
-              {t ? '领取至 USD3 余额' : 'Credit to USD3'}
-            </GlassButton>
-            <GlassButton variant="secondary" className="flex-1 !py-2.5 !text-xs" onClick={() => onNavigate('assets', 'dusd')}>
-              {t ? '去质押' : 'Stake'}
-            </GlassButton>
-          </div>
-        </div>
-      )}
-
-      <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>{t ? '我的推荐链接' : 'My Referral Link'}</div>
-        <AddressBlock value={referralLink} isDark={isDark} />
-      </div>
-
-      <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>{t ? '推荐奖励规则' : 'Reward Rules'}</div>
-        <div className="space-y-3">
           {[
+            { value: vm?.directCount ?? 0, label: t ? '直推' : 'Direct', accent: true },
+            { value: vm?.teamCount ?? 0, label: t ? '团队' : 'Team', accent: false },
             {
-              level: t ? '推荐奖励（入金）' : 'Referral (entry)',
-              rate: '30%',
-              desc: t ? '下级入金 30% 全部以 USD3 入账，用于质押投资，不可提现' : '30% of downline entry, all USD3 for staking — not withdrawable',
+              value: dynamicTotal > 0 ? fmtUsd(dynamicTotal) : '—',
+              label: t ? '动态待释放' : 'Dynamic pending',
+              accent: true,
             },
-            {
-              level: t ? '自留 USD3' : 'Self USD3',
-              rate: '15%',
-              desc: t ? '记入 USD3 余额，可用于 LP/销毁债券质押' : 'Credits to USD3 balance for LP/burn bond staking',
-            },
-            {
-              level: t ? '可转让 USD3' : 'Transferable USD3',
-              rate: '15%',
-              desc: t ? '仅可转给直推下线，用于其质押入场' : 'Transferable to direct downline for their staking entry only',
-            },
-            {
-              level: t ? '治理分红' : 'Governance dividends',
-              rate: 'USDT',
-              desc: t ? '贿赂、LP、权重分红等在「收益」页以 USDT 直接领取到钱包（与推荐无关）' : 'Bribes, LP, weight share claimed as USDT on Earn tab — separate from referral',
-            },
-            {
-              level: t ? '动态 · PoC 级差' : 'Dynamic · PoC',
-              rate: '级差',
-              desc: t ? '下级动态收益 × 实际级差（V 级 + PoC）；180 天线性释放' : 'Downline dynamic × your rate (V + PoC); 180d vesting',
-            },
-            {
-              level: t ? '动态 · PoN 算力' : 'Dynamic · PoN',
-              rate: '池分配',
-              desc: t ? '按小区算力占比分配 PoN 池；与级差叠加' : 'Small-area hashpower share of PoN pool; stacks with PoC',
-            },
-          ].map((rule, i) => (
-            <div key={i} className={`flex flex-col gap-2 py-3 border-b last:border-0 sm:flex-row sm:items-start sm:justify-between ${isDark ? 'border-white/[0.03]' : 'border-[#8A2B57]/[0.04]'}`}>
-              <div className="flex-1 min-w-0 pr-2">
-                <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{rule.level}</div>
-                <div className={`text-[10px] mt-1 leading-relaxed text-pretty-wrap ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{rule.desc}</div>
-              </div>
-              <span className="text-sm font-bold shrink-0" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{rule.rate}</span>
-            </div>
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.08 * i, duration: 0.35 }}
+            >
+              <div className={cn('site-stat-value-md', stat.accent && 'site-stat-value-accent')}>{stat.value}</div>
+              <div className="site-stat-label">{stat.label}</div>
+            </motion.div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
-      <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>{t ? '最近推荐奖励' : 'Recent Referral Rewards'}</div>
-        <div className="space-y-2">
-          {recentTeamRewards.filter((r) => r.dusd > 0).map((ref) => (
-            <div key={ref.id} className={`py-3 border-b last:border-0 flex items-center justify-between ${isDark ? 'border-white/[0.03]' : 'border-[#8A2B57]/[0.04]'}`}>
-              <div>
-                <div className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? ref.sourceZh : ref.sourceEn}</div>
-                <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{ref.date}</div>
-              </div>
-              <span className="text-xs font-bold" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>+{ref.dusd} USD3</span>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('assets', 'dusd')}
-          className={`w-full text-[10px] font-semibold ios-glass-pressable py-2 mt-3 ${isDark ? 'text-[#E0568F]/80' : 'text-[#8A2B57]/75'}`}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.35 }}
+        className={glassCardClass('default', 'p-5')}
+      >
+        <div className="site-section-title mb-3">{t ? '我的推荐链接' : 'My Referral Link'}</div>
+        <AddressBlock value={referralLink} isDark={isDark} />
+        <p className="site-stat-label mt-3 text-pretty leading-relaxed">
+          {t
+            ? '成员 / 合伙人推荐入口，与股东联盟 USD3 入金奖励无关；团队动态奖励见下方。'
+            : 'Member/partner referral link — separate from Shareholder Alliance USD3 entry rewards; team dynamic rewards below.'}
+        </p>
+      </motion.div>
+
+      <div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="flex items-center gap-2 mb-3 px-0.5"
         >
-          {t ? '管理 USD3 余额 →' : 'Manage USD3 balance →'}
-        </button>
+          <motion.div
+            animate={{ rotate: [0, 8, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <TrendingUp size={16} className="text-[#E0568F]" />
+          </motion.div>
+          <span className="site-content-title">{t ? '团队动态奖励' : 'Team dynamic rewards'}</span>
+        </motion.div>
+        <TeamDynamicRewardsPanel
+          lang={lang}
+          isDark={isDark}
+          vm={vm}
+          onGoEarn={() => onNavigate('earn')}
+          onGoScore={() => onNavigate('me', 'score')}
+        />
       </div>
     </div>
   );

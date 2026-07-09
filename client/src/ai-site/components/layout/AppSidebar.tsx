@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
+import { D3Logo } from "@/components/D3Logo";
 import {
   LineChart,
   Cpu,
@@ -83,11 +84,7 @@ export function AppSidebar() {
         >
           {!isCollapsed && (
             <Link href="/market" className="flex items-center gap-2.5 min-w-0">
-              <img
-                src="/brand/logo/D3-logo-mark.svg"
-                alt="D3 Finance"
-                className="h-9 w-9 object-contain shrink-0"
-              />
+              <D3Logo size={36} />
               <span className="font-display font-bold text-sidebar-foreground tracking-wide text-[15px] truncate">
                 D3<span className="gradient-text-gold">-AI</span>
               </span>
@@ -95,11 +92,7 @@ export function AppSidebar() {
           )}
           {isCollapsed && (
             <Link href="/market">
-              <img
-                src="/brand/logo/D3-logo-mark.svg"
-                alt="D3 Finance"
-                className="h-9 w-9 object-contain"
-              />
+              <D3Logo size={36} to="/market" />
             </Link>
           )}
           {isMobile && (

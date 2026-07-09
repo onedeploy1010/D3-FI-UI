@@ -263,15 +263,69 @@
   }
 
   .site-page-title {
-    @apply text-sm sm:text-base font-bold font-heading text-primary leading-tight;
+    @apply text-sm sm:text-base font-bold font-heading text-foreground leading-tight;
   }
 
   .site-page-subtitle {
     @apply text-[10px] sm:text-xs text-muted-foreground leading-relaxed;
   }
 
+  /* In-page hero / tab titles — aligned with D³-AI content headers */
+  .site-content-title {
+    @apply text-xl sm:text-2xl md:text-3xl font-bold font-heading text-foreground leading-tight tracking-tight;
+  }
+
+  .site-content-subtitle {
+    @apply text-sm text-muted-foreground leading-relaxed mt-1;
+  }
+
   .site-section-title {
     @apply text-xs font-bold uppercase tracking-wide text-muted-foreground;
+  }
+
+  .site-card-title {
+    @apply text-sm font-bold font-heading text-foreground leading-snug;
+  }
+
+  .site-stat-label {
+    @apply text-[10px] sm:text-xs font-medium text-muted-foreground leading-snug;
+  }
+
+  .site-stat-value {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    @apply tracking-tight text-foreground;
+  }
+
+  .site-stat-value-sm {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.03em;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    @apply text-sm font-bold tracking-tight text-foreground;
+  }
+
+  .site-stat-value-md {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.03em;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    @apply text-lg sm:text-xl font-bold tracking-tight text-foreground;
+  }
+
+  .site-stat-value-lg {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.03em;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    @apply text-2xl sm:text-3xl font-bold tracking-tight text-foreground;
+  }
+
+  .site-stat-value-accent {
+    @apply text-primary;
   }
 
   /* Light theme — warm romantic surfaces */

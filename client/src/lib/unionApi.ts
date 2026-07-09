@@ -1,4 +1,7 @@
+import type { UnionProfileBundle } from './d3fiTypes';
 import { formatWalletAddress } from './wallet';
+
+export type { UnionProfileBundle };
 
 type TokenGetter = () => Promise<string | null>;
 
@@ -59,10 +62,27 @@ export function ensureUnionProfile(
 }
 
 export function fetchUnionProfile(wallet: string) {
-  return unionFetch<{
-    profile: unknown;
-    shareholder: unknown;
-    usd3Account: unknown;
-    d3Account: unknown;
-  }>(`/profile/${encodeURIComponent(wallet)}`, wallet);
+  return unionFetch<UnionProfileBundle>(`/profile/${encodeURIComponent(wallet)}`, wallet);
+}
+
+export function claimUsd3(wallet: string) {
+  return unionFetch<{ usd3Account: unknown }>('/usd3/claim', wallet, { method: 'POST' });
+}
+
+export function joinShareholder(wallet: string, opts?: { joinTxHash?: string; sponsorWallet?: string }) {
+  return unionFetch<{ shareholder: unknown }>('/shareholders/join', wallet, {
+    method: 'POST',
+    body: JSON.stringify(opts ?? {}),
+  });
+}
+
+export function bindReferral(
+  wallet: string,
+  sponsorWallet: string,
+  referralType: 'partner' | 'shareholder' = 'partner',
+) {
+  return unionFetch<{ referral: unknown; created: boolean }>('/referrals/bind', wallet, {
+    method: 'POST',
+    body: JSON.stringify({ sponsorWallet, referralType }),
+  });
 }

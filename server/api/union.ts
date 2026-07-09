@@ -49,6 +49,7 @@ async function ensureProfile(
     sb.from('shareholders').insert({ wallet_address: wallet, status: 'locked' }),
     sb.from('usd3_accounts').insert({ wallet_address: wallet }),
     sb.from('d3_accounts').insert({ wallet_address: wallet, claim_wallet_address: wallet }),
+    sb.from('poc_scores').insert({ wallet_address: wallet, level_label: 'V0' }),
   ]);
 
   return data;
@@ -65,7 +66,7 @@ export function createUnionRouter(): Router {
   });
 
   router.use(async (req: Request, res: Response, next: NextFunction) => {
-    if (req.method === 'GET' && req.path === '/health') return next();
+    if (req.method === 'GET' && (req.path === '/health' || req.path === '/protocol')) return next();
     if (!isPrivyAuthConfigured()) return next();
 
     const token = getBearerToken(req);
@@ -98,6 +99,37 @@ export function createUnionRouter(): Router {
     }
   });
 
+  router.get('/protocol', async (_req, res) => {
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+
+    const sb = getSupabaseAdmin();
+    const { data: epoch, error: epochErr } = await sb
+      .from('protocol_epochs')
+      .select('*')
+      .eq('is_current', true)
+      .maybeSingle();
+
+    if (epochErr?.code === 'PGRST205' || epochErr?.message?.includes('schema cache')) {
+      return res.json({ epoch: null, bribeProjects: [], migrated: false });
+    }
+    if (epochErr) return res.status(502).json({ error: epochErr.message });
+
+    let bribeProjects: unknown[] = [];
+    if (epoch) {
+      const { data: projects, error: projErr } = await sb
+        .from('bribe_projects')
+        .select('*')
+        .eq('epoch_number', epoch.epoch_number)
+        .order('sort_order');
+      if (projErr && !projErr.message?.includes('schema cache')) {
+        return res.status(502).json({ error: projErr.message });
+      }
+      bribeProjects = projects ?? [];
+    }
+
+    res.json({ epoch: epoch ?? null, bribeProjects, migrated: true });
+  });
+
   router.get('/profile/:wallet', async (req, res) => {
     if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
     const wallet = requireWallet(req);
@@ -109,14 +141,54 @@ export function createUnionRouter(): Router {
 
     const pk = profile.wallet_address as string;
 
-    const [shareholder, usd3, d3, referrals, dividends, fiPositions] = await Promise.all([
+    const [shareholder, usd3, d3, referrals, dividends, fiPositions, teamNode, directReferrals, pocScore] = await Promise.all([
       sb.from('shareholders').select('*').eq('wallet_address', pk).maybeSingle(),
       sb.from('usd3_accounts').select('*').eq('wallet_address', pk).maybeSingle(),
       sb.from('d3_accounts').select('*').eq('wallet_address', pk).maybeSingle(),
       sb.from('referrals').select('*').eq('wallet_address', pk),
-      sb.from('dividend_accruals').select('*').eq('wallet_address', pk).order('created_at', { ascending: false }).limit(20),
+      sb.from('dividend_accruals').select('*').eq('wallet_address', pk).order('created_at', { ascending: false }).limit(50),
       sb.from('fi_positions').select('*').eq('wallet_address', pk).eq('status', 'active'),
+      sb.from('team_nodes').select('*').eq('wallet_address', pk).maybeSingle(),
+      sb.from('referrals').select('wallet_address, referred_at, status, referral_type').eq('sponsor_wallet_address', pk).eq('status', 'active'),
+      sb.from('poc_scores').select('*').eq('wallet_address', pk).maybeSingle(),
     ]);
+
+    let lineId = (teamNode.data as { line_id?: string } | null)?.line_id ?? null;
+    if (!lineId) {
+      const { data: leaderLine } = await sb
+        .from('union_lines')
+        .select('id')
+        .eq('line_leader_wallet', pk)
+        .maybeSingle();
+      lineId = leaderLine?.id ?? null;
+    }
+
+    const [unionLine, lineTeamNodes, lineMultisigs, daoMultisig] = await Promise.all([
+      lineId ? sb.from('union_lines').select('*').eq('id', lineId).maybeSingle() : Promise.resolve({ data: null }),
+      lineId ? sb.from('team_nodes').select('*').eq('line_id', lineId) : Promise.resolve({ data: [] }),
+      lineId ? sb.from('multisig_wallets').select('*').eq('line_id', lineId) : Promise.resolve({ data: [] }),
+      sb.from('multisig_wallets').select('*').eq('wallet_type', 'dao').maybeSingle(),
+    ]);
+
+    const multisigList = [
+      ...(lineMultisigs.data ?? []),
+      ...(daoMultisig.data ? [daoMultisig.data] : []),
+    ];
+    const multisigIds = multisigList.map((m) => m.id as string);
+
+    const [committeeMembers, multisigProposals] = await Promise.all([
+      multisigIds.length
+        ? sb.from('committee_members').select('*').in('multisig_wallet_id', multisigIds).order('sort_order')
+        : Promise.resolve({ data: [] }),
+      multisigIds.length
+        ? sb.from('multisig_proposals').select('*').in('multisig_wallet_id', multisigIds).order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const proposalIds = (multisigProposals.data ?? []).map((p) => p.id as string);
+    const { data: multisigSignatures } = proposalIds.length
+      ? await sb.from('multisig_signatures').select('*').in('proposal_id', proposalIds)
+      : { data: [] };
 
     res.json({
       profile,
@@ -126,6 +198,15 @@ export function createUnionRouter(): Router {
       referrals: referrals.data ?? [],
       dividends: dividends.data ?? [],
       fiPositions: fiPositions.data ?? [],
+      teamNode: teamNode.data,
+      directReferrals: directReferrals.data ?? [],
+      unionLine: unionLine.data,
+      lineTeamNodes: lineTeamNodes.data ?? [],
+      multisigWallets: multisigList,
+      committeeMembers: committeeMembers.data ?? [],
+      multisigProposals: multisigProposals.data ?? [],
+      multisigSignatures: multisigSignatures ?? [],
+      pocScore: pocScore.data,
     });
   });
 
@@ -250,6 +331,64 @@ export function createUnionRouter(): Router {
       .in('status', ['pending', 'claimable']);
 
     res.json({ usd3Account: updated });
+  });
+
+  router.post('/referrals/bind', async (req, res) => {
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Supabase not configured' });
+
+    const wallet = requireWallet(req);
+    const { sponsorWallet, referralType } = req.body as {
+      sponsorWallet?: string;
+      referralType?: 'partner' | 'shareholder';
+    };
+
+    if (!sponsorWallet || !isEthAddress(sponsorWallet)) {
+      return res.status(400).json({ error: 'Invalid sponsor wallet' });
+    }
+    if (walletEquals(wallet, sponsorWallet)) {
+      return res.status(400).json({ error: 'Cannot refer yourself' });
+    }
+
+    const sb = getSupabaseAdmin();
+    await ensureProfile(sb, wallet);
+    await ensureProfile(sb, sponsorWallet.trim());
+    const sponsor = await findProfileByWallet(sb, sponsorWallet.trim());
+    if (!sponsor) {
+      return res.status(404).json({ error: 'Sponsor profile not found' });
+    }
+
+    const { data: existingList } = await sb
+      .from('referrals')
+      .select('*')
+      .eq('wallet_address', wallet)
+      .eq('status', 'active')
+      .limit(1);
+
+    const existing = existingList?.[0];
+    if (existing) {
+      return res.status(409).json({
+        error: 'Referral already bound',
+        referral: existing,
+      });
+    }
+
+    const type = referralType === 'shareholder' ? 'shareholder' : 'partner';
+    const { data, error } = await sb
+      .from('referrals')
+      .upsert(
+        {
+          wallet_address: wallet,
+          sponsor_wallet_address: sponsor.wallet_address,
+          referral_type: type,
+          status: 'active',
+        },
+        { onConflict: 'wallet_address,sponsor_wallet_address' },
+      )
+      .select()
+      .single();
+
+    if (error) return res.status(502).json({ error: error.message });
+    res.json({ referral: data, created: true });
   });
 
   return router;

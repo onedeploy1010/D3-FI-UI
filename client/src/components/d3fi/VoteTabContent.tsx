@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Clock, RefreshCw, Zap, Gift, HelpCircle } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
-import { bribeProjects } from './protocolData';
+import { phaseLabel } from '@/lib/protocolFormat';
+import type { BribeProjectView, ProtocolEpochView } from '@/lib/protocolTypes';
 import { RulesSheet } from '@/components/d3fi/RulesSheet';
 
 type Lang = 'zh' | 'en';
+
+const PHASE_ORDER = ['lock', 'voting', 'bribe', 'settle', 'claim'] as const;
 
 function parseVoteCount(value: string) {
   return Number(value.replace(/[^0-9.]/g, '')) || 1;
@@ -14,22 +17,41 @@ function parseVoteCount(value: string) {
 export function VoteTabContent({
   lang,
   isDark,
+  totalPower = 0,
   focusProjectId,
   onFocusHandled,
+  epoch,
+  projects,
+  isLoading = false,
 }: {
   lang: Lang;
   isDark: boolean;
+  totalPower?: number;
   focusProjectId?: string | null;
   onFocusHandled?: () => void;
+  epoch?: ProtocolEpochView | null;
+  projects?: BribeProjectView[];
+  isLoading?: boolean;
 }) {
   const t = lang === 'zh';
-  const totalPower = 2400;
-  const activeProjects = useMemo(() => bribeProjects.filter((p) => p.status === 'active'), []);
+  const activeProjects = useMemo(() => (projects ?? []).filter((p) => p.status === 'active'), [projects]);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [highlightProject, setHighlightProject] = useState<string | null>(null);
-  const [allocations, setAllocations] = useState<Record<string, number>>(() =>
-    Object.fromEntries(activeProjects.map((p) => [p.id, p.id === 'alpha' ? 800 : 0])),
-  );
+  const [allocations, setAllocations] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (activeProjects.length === 0) {
+      setAllocations({});
+      return;
+    }
+    setAllocations((prev) => {
+      const next: Record<string, number> = {};
+      for (const p of activeProjects) {
+        next[p.id] = prev[p.id] ?? 0;
+      }
+      return next;
+    });
+  }, [activeProjects]);
 
   useEffect(() => {
     if (!focusProjectId) return;
@@ -53,20 +75,27 @@ export function VoteTabContent({
     ? ['锁仓', '投票', '贿赂', '结算', '领取']
     : ['Lock', 'Vote', 'Bribe', 'Settle', 'Claim'];
 
+  const currentPhaseIndex = epoch ? PHASE_ORDER.indexOf(epoch.phase) : -1;
+  const epochLabel = isLoading ? '…' : (epoch?.label ?? '—');
+  const countdown = isLoading ? '…' : (epoch?.countdown ?? '—');
+  const phaseBadge = epoch ? phaseLabel(epoch.phase, lang) : (isLoading ? '…' : '—');
+
   return (
     <div className="space-y-5">
       {/* Epoch */}
       <div className={glassCardClass('default', 'p-4')}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>Epoch #42</div>
+            <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+              {t ? 'Epoch' : 'Epoch'} {epochLabel}
+            </div>
             <div className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
               <Clock size={12} className="text-[#E0568F]" />
-              {t ? '结算倒计时 5d 12h' : 'Settlement in 5d 12h'}
+              {t ? `结算倒计时 ${countdown}` : `Settlement in ${countdown}`}
             </div>
           </div>
           <span className="text-[10px] px-2 py-1 rounded-full bg-[#E0568F]/10 text-[#E0568F] font-medium">
-            {t ? '投票期' : 'Voting'}
+            {phaseBadge}
           </span>
         </div>
         <div className="flex gap-1">
@@ -74,9 +103,9 @@ export function VoteTabContent({
             <div key={phase} className="flex-1 text-center">
               <div className={cn(
                 'h-1 rounded-full mb-1',
-                i <= 1 ? 'bg-[#E0568F]' : isDark ? 'bg-white/10' : 'bg-[#8A2B57]/10',
+                currentPhaseIndex >= 0 && i <= currentPhaseIndex ? 'bg-[#E0568F]' : isDark ? 'bg-white/10' : 'bg-[#8A2B57]/10',
               )} />
-              <div className={`text-[8px] ${i === 1 ? 'text-[#E0568F] font-semibold' : isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
+              <div className={`text-[8px] ${i === currentPhaseIndex ? 'text-[#E0568F] font-semibold' : isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
                 {phase}
               </div>
             </div>
@@ -99,13 +128,13 @@ export function VoteTabContent({
             </GlassIconButton>
           </div>
         </div>
-        <div className="text-3xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{totalPower.toLocaleString()} veD3</div>
+        <div className="site-stat-value-lg site-stat-value-accent">{totalPower.toLocaleString()} veD3</div>
         <div className="flex gap-4 mt-2 text-[10px]">
           <span className={isDark ? 'text-white/35' : 'text-[#160510]/35'}>{t ? '已分配' : 'Allocated'}: <span className="text-[#E0568F] font-semibold">{used}</span></span>
           <span className={isDark ? 'text-white/35' : 'text-[#160510]/35'}>{t ? '剩余' : 'Remaining'}: <span className={remaining < 0 ? 'text-red-400' : ''}>{remaining}</span></span>
         </div>
         <div className={`h-1.5 rounded-full mt-3 overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
-          <div className="h-full rounded-full bg-gradient-to-r from-[#8A2B57] to-[#E0568F]" style={{ width: `${Math.min(100, (used / totalPower) * 100)}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-[#8A2B57] to-[#E0568F]" style={{ width: `${Math.min(100, totalPower > 0 ? (used / totalPower) * 100 : 0)}%` }} />
         </div>
         <div className={`mt-3 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
           {t ? '我的权重分红率（按项目）= 我对该项目的票数 ÷ 该项目总票数' : 'Your rate per project = your votes ÷ project total votes'}
@@ -117,69 +146,76 @@ export function VoteTabContent({
         <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? '项目投票' : 'Project Votes'}
         </div>
-        <div className="space-y-4">
-          {activeProjects.map((project) => {
-            const myVotes = allocations[project.id] ?? 0;
-            const projectTotal = parseVoteCount(project.totalVotes);
-            const weightRate = projectTotal > 0 ? (myVotes / projectTotal) * 100 : 0;
+        {activeProjects.length === 0 ? (
+          <div className={`text-xs py-6 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+            {isLoading ? (t ? '加载贿赂项目…' : 'Loading bribe projects…') : (t ? '暂无进行中的贿赂项目' : 'No active bribe projects')}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activeProjects.map((project) => {
+              const myVotes = allocations[project.id] ?? 0;
+              const projectTotal = parseVoteCount(project.totalVotes);
+              const weightRate = projectTotal > 0 ? (myVotes / projectTotal) * 100 : 0;
 
-            return (
-              <div
-                key={project.id}
-                id={`vote-project-${project.id}`}
-                className={cn(
-                  'ios-glass-inset p-4 transition-shadow',
-                  myVotes > 0 && 'ring-1 ring-[#E0568F]/20',
-                  highlightProject === project.id && 'ring-2 ring-[#E0568F]/50',
-                )}
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="min-w-0">
-                    <span className={`text-sm font-semibold block ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                      {t ? project.nameZh : project.name}
-                    </span>
-                    <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-                      Gauge · {project.gauge}
+              return (
+                <div
+                  key={project.id}
+                  id={`vote-project-${project.id}`}
+                  className={cn(
+                    'ios-glass-inset p-4 transition-shadow',
+                    myVotes > 0 && 'ring-1 ring-[#E0568F]/20',
+                    highlightProject === project.id && 'ring-2 ring-[#E0568F]/50',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <span className={`text-sm font-semibold block ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                        {t ? project.nameZh : project.name}
+                      </span>
+                      <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+                        Gauge · {project.gauge}
+                      </span>
+                    </div>
+                    <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
+                      {myVotes} veD3
                     </span>
                   </div>
-                  <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
-                    {myVotes} veD3
-                  </span>
+                  <div className={`text-[10px] mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+                    {t ? '我的权重分红率' : 'My dividend rate'}:{' '}
+                    <span className="text-emerald-500 font-semibold">{weightRate.toFixed(3)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={totalPower}
+                    step={50}
+                    value={myVotes}
+                    onChange={(e) => setAllocation(project.id, Number(e.target.value))}
+                    className="w-full accent-[#8A2B57] h-1"
+                  />
+                  <div className={`flex flex-wrap gap-x-3 mt-2 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                    <span>{t ? '贿赂池' : 'Bribe'}: {project.bribeAmount}</span>
+                    <span>{t ? '每票' : 'Per vote'}: {project.perVote}</span>
+                    <span>{t ? '总票' : 'Total'}: {project.totalVotes}</span>
+                    <span className="flex items-center gap-0.5">
+                      <Clock size={10} />
+                      {project.deadline}
+                    </span>
+                  </div>
                 </div>
-                <div className={`text-[10px] mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-                  {t ? '我的权重分红率' : 'My dividend rate'}:{' '}
-                  <span className="text-emerald-500 font-semibold">{weightRate.toFixed(3)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={totalPower}
-                  step={50}
-                  value={myVotes}
-                  onChange={(e) => setAllocation(project.id, Number(e.target.value))}
-                  className="w-full accent-[#8A2B57] h-1"
-                />
-                <div className={`flex flex-wrap gap-x-3 mt-2 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-                  <span>{t ? '贿赂池' : 'Bribe'}: {project.bribeAmount}</span>
-                  <span>{t ? '每票' : 'Per vote'}: {project.perVote}</span>
-                  <span>{t ? '总票' : 'Total'}: {project.totalVotes}</span>
-                  <span className="flex items-center gap-0.5">
-                    <Clock size={10} />
-                    {project.deadline}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
         <div className="flex gap-2 mt-4">
-          <GlassButton variant="primary" className="flex-1 !py-2.5 !text-xs" disabled={remaining !== 0}>
+          <GlassButton variant="primary" className="flex-1 !py-2.5 !text-xs" disabled={remaining !== 0 || activeProjects.length === 0}>
             {t ? '确认投票' : 'Confirm Votes'}
           </GlassButton>
           <GlassButton
             variant="secondary"
             className="!py-2.5 !text-xs"
             onClick={() => setAllocations(Object.fromEntries(activeProjects.map((p) => [p.id, 0])))}
+            disabled={activeProjects.length === 0}
           >
             <RefreshCw size={12} />
           </GlassButton>
@@ -193,9 +229,9 @@ export function VoteTabContent({
         </div>
         <div className="space-y-2">
           {[
-            { icon: Zap, label: t ? 'D3 排放 (65%)' : 'D3 Emission (65%)', value: '~42 D3', desc: t ? '按项目投票占比分配对应 Gauge 排放' : 'Gauge emissions by project vote share' },
-            { icon: Gift, label: t ? '贿赂分成' : 'Bribe Share', value: '~$18.50', desc: t ? '项目 USDT 贿赂池按 veD3 权重分红' : 'Project USDT bribes by veD3 weight' },
-            { icon: RefreshCw, label: t ? 'LP 手续费 (100%)' : 'LP Fees (100%)', value: '~$6.20', desc: t ? '所投项目对应 Gauge 手续费全部分给投票者' : 'All LP fees to voters of that project\'s gauge' },
+            { icon: Zap, label: t ? 'D3 排放 (65%)' : 'D3 Emission (65%)', value: epoch?.monthlyEmission ? `~${epoch.monthlyEmission}` : '—', desc: t ? '按项目投票占比分配对应 Gauge 排放' : 'Gauge emissions by project vote share' },
+            { icon: Gift, label: t ? '贿赂分成' : 'Bribe Share', value: '—', desc: t ? '项目 USDT 贿赂池按 veD3 权重分红' : 'Project USDT bribes by veD3 weight' },
+            { icon: RefreshCw, label: t ? 'LP 手续费 (100%)' : 'LP Fees (100%)', value: '—', desc: t ? '所投项目对应 Gauge 手续费全部分给投票者' : 'All LP fees to voters of that project\'s gauge' },
           ].map((item) => (
             <div key={item.label} className="flex items-start gap-3 py-2 border-b last:border-0 border-white/5">
               <div className="ios-glass-inset w-8 h-8 flex items-center justify-center shrink-0">

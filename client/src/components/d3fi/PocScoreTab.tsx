@@ -1,11 +1,43 @@
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
-import { levelDiffRate, pocDimensions, pocScore } from './protocolData';
+import type { PocScoreView } from '@/lib/d3fiTypes';
 
 type Lang = 'zh' | 'en';
 
-export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
+const EMPTY_POC: PocScoreView = {
+  compositeScore: 0,
+  levelDiffRate: 0,
+  levelLabel: 'V0',
+  epochLabel: '—',
+  diffFloorPct: 16,
+  diffCeilPct: 38,
+  dimensions: [
+    { key: 'H', weight: 0.15, labelZh: '个人质押', labelEn: 'Personal Stake', value: 0, rawZh: '—', rawEn: '—' },
+    { key: 'C', weight: 0.15, labelZh: '团队业绩', labelEn: 'Team Performance', value: 0, rawZh: '—', rawEn: '—' },
+    { key: 'A', weight: 0.30, labelZh: '团队新增', labelEn: 'Team New Deposits', value: 0, rawZh: '—', rawEn: '—' },
+    { key: 'R', weight: 0.30, labelZh: '留存率', labelEn: 'Retention', value: 0, rawZh: '—', rawEn: '—' },
+    { key: 'E', weight: 0.10, labelZh: '有效账户', labelEn: 'Valid Accounts', value: 0, rawZh: '—', rawEn: '—' },
+  ],
+  settledAt: null,
+  updatedAt: null,
+};
+
+export function PocScoreTab({
+  lang,
+  isDark,
+  poc,
+  isLoading,
+}: {
+  lang: Lang;
+  isDark: boolean;
+  poc?: PocScoreView | null;
+  isLoading?: boolean;
+}) {
   const t = lang === 'zh';
+  const data = poc ?? EMPTY_POC;
+  const score = data.compositeScore;
+  const displayLevel = data.levelLabel;
+  const epoch = data.epochLabel;
 
   return (
     <div className="space-y-5">
@@ -13,18 +45,28 @@ export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
         <div className={`text-xs mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>PoC {t ? '综合分' : 'Score'}</div>
         <div className="flex items-end gap-3">
-          <div className="text-4xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{pocScore}</div>
+          <div className="text-4xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>
+            {isLoading ? '…' : score.toFixed(1)}
+          </div>
           <div className={`text-sm pb-1 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>/ 100</div>
         </div>
         <div className={`h-2 rounded-full mt-3 overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
-          <div className="h-full rounded-full bg-gradient-to-r from-[#8A2B57] to-[#E0568F]" style={{ width: `${pocScore}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-[#8A2B57] to-[#E0568F]" style={{ width: `${Math.min(100, score)}%` }} />
         </div>
         <div className={`text-[10px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-          {t ? '每 30 天 Epoch 结算时更新 · 下次更新 5d 12h' : 'Updated each 30d Epoch · Next in 5d 12h'}
+          {isLoading
+            ? (t ? '从数据库加载…' : 'Loading from database…')
+            : t
+              ? `当前等级 ${displayLevel} · Epoch ${epoch} 结算更新`
+              : `Level ${displayLevel} · Updated at Epoch ${epoch}`}
         </div>
+        {data.settledAt && !isLoading && (
+          <div className={`text-[10px] mt-1 ${isDark ? 'text-white/25' : 'text-[#160510]/25'}`}>
+            {t ? `上次结算：${data.settledAt.slice(0, 10)}` : `Last settled: ${data.settledAt.slice(0, 10)}`}
+          </div>
+        )}
       </div>
 
-      {/* Formula */}
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? 'PoC 计算公式' : 'PoC Formula'}
@@ -39,13 +81,12 @@ export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         </p>
       </div>
 
-      {/* Dimensions */}
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? '五维得分明细' : 'Dimension Breakdown'}
         </div>
         <div className="space-y-3">
-          {pocDimensions.map((dim) => (
+          {data.dimensions.map((dim) => (
             <div key={dim.key} className="ios-glass-inset p-3">
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
@@ -53,7 +94,9 @@ export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
                   <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? dim.labelZh : dim.labelEn}</span>
                   <span className={`text-[9px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>×{(dim.weight * 100).toFixed(0)}%</span>
                 </div>
-                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{dim.value}</span>
+                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                  {isLoading ? '…' : dim.value}
+                </span>
               </div>
               <div className={`h-1 rounded-full overflow-hidden mb-1.5 ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
                 <div className="h-full rounded-full bg-[#E0568F]/70" style={{ width: `${dim.value}%` }} />
@@ -67,7 +110,6 @@ export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         </div>
       </div>
 
-      {/* Level diff */}
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? '级差收益计算' : 'Level-Diff Reward'}
@@ -79,20 +121,23 @@ export function PocScoreTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
         </code>
         <div className="ios-glass-inset p-4">
           <div className="flex items-center justify-between text-xs mb-2">
-            <span className={isDark ? 'text-white/50' : 'text-[#160510]/50'}>{t ? '你的 V5 级差范围' : 'Your V5 diff range'}</span>
-            <span className={isDark ? 'text-white/70' : 'text-[#160510]/70'}>16% – 38%</span>
+            <span className={isDark ? 'text-white/50' : 'text-[#160510]/50'}>
+              {t ? `你的 ${displayLevel} 级差范围` : `Your ${displayLevel} diff range`}
+            </span>
+            <span className={isDark ? 'text-white/70' : 'text-[#160510]/70'}>
+              {data.diffFloorPct}% – {data.diffCeilPct}%
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{t ? '当前实际级差' : 'Current diff rate'}</span>
-            <span className="text-xl font-bold text-emerald-500">{levelDiffRate}%</span>
+            <span className="text-xl font-bold text-emerald-500">{isLoading ? '…' : `${data.levelDiffRate}%`}</span>
           </div>
           <p className={`text-[10px] mt-2 leading-relaxed ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-            = 16% + (38% − 16%) × ({pocScore} ÷ 100) ≈ {levelDiffRate}%
+            = {data.diffFloorPct}% + ({data.diffCeilPct}% − {data.diffFloorPct}%) × ({score.toFixed(1)} ÷ 100) ≈ {data.levelDiffRate}%
           </p>
         </div>
       </div>
 
-      {/* PoN brief */}
       <div className={glassCardClass('default', 'p-5')}>
         <div className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           PoN {t ? '算力奖励' : 'Hashpower Reward'}

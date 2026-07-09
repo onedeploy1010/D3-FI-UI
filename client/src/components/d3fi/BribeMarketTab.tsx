@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Clock, ExternalLink, Users, Vote, HelpCircle, Search, ArrowUpDown, CalendarDays } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
-import { bribeProjects, type BribeProject } from './protocolData';
+import type { BribeProjectView, ProtocolEpochView } from '@/lib/protocolTypes';
 import { RulesSheet } from '@/components/d3fi/RulesSheet';
 
 type Lang = 'zh' | 'en';
@@ -14,7 +14,7 @@ function BribeProjectDetail({
   onBack,
   onGoVote,
 }: {
-  project: BribeProject;
+  project: BribeProjectView;
   lang: Lang;
   isDark: boolean;
   onBack: () => void;
@@ -96,8 +96,8 @@ function BribeProjectDetail({
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: t ? '贿赂' : 'Bribe', value: project.perVote },
-            { label: t ? '排放' : 'Emission', value: '~0.08 D3' },
-            { label: 'LP', value: '~$0.02' },
+            { label: t ? '排放' : 'Emission', value: '—' },
+            { label: 'LP', value: '—' },
           ].map((item) => (
             <div key={item.label} className="ios-glass-inset p-2.5 text-center">
               <div className={`text-[9px] ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{item.label}</div>
@@ -122,10 +122,16 @@ export function BribeMarketTab({
   lang,
   isDark,
   onGoVote,
+  epoch,
+  projects = [],
+  isLoading = false,
 }: {
   lang: Lang;
   isDark: boolean;
   onGoVote: (projectId: string) => void;
+  epoch?: ProtocolEpochView | null;
+  projects?: BribeProjectView[];
+  isLoading?: boolean;
 }) {
   const t = lang === 'zh';
   const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all');
@@ -135,7 +141,12 @@ export function BribeMarketTab({
   const [range, setRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [sort, setSort] = useState<'amountDesc' | 'perVoteDesc' | 'votersDesc'>('amountDesc');
 
-  const selected = bribeProjects.find((p) => p.id === selectedId);
+  const activeCount = projects.filter((p) => p.status === 'active').length;
+  const poolTvl = isLoading ? '…' : (epoch?.bribePoolTvl ?? '—');
+  const epochLabel = isLoading ? '…' : (epoch?.label ?? '—');
+  const poolAdded = isLoading ? '…' : (epoch?.bribePoolAdded ?? '—');
+
+  const selected = projects.find((p) => p.id === selectedId);
   if (selected) {
     return (
       <BribeProjectDetail
@@ -148,7 +159,7 @@ export function BribeMarketTab({
     );
   }
 
-  const filtered = bribeProjects
+  const filtered = projects
     .filter((p) => filter === 'all' || p.status === filter)
     .filter((p) => {
       if (!q.trim()) return true;
@@ -171,11 +182,11 @@ export function BribeMarketTab({
             <HelpCircle size={16} className={isDark ? 'text-white/40' : 'text-[#160510]/40'} />
           </GlassIconButton>
         </div>
-        <div className="text-3xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>$2.4M</div>
+        <div className="text-3xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{poolTvl}</div>
         <div className={`flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-          <span>{t ? '本 Epoch' : 'Epoch'} #42</span>
-          <span>{t ? '新增' : 'Added'}: <span className="text-emerald-500">+$180K</span></span>
-          <span>{t ? '项目' : 'Projects'}: {bribeProjects.filter((p) => p.status === 'active').length}</span>
+          <span>{t ? '本 Epoch' : 'Epoch'} {epochLabel}</span>
+          <span>{t ? '新增' : 'Added'}: <span className="text-emerald-500">{poolAdded}</span></span>
+          <span>{t ? '项目' : 'Projects'}: {isLoading ? '…' : activeCount}</span>
         </div>
       </div>
 
@@ -259,27 +270,37 @@ export function BribeMarketTab({
         </div>
 
         <div className="space-y-2">
-          {filtered.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => setSelectedId(project.id)}
-              className="w-full text-left ios-glass-inset p-3.5 ios-glass-pressable"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                  {t ? project.nameZh : project.name}
-                </span>
-                <span className="text-xs font-bold" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{project.bribeAmount}</span>
-              </div>
-              <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-                <span>Gauge: {project.gauge}</span>
-                <span>{t ? '每票' : '/vote'}: {project.perVote}</span>
-                <span className="flex items-center gap-0.5"><Clock size={9} /> {project.deadline}</span>
-                <span className="flex items-center gap-0.5"><Users size={9} /> {project.voters}</span>
-              </div>
-            </button>
-          ))}
+          {isLoading && filtered.length === 0 ? (
+            <div className={`text-xs py-6 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+              {t ? '加载中…' : 'Loading…'}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className={`text-xs py-6 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+              {t ? '暂无贿赂项目' : 'No bribe projects'}
+            </div>
+          ) : (
+            filtered.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => setSelectedId(project.id)}
+                className="w-full text-left ios-glass-inset p-3.5 ios-glass-pressable"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                    {t ? project.nameZh : project.name}
+                  </span>
+                  <span className="text-xs font-bold" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{project.bribeAmount}</span>
+                </div>
+                <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  <span>Gauge: {project.gauge}</span>
+                  <span>{t ? '每票' : '/vote'}: {project.perVote}</span>
+                  <span className="flex items-center gap-0.5"><Clock size={9} /> {project.deadline}</span>
+                  <span className="flex items-center gap-0.5"><Users size={9} /> {project.voters}</span>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </div>
 
