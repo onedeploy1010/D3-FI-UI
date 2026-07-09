@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "Protocol",
+    "token": "Token",
+    "roadmap": "Roadmap",
+    "docs": "Docs",
+    "connect": "Connect Wallet"
+  },
+  "hero": {
+    "badge": "BSC 2026 · Decentralized Bribe Finance Protocol",
+    "title": "Real Yield",
+    "titleAccent": "On-Chain Verified",
+    "subtitle": "Bringing transparency to DeFi governance incentives\nEvery yield has a source, every dividend is traceable",
+      "cta1": "Connect Wallet",
+      "cta2": "Read Whitepaper",
+      "learnMore": "Learn More"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "Bribe Pool TVL",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 Circulating",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "DT Holders",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "Total Dividends",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "Why Bribe Finance?",
+    "subtitle": "Bringing transparency to the grey areas of DeFi governance — a win-win for projects, voters, and protocols",
+    "imageCaption": "D³ Bribe Finance Mechanism",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "Projects Pay",
+        "desc": "Projects deposit bribes to Gauge pools, competing for D3 emission allocation and liquidity support"
+      },
+      {
+        "icon": "users",
+        "title": "Voters Earn",
+        "desc": "Lock veD3 to vote, share bribe pool rewards proportionally with attractive APY"
+      },
+      {
+        "icon": "lock",
+        "title": "Smart Contract Execution",
+        "desc": "Automated on-chain settlement, trustless and fully transparent verification"
+      }
+    ]
+  },
+  "entry": {
+    "title": "Three Entry Methods",
+    "subtitle": "Choose the strategy that suits you best",
+    "methods": [
+      {
+        "name": "Spot Swap",
+        "desc": "Buy D3 tokens directly",
+        "tag": "Instant",
+        "features": [
+          "Zero-slippage AMM",
+          "Instant settlement",
+          "No lock-up"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "LP Bond",
+        "desc": "Provide liquidity for discounted D3",
+        "tag": "Discount",
+        "features": [
+          "5-15% discount",
+          "Linear vesting",
+          "Dual rewards"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "Burn Bond",
+        "desc": "Burn DT to acquire D3",
+        "tag": "Advanced",
+        "features": [
+          "Maximum discount",
+          "Deflationary",
+          "Long-term value"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "Six Value Guardians",
+    "subtitle": "From code to governance, comprehensive protection for protocol value and user assets",
+    "imageCaption": "D³ Security System",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "Entry Gate",
+        "desc": "Smart Access",
+        "detail": "KYC + Whitelist"
+      },
+      {
+        "icon": "lock",
+        "name": "Lock Seal",
+        "desc": "Time Lock",
+        "detail": "veD3 Mechanism"
+      },
+      {
+        "icon": "flame",
+        "name": "Burn Engine",
+        "desc": "Continuous Burn",
+        "detail": "Per Transaction"
+      },
+      {
+        "icon": "activity",
+        "name": "Rate Limit",
+        "desc": "Anti-Flash",
+        "detail": "Cooldown Period"
+      },
+      {
+        "icon": "eye",
+        "name": "On-Chain Audit",
+        "desc": "Full Transparency",
+        "detail": "Real-time Audit"
+      },
+      {
+        "icon": "ban",
+        "name": "Circuit Breaker",
+        "desc": "Emergency Stop",
+        "detail": "Multi-sig Trigger"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "phases": [
+      {
+        "phase": "Phase 1",
+        "name": "Protocol Launch",
+        "desc": "Core contracts · Token issuance · Initial liquidity",
+        "status": "done"
+      },
+      {
+        "phase": "Phase 2",
+        "name": "Ecosystem Growth",
+        "desc": "Bribe market · Governance voting · Partner integration",
+        "status": "active"
+      },
+      {
+        "phase": "Phase 3",
+        "name": "Global Expansion",
+        "desc": "Multi-chain · RWA integration · Institutional partnerships",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Phase 4",
+        "name": "Full Decentralization",
+        "desc": "Community governance · DAO transition · Protocol autonomy",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": [
+      {
+        "q": "What is Bribe Finance?",
+        "a": "Bribe Finance is an innovative model that brings transparency and compliance to the grey incentive mechanisms in DeFi governance. Projects openly incentivize voters in exchange for liquidity support."
+      },
+      {
+        "q": "What is D3 token used for?",
+        "a": "D3 is the core governance token. Holders can lock for veD3 to vote, earn bribe rewards, receive protocol dividends, and benefit from deflationary mechanics."
+      },
+      {
+        "q": "How to earn dividends?",
+        "a": "Hold DT (Dividend Token) to automatically participate in each epoch's dividend distribution from protocol fees, bribe pool overflow, and partnership revenue."
+      },
+      {
+        "q": "How is security ensured?",
+        "a": "The protocol employs six security mechanisms: Entry Gate, Lock Seal, Burn Engine, Rate Limit, On-Chain Audit, and Circuit Breaker for comprehensive asset protection."
+      }
+    ]
+  },
+  "footer": {
+    "resources": "Resources",
+    "community": "Community",
+    "legal": "Legal",
+    "links": {
+      "whitepaper": "Whitepaper",
+      "docs": "Documentation",
+      "audit": "Audit Report",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "disclaimer": "Disclaimer"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { isEthAddress } from '@/lib/wallet';
 
 /** Seed line-leader wallet — matches supabase/seed.sql (must be exactly 40 hex chars). */
-const DEFAULT_DEMO_WALLET = '0x1234567890AbCdEf1234567890AbCdEf12345678';
+const DEFAULT_DEMO_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
 
 function resolveDemoWallet(): string {
   const fromEnv = (import.meta.env.VITE_DEMO_WALLET_ADDRESS as string | undefined)?.trim();
@@ -13,6 +13,9 @@ function resolveDemoWallet(): string {
 }
 
 export const DEMO_LINE_LEADER_WALLET = resolveDemoWallet();
+
+/** Demo partner program referrer — seeded in supabase/seed.sql */
+export const DEMO_PARTNER_SPONSOR_WALLET = '0xabcdef1234567890abcdef1234567890abcdef01';
 
 export const DEMO_SESSION_KEY = 'd3_demo_wallet';
 

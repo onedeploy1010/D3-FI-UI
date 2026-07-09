@@ -142,3 +142,59 @@ export async function fetchGlobalMarket() {
 export function coinKeyFromSymbol(symbol: string): string {
   return symbol.split('/')[0]?.toUpperCase() ?? symbol.toUpperCase();
 }
+
+const ANALYSIS_MODELS = ['GPT-4o', 'Claude', 'Gemini', 'DeepSeek', 'Grok', 'Qwen'] as const;
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+export type CoinForecast = {
+  model: string;
+  direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
+  targetPrice: number;
+  reason: string;
+};
+
+/** Deterministic model forecasts anchored to the live spot price. */
+export function generateCoinForecasts(
+  coinKey: string,
+  price: number,
+  hourBucket = Math.floor(Date.now() / 3_600_000),
+): CoinForecast[] {
+  const base = hashStr(coinKey) + hourBucket * 17;
+  return ANALYSIS_MODELS.map((name, i) => {
+    const seed = base + hashStr(name) + i * 7919;
+    const roll = seed % 10;
+    const direction: CoinForecast['direction'] = roll < 5 ? 'BULLISH' : roll < 8 ? 'BEARISH' : 'NEUTRAL';
+    const confidence = 58 + (seed % 37);
+    const movePct = (0.8 + (seed % 30) / 10) / 100;
+    const targetPrice =
+      direction === 'BULLISH'
+        ? price * (1 + movePct)
+        : direction === 'BEARISH'
+          ? price * (1 - movePct)
+          : price * (1 + ((seed % 10) - 5) / 2000);
+    const reason =
+      direction === 'BULLISH'
+        ? seed % 2 === 0
+          ? 'market.caReason1'
+          : 'market.caReason4'
+        : direction === 'BEARISH'
+          ? 'market.caReason3'
+          : 'market.caReason2';
+    return { model: name, direction, confidence, targetPrice, reason };
+  });
+}
+
+export function generateCoinAnalysisExtras(coinKey: string, hourBucket = Math.floor(Date.now() / 3_600_000)) {
+  const base = hashStr(coinKey) + hourBucket * 17;
+  return {
+    longPct: 34 + (base % 33),
+    fundingRate: ((base % 61) - 25) / 1000,
+    openInterest: (coinKey === 'BTC' ? 18 : coinKey === 'ETH' ? 7 : 2) + (base % 40) / 10,
+  };
+}

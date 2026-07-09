@@ -1,4 +1,5 @@
 import { isEthAddress, walletEquals } from './wallet';
+import { isDemoWallet } from './demoWallet';
 
 const PENDING_REF_KEY = 'd3_pending_referral';
 const SKIP_PREFIX = 'd3_referral_skip';
@@ -56,10 +57,11 @@ export function captureReferralFromUrl(location?: { search: string; pathname: st
 
   const base = getReferralBasePath();
   const pathPattern = new RegExp(
-    `${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:union/)?r/(0x[0-9a-fA-F]{40})`,
+    `${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(?:union|partner/)?r/(0x[0-9a-fA-F]{40})`,
     'i',
   );
-  const pathMatch = pathname.match(pathPattern) ?? pathname.match(/\/(?:union\/)?r\/(0x[0-9a-fA-F]{40})/i);
+  const pathMatch =
+    pathname.match(pathPattern) ?? pathname.match(/\/(?:union|partner)\/r\/(0x[0-9a-fA-F]{40})/i) ?? pathname.match(/\/r\/(0x[0-9a-fA-F]{40})/i);
   if (pathMatch?.[1] && isEthAddress(pathMatch[1])) {
     sessionStorage.setItem(PENDING_REF_KEY, pathMatch[1]);
     return pathMatch[1];
@@ -101,4 +103,14 @@ export function shouldOfferReferralBind(
   if (hasActiveReferral) return false;
   if (isReferralSkipped(wallet, sponsor)) return false;
   return true;
+}
+
+/** 演示账户始终视为已绑定推荐（种子数据 0xabcd…Ef01） */
+export function isReferralBoundForWallet(
+  wallet: string | null,
+  referrals: Array<{ sponsor_wallet_address: string | null; status: string }> | undefined,
+): boolean {
+  if (!wallet) return false;
+  if (isDemoWallet(wallet)) return true;
+  return (referrals ?? []).some((r) => r.status === 'active' && r.sponsor_wallet_address);
 }

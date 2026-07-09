@@ -1,16 +1,21 @@
 -- Demo seed — wallet_address as primary key
 
-insert into public.profiles (wallet_address, short_address, display_name, lang) values
-  ('0x1234567890AbCdEf1234567890AbCdEf12345678', '0x1234…5678', 'Demo Line Leader', 'zh'),
-  ('0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '0xAbCd…Ef01', 'Committee A', 'zh'),
-  ('0x9876543210FeDcBa9876543210FeDcBa98765432', '0x9876…5432', 'Committee B', 'zh')
-on conflict (wallet_address) do update set display_name = excluded.display_name;
+insert into public.profiles (wallet_address, short_address, display_name, lang)
+select v.wallet_address, v.short_address, v.display_name, v.lang
+from (values
+  ('0x1234567890abcdef1234567890abcdef12345678', '0x1234…5678', 'Demo Line Leader', 'zh'),
+  ('0xabcdef1234567890abcdef1234567890abcdef01', '0xAbCd…Ef01', 'Committee A', 'zh'),
+  ('0x9876543210fedcba9876543210fedcba98765432', '0x9876…5432', 'Committee B', 'zh')
+) as v(wallet_address, short_address, display_name, lang)
+where not exists (
+  select 1 from public.profiles p where lower(p.wallet_address) = lower(v.wallet_address)
+);
 
 insert into public.shareholders (
   wallet_address, is_shareholder, genesis_dt_count, joined_at, join_fee_usdt,
   equity_share_pct, line_performance_usd, network_performance_usd, level_label, status
 ) values (
-  '0x1234567890AbCdEf1234567890AbCdEf12345678', true, 1, '2026-07-08', 5000,
+  '0x1234567890abcdef1234567890abcdef12345678', true, 1, '2026-07-08', 5000,
   2.24, 286400, 12800000, '发起人', 'active'
 ) on conflict (wallet_address) do update set
   is_shareholder = excluded.is_shareholder,
@@ -20,8 +25,8 @@ insert into public.shareholders (
 insert into public.union_lines (id, line_leader_wallet, root_wallet, name, total_members, total_performance_usd)
 values (
   '00000000-0000-4000-8000-000000000010',
-  '0x1234567890AbCdEf1234567890AbCdEf12345678',
-  '0x1234567890AbCdEf1234567890AbCdEf12345678',
+  '0x1234567890abcdef1234567890abcdef12345678',
+  '0x1234567890abcdef1234567890abcdef12345678',
   '主线 Alpha', 48, 286400
 ) on conflict (id) do nothing;
 
@@ -30,7 +35,7 @@ insert into public.usd3_accounts (
   self_pool_remaining, downline_pool_remaining, moved_to_fi, transferred_to_downline,
   self_quota, downline_quota
 ) values (
-  '0x1234567890AbCdEf1234567890AbCdEf12345678',
+  '0x1234567890abcdef1234567890abcdef12345678',
   186.4, 1240, 320, 320, 120, 200, 500, 420, 620, 620
 ) on conflict (wallet_address) do update set
   pending_usd3 = excluded.pending_usd3,
@@ -38,8 +43,8 @@ insert into public.usd3_accounts (
 
 insert into public.d3_accounts (wallet_address, pending_d3, claimed_lifetime_d3, claim_wallet_address)
 values (
-  '0x1234567890AbCdEf1234567890AbCdEf12345678', 12.8, 86.4,
-  '0x1234567890AbCdEf1234567890AbCdEf12345678'
+  '0x1234567890abcdef1234567890abcdef12345678', 12.8, 86.4,
+  '0x1234567890abcdef1234567890abcdef12345678'
 ) on conflict (wallet_address) do update set pending_d3 = excluded.pending_d3;
 
 insert into public.poc_scores (
@@ -49,7 +54,7 @@ insert into public.poc_scores (
   raw_h_zh, raw_h_en, raw_c_zh, raw_c_en, raw_a_zh, raw_a_en,
   raw_r_zh, raw_r_en, raw_e_zh, raw_e_en, settled_at
 ) values (
-  '0x1234567890AbCdEf1234567890AbCdEf12345678',
+  '0x1234567890abcdef1234567890abcdef12345678',
   '#42', 'V5', 78.4, 28.6, 16, 38,
   72, 85, 68, 91, 56,
   '质押 D3 价值 $3,200', 'Staked D3 value $3,200',
@@ -71,15 +76,23 @@ insert into public.multisig_wallets (
   '00000000-0000-4000-8000-000000000020',
   '00000000-0000-4000-8000-000000000010',
   'line',
+  -- Demo placeholder only; production lines get a unique Privy treasury on shareholder join / profile load
   '0x7a3f8c2e1b9d4a6f0e5c8b2d1a9f7e4c3b6d8a1f',
   '0x7a3f…a1f', '本线收益金库', 'Line treasury', 2, 3, 4280, 186.4
 ) on conflict (id) do nothing;
 
 insert into public.committee_members (multisig_wallet_id, signer_wallet, role_zh, role_en, is_line_leader, sort_order, dividend_weight_pct)
-values
-  ('00000000-0000-4000-8000-000000000020', '0x1234567890AbCdEf1234567890AbCdEf12345678', '线长', 'Line leader', true, 0, 40),
-  ('00000000-0000-4000-8000-000000000020', '0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '委员 A', 'Committee A', false, 1, 35),
-  ('00000000-0000-4000-8000-000000000020', '0x9876543210FeDcBa9876543210FeDcBa98765432', '委员 B', 'Committee B', false, 2, 25);
+select v.multisig_wallet_id, v.signer_wallet, v.role_zh, v.role_en, v.is_line_leader, v.sort_order, v.dividend_weight_pct
+from (values
+  ('00000000-0000-4000-8000-000000000020'::uuid, '0x1234567890abcdef1234567890abcdef12345678', '线长', 'Line leader', true, 0, 40),
+  ('00000000-0000-4000-8000-000000000020'::uuid, '0xabcdef1234567890abcdef1234567890abcdef01', '委员 A', 'Committee A', false, 1, 35),
+  ('00000000-0000-4000-8000-000000000020'::uuid, '0x9876543210fedcba9876543210fedcba98765432', '委员 B', 'Committee B', false, 2, 25)
+) as v(multisig_wallet_id, signer_wallet, role_zh, role_en, is_line_leader, sort_order, dividend_weight_pct)
+where not exists (
+  select 1 from public.committee_members cm
+  where cm.multisig_wallet_id = v.multisig_wallet_id
+    and lower(cm.signer_wallet) = lower(v.signer_wallet)
+);
 
 -- Protocol epoch + bribe market (D3-Fi announcements)
 insert into public.protocol_epochs (
@@ -190,16 +203,22 @@ insert into public.union_rule_cards (id, title_zh, title_en, body_zh, body_en, t
 on conflict (id) do nothing;
 
 -- Team member profiles + referrals
-insert into public.profiles (wallet_address, short_address, display_name, lang) values
+insert into public.profiles (wallet_address, short_address, display_name, lang)
+select v.wallet_address, v.short_address, v.display_name, v.lang
+from (values
   ('0x1111222233334444555566667777888899990000', '0x1111…0000', 'Direct A3', 'zh'),
-  ('0xAAaaBBbbCCccDDddEEeeFFff0011223344556677', '0xAAaa…6677', 'Downline B1', 'zh'),
-  ('0xBb11223344556677889900AaBbCcDdEeFf001122', '0xBb11…1122', 'Downline B2', 'zh')
-on conflict (wallet_address) do nothing;
+  ('0xaaaabbbbccccddddeeeeffff0011223344556677', '0xAAaa…6677', 'Downline B1', 'zh'),
+  ('0xbb11223344556677889900aabbccddeeff001122', '0xBb11…1122', 'Downline B2', 'zh')
+) as v(wallet_address, short_address, display_name, lang)
+where not exists (
+  select 1 from public.profiles p where lower(p.wallet_address) = lower(v.wallet_address)
+);
 
 insert into public.referrals (wallet_address, sponsor_wallet_address, referral_type, status) values
-  ('0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'shareholder', 'active'),
-  ('0x9876543210FeDcBa9876543210FeDcBa98765432', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'shareholder', 'active'),
-  ('0x1111222233334444555566667777888899990000', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'partner', 'active')
+  ('0xabcdef1234567890abcdef1234567890abcdef01', '0x1234567890abcdef1234567890abcdef12345678', 'shareholder', 'active'),
+  ('0x9876543210fedcba9876543210fedcba98765432', '0x1234567890abcdef1234567890abcdef12345678', 'shareholder', 'active'),
+  ('0x1111222233334444555566667777888899990000', '0x1234567890abcdef1234567890abcdef12345678', 'partner', 'active'),
+  ('0x1234567890abcdef1234567890abcdef12345678', '0xabcdef1234567890abcdef1234567890abcdef01', 'partner', 'active')
 on conflict (wallet_address, sponsor_wallet_address) do nothing;
 
 -- Team tree for demo line leader
@@ -207,13 +226,15 @@ insert into public.team_nodes (
   id, line_id, wallet_address, parent_node_id, level_label,
   personal_usd, team_usd, direct_count, team_count, is_direct
 ) values
-  ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000010', '0x1234567890AbCdEf1234567890AbCdEf12345678', null, 'V5', 3200, 286400, 3, 48, false),
-  ('00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000010', '0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '00000000-0000-4000-8000-000000000101', 'V3', 1100, 98000, 2, 18, true),
-  ('00000000-0000-4000-8000-000000000103', '00000000-0000-4000-8000-000000000010', '0x9876543210FeDcBa9876543210FeDcBa98765432', '00000000-0000-4000-8000-000000000101', 'V2', 2400, 72000, 2, 14, true),
+  ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000010', '0x1234567890abcdef1234567890abcdef12345678', null, 'V5', 3200, 286400, 3, 48, false),
+  ('00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000010', '0xabcdef1234567890abcdef1234567890abcdef01', '00000000-0000-4000-8000-000000000101', 'V3', 1100, 98000, 2, 18, true),
+  ('00000000-0000-4000-8000-000000000103', '00000000-0000-4000-8000-000000000010', '0x9876543210fedcba9876543210fedcba98765432', '00000000-0000-4000-8000-000000000101', 'V2', 2400, 72000, 2, 14, true),
   ('00000000-0000-4000-8000-000000000104', '00000000-0000-4000-8000-000000000010', '0x1111222233334444555566667777888899990000', '00000000-0000-4000-8000-000000000101', 'V1', 200, 41400, 1, 12, true),
-  ('00000000-0000-4000-8000-000000000105', '00000000-0000-4000-8000-000000000010', '0xAAaaBBbbCCccDDddEEeeFFff0011223344556677', '00000000-0000-4000-8000-000000000102', 'V1', 280, 42000, 0, 8, false),
-  ('00000000-0000-4000-8000-000000000106', '00000000-0000-4000-8000-000000000010', '0xBb11223344556677889900AaBbCcDdEeFf001122', '00000000-0000-4000-8000-000000000102', 'V2', 450, 18000, 0, 5, false)
-on conflict (line_id, wallet_address) do update set
+  ('00000000-0000-4000-8000-000000000105', '00000000-0000-4000-8000-000000000010', '0xaaaabbbbccccddddeeeeffff0011223344556677', '00000000-0000-4000-8000-000000000102', 'V1', 280, 42000, 0, 8, false),
+  ('00000000-0000-4000-8000-000000000106', '00000000-0000-4000-8000-000000000010', '0xbb11223344556677889900aabbccddeeff001122', '00000000-0000-4000-8000-000000000102', 'V2', 450, 18000, 0, 5, false)
+on conflict (id) do update set
+  line_id = excluded.line_id,
+  wallet_address = excluded.wallet_address,
   parent_node_id = excluded.parent_node_id,
   level_label = excluded.level_label,
   personal_usd = excluded.personal_usd,
@@ -234,11 +255,11 @@ insert into public.multisig_wallets (
 insert into public.committee_members (multisig_wallet_id, signer_wallet, role_zh, role_en, is_line_leader, sort_order)
 select v.multisig_wallet_id, v.signer_wallet, v.role_zh, v.role_en, v.is_line_leader, v.sort_order
 from (values
-  ('00000000-0000-4000-8000-000000000030'::uuid, '0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '核心委员', 'Core committee', false, 0),
-  ('00000000-0000-4000-8000-000000000030'::uuid, '0x9876543210FeDcBa9876543210FeDcBa98765432', '生态委员', 'Ecosystem', false, 1),
+  ('00000000-0000-4000-8000-000000000030'::uuid, '0xabcdef1234567890abcdef1234567890abcdef01', '核心委员', 'Core committee', false, 0),
+  ('00000000-0000-4000-8000-000000000030'::uuid, '0x9876543210fedcba9876543210fedcba98765432', '生态委员', 'Ecosystem', false, 1),
   ('00000000-0000-4000-8000-000000000030'::uuid, '0x1111222233334444555566667777888899990000', '风控委员', 'Risk', false, 2),
-  ('00000000-0000-4000-8000-000000000030'::uuid, '0xAAaaBBbbCCccDDddEEeeFFff0011223344556677', '运营委员', 'Ops', false, 3),
-  ('00000000-0000-4000-8000-000000000030'::uuid, '0xBb11223344556677889900AaBbCcDdEeFf001122', '社区委员', 'Community', false, 4)
+  ('00000000-0000-4000-8000-000000000030'::uuid, '0xaaaabbbbccccddddeeeeffff0011223344556677', '运营委员', 'Ops', false, 3),
+  ('00000000-0000-4000-8000-000000000030'::uuid, '0xbb11223344556677889900aabbccddeeff001122', '社区委员', 'Community', false, 4)
 ) as v(multisig_wallet_id, signer_wallet, role_zh, role_en, is_line_leader, sort_order)
 where not exists (
   select 1 from public.committee_members cm
@@ -259,7 +280,7 @@ insert into public.multisig_proposals (
     '2026年7月本线分红发放', 'Jul 2026 line dividend distribution',
     '按本线业绩向 48 名股东分配 USD3 + D3', 'Distribute USD3 + D3 to 48 line shareholders by performance',
     '2026年7月', 'Jul 2026', 186.4, 12.8, 48,
-    '0x1234567890AbCdEf1234567890AbCdEf12345678', 'pending',
+    '0x1234567890abcdef1234567890abcdef12345678', 'pending',
     '2026-07-28', '2026-08-02', null, null
   ),
   (
@@ -269,37 +290,44 @@ insert into public.multisig_proposals (
     '2026年6月本线分红发放', 'Jun 2026 line dividend distribution',
     '月度分红已执行，链上可查', 'Monthly dividend executed — verifiable on-chain',
     '2026年6月', 'Jun 2026', 142.3, 9.6, 45,
-    '0x1234567890AbCdEf1234567890AbCdEf12345678', 'executed',
+    '0x1234567890abcdef1234567890abcdef12345678', 'executed',
     '2026-06-28', '2026-07-02', '2026-06-29 09:12+00',
     '0xabc123def4567890abc123def4567890abc123def4567890abc123def4567890'
   )
 on conflict (id) do nothing;
 
-insert into public.multisig_signatures (proposal_id, signer_wallet, signed_at) values
-  ('00000000-0000-4000-8000-000000000201', '0x1234567890AbCdEf1234567890AbCdEf12345678', '2026-07-28 14:20+00'),
-  ('00000000-0000-4000-8000-000000000202', '0x1234567890AbCdEf1234567890AbCdEf12345678', '2026-06-28 10:15+00'),
-  ('00000000-0000-4000-8000-000000000202', '0xAbCdEf1234567890AbCdEf1234567890AbCdEf01', '2026-06-28 16:40+00'),
-  ('00000000-0000-4000-8000-000000000202', '0x9876543210FeDcBa9876543210FeDcBa98765432', '2026-06-29 09:05+00')
-on conflict (proposal_id, signer_wallet) do nothing;
+insert into public.multisig_signatures (proposal_id, signer_wallet, signed_at)
+select v.proposal_id, v.signer_wallet, v.signed_at::timestamptz
+from (values
+  ('00000000-0000-4000-8000-000000000201'::uuid, '0x1234567890abcdef1234567890abcdef12345678', '2026-07-28 14:20+00'),
+  ('00000000-0000-4000-8000-000000000202'::uuid, '0x1234567890abcdef1234567890abcdef12345678', '2026-06-28 10:15+00'),
+  ('00000000-0000-4000-8000-000000000202'::uuid, '0xabcdef1234567890abcdef1234567890abcdef01', '2026-06-28 16:40+00'),
+  ('00000000-0000-4000-8000-000000000202'::uuid, '0x9876543210fedcba9876543210fedcba98765432', '2026-06-29 09:05+00')
+) as v(proposal_id, signer_wallet, signed_at)
+where not exists (
+  select 1 from public.multisig_signatures ms
+  where ms.proposal_id = v.proposal_id
+    and lower(ms.signer_wallet) = lower(v.signer_wallet)
+);
 
 -- Dividend accruals (union performance + referral rewards)
 insert into public.dividend_accruals (
   id, wallet_address, asset_type, stream_id, amount, period_label, cycle_type,
   status, source_zh, source_en, settled_at, created_at, multisig_proposal_id
 ) values
-  ('00000000-0000-4000-8000-000000000301', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'fees', 68.2, 'Epoch #42', 'epoch', 'pending', '手续费滑点', 'Trading slippage', now(), now(), null),
-  ('00000000-0000-4000-8000-000000000302', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'treasury', 42.6, '2026年7月', 'monthly', 'multisig_pending', '市值管理', 'Treasury yield', now(), now(), '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000000303', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'line', 75.6, '2026年7月本线', 'monthly', 'multisig_pending', '分线手续费 + 贿赂', 'Line fees + bribe', now(), now(), '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000000304', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'd3', 'fees', 4.1, 'Epoch #42', 'epoch', 'pending', '手续费权益 D3', 'Fee equity D3', now(), now(), null),
-  ('00000000-0000-4000-8000-000000000305', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'd3', 'treasury', 3.2, '2026年7月', 'monthly', 'multisig_pending', '市值管理 D3', 'Treasury D3', now(), now(), '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000000306', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'd3', 'line', 5.5, '2026年7月本线', 'monthly', 'multisig_pending', '分线排放 D3', 'Line emission D3', now(), now(), '00000000-0000-4000-8000-000000000201'),
-  ('00000000-0000-4000-8000-000000000307', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'fees', 98.5, 'Epoch #41', 'epoch', 'claimed', '手续费滑点', 'Trading slippage', '2026-07-06', '2026-07-06', null),
-  ('00000000-0000-4000-8000-000000000308', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'line', 43.7, '2026年6月', 'monthly', 'claimed', '分线手续费 + 贿赂', 'Line fees + bribe', '2026-07-01', '2026-07-01', null),
-  ('00000000-0000-4000-8000-000000000309', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'd3', 'fees', 9.6, 'Epoch #42', 'epoch', 'claimable', '手续费权益 D3', 'Fee equity D3', '2026-07-07', '2026-07-07', null),
-  ('00000000-0000-4000-8000-000000000310', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'd3', 'line', 7.2, '2026年6月', 'monthly', 'claimed', '分线排放 D3', 'Line emission D3', '2026-07-01', '2026-07-01', null),
-  ('00000000-0000-4000-8000-000000000311', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'referral', 150, 'Epoch #42', 'epoch', 'claimed', '推荐奖励', 'Referral reward', '2026-07-06', '2026-07-06', null),
-  ('00000000-0000-4000-8000-000000000312', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'dynamic', 0, 'Epoch #42', 'epoch', 'none', 'PoC 级差', 'PoC differential', '2026-07-05', '2026-07-05', null),
-  ('00000000-0000-4000-8000-000000000313', '0x1234567890AbCdEf1234567890AbCdEf12345678', 'usd3', 'dynamic', 0, 'Epoch #42', 'epoch', 'none', 'PoN 算力奖', 'PoN bonus', '2026-07-04', '2026-07-04', null)
+  ('00000000-0000-4000-8000-000000000301', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'fees', 68.2, 'Epoch #42', 'epoch', 'pending', '手续费滑点', 'Trading slippage', now(), now(), null),
+  ('00000000-0000-4000-8000-000000000302', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'treasury', 42.6, '2026年7月', 'monthly', 'multisig_pending', '市值管理', 'Treasury yield', now(), now(), '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000303', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'line', 75.6, '2026年7月本线', 'monthly', 'multisig_pending', '分线手续费 + 贿赂', 'Line fees + bribe', now(), now(), '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000304', '0x1234567890abcdef1234567890abcdef12345678', 'd3', 'fees', 4.1, 'Epoch #42', 'epoch', 'pending', '手续费权益 D3', 'Fee equity D3', now(), now(), null),
+  ('00000000-0000-4000-8000-000000000305', '0x1234567890abcdef1234567890abcdef12345678', 'd3', 'treasury', 3.2, '2026年7月', 'monthly', 'multisig_pending', '市值管理 D3', 'Treasury D3', now(), now(), '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000306', '0x1234567890abcdef1234567890abcdef12345678', 'd3', 'line', 5.5, '2026年7月本线', 'monthly', 'multisig_pending', '分线排放 D3', 'Line emission D3', now(), now(), '00000000-0000-4000-8000-000000000201'),
+  ('00000000-0000-4000-8000-000000000307', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'fees', 98.5, 'Epoch #41', 'epoch', 'claimed', '手续费滑点', 'Trading slippage', '2026-07-06', '2026-07-06', null),
+  ('00000000-0000-4000-8000-000000000308', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'line', 43.7, '2026年6月', 'monthly', 'claimed', '分线手续费 + 贿赂', 'Line fees + bribe', '2026-07-01', '2026-07-01', null),
+  ('00000000-0000-4000-8000-000000000309', '0x1234567890abcdef1234567890abcdef12345678', 'd3', 'fees', 9.6, 'Epoch #42', 'epoch', 'claimable', '手续费权益 D3', 'Fee equity D3', '2026-07-07', '2026-07-07', null),
+  ('00000000-0000-4000-8000-000000000310', '0x1234567890abcdef1234567890abcdef12345678', 'd3', 'line', 7.2, '2026年6月', 'monthly', 'claimed', '分线排放 D3', 'Line emission D3', '2026-07-01', '2026-07-01', null),
+  ('00000000-0000-4000-8000-000000000311', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'referral', 150, 'Epoch #42', 'epoch', 'claimed', '推荐奖励', 'Referral reward', '2026-07-06', '2026-07-06', null),
+  ('00000000-0000-4000-8000-000000000312', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'dynamic', 0, 'Epoch #42', 'epoch', 'none', 'PoC 级差', 'PoC differential', '2026-07-05', '2026-07-05', null),
+  ('00000000-0000-4000-8000-000000000313', '0x1234567890abcdef1234567890abcdef12345678', 'usd3', 'dynamic', 0, 'Epoch #42', 'epoch', 'none', 'PoN 算力奖', 'PoN bonus', '2026-07-04', '2026-07-04', null)
 on conflict (id) do update set amount = excluded.amount, status = excluded.status, multisig_proposal_id = excluded.multisig_proposal_id;
 
 -- Demo LP / ve lock positions
@@ -308,12 +336,12 @@ insert into public.fi_positions (
 ) values
   (
     '00000000-0000-4000-8000-000000000401',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     've_lock', 'D3', 1600, null, 90, now() + interval '60 days', 'active', '{"apy": "0.45%"}'::jsonb
   ),
   (
     '00000000-0000-4000-8000-000000000402',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     'lp', 'D3/USDT', null, 5000, 180, now() + interval '120 days', 'active', '{"apy": "0.65%"}'::jsonb
   )
 on conflict (id) do nothing;
@@ -324,7 +352,7 @@ insert into public.user_notifications (
 ) values
   (
     '00000000-0000-4000-8000-000000000501',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     'Epoch #42 进入投票期',
     'Epoch #42 voting is open',
     '贿赂池新增 $180K，请及时分配 veD3 投票权重。',
@@ -333,7 +361,7 @@ insert into public.user_notifications (
   ),
   (
     '00000000-0000-4000-8000-000000000502',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     'USD3 分红待领取',
     'USD3 dividend claimable',
     '本 Epoch 手续费通道有 186.4 USD3 待入账，可在资产页领取。',
@@ -342,7 +370,7 @@ insert into public.user_notifications (
   ),
   (
     '00000000-0000-4000-8000-000000000503',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     '多签提案待签名',
     'Multisig proposal pending',
     '2026年7月本线分红发放提案等待 2/3 委员签名确认。',
@@ -351,7 +379,7 @@ insert into public.user_notifications (
   ),
   (
     '00000000-0000-4000-8000-000000000504',
-    '0x1234567890AbCdEf1234567890AbCdEf12345678',
+    '0x1234567890abcdef1234567890abcdef12345678',
     '推荐奖励已入账',
     'Referral reward credited',
     '下级入金产生 150 USD3 推荐奖励，已记入账户余额。',
@@ -375,6 +403,10 @@ insert into public.shareholders (
   is_shareholder = true,
   status = 'active',
   level_label = '发起人';
+
+insert into public.referrals (wallet_address, sponsor_wallet_address, referral_type, status) values
+  ('0x871512590eE68bFDcf713Ee31dF882777106D2f4', '0x1234567890abcdef1234567890abcdef12345678', 'shareholder', 'active')
+on conflict (wallet_address, sponsor_wallet_address) do update set status = 'active';
 
 insert into public.usd3_accounts (wallet_address) values
   ('0x871512590eE68bFDcf713Ee31dF882777106D2f4')

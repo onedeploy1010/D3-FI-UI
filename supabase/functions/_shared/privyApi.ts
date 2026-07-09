@@ -56,12 +56,18 @@ async function privyRequest<T>(
 export async function createPrivyTreasuryWallet(
   keyQuorumId: string,
   displayName: string,
+  idempotencyKey?: string,
 ): Promise<PrivyWallet> {
-  const wallet = await privyRequest<PrivyWallet>('POST', '/v1/wallets', {
-    chain_type: 'ethereum',
-    owner_id: keyQuorumId,
-    display_name: displayName.slice(0, 100),
-  });
+  const wallet = await privyRequest<PrivyWallet>(
+    'POST',
+    '/v1/wallets',
+    {
+      chain_type: 'ethereum',
+      owner_id: keyQuorumId,
+      display_name: displayName.slice(0, 100),
+    },
+    idempotencyKey ? { idempotencyKey } : undefined,
+  );
   return wallet;
 }
 

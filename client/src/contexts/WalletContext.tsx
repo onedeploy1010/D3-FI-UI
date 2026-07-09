@@ -12,13 +12,14 @@ import { useLogin, usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
+  DEMO_PARTNER_SPONSOR_WALLET,
   DEMO_PROFILE,
   readDemoWalletFromSession,
   writeDemoWalletSession,
 } from '@/lib/demoWallet';
 import { shortWallet } from '@/lib/wallet';
 import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
-import { ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
+import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
 
 type WalletContextValue = {
   wallet: string | null;
@@ -64,6 +65,11 @@ function useDemoWalletState() {
         lang: 'zh',
         displayName: DEMO_PROFILE.displayNameZh,
       });
+      try {
+        await bindReferral(DEMO_LINE_LEADER_WALLET, DEMO_PARTNER_SPONSOR_WALLET, 'partner');
+      } catch {
+        // 远程未 seed 时由 isReferralBoundForWallet 客户端兜底
+      }
     } catch {
       // Supabase may be offline during UI-only dev
     }

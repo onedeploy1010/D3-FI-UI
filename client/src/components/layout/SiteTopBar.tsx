@@ -1,12 +1,18 @@
 import type { ReactNode } from 'react';
+import { useContext } from 'react';
 import { D3Logo } from '@/components/D3Logo';
 import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 import { SiteNotificationBell } from '@/components/layout/SiteNotificationBell';
+import { AppLanguageSwitcher } from '@/components/layout/AppLanguageSwitcher';
+import { LanguageContext } from '@/i18n/LanguageContext';
+import { toLegacyLang, type AppLang } from '@/i18n/types';
 import { cn } from '@/lib/utils';
 
 type SiteTopBarProps = {
-  lang: 'zh' | 'en';
-  onLangToggle: () => void;
+  /** @deprecated use LanguageProvider */
+  lang?: 'zh' | 'en';
+  /** @deprecated use LanguageProvider */
+  onLangToggle?: () => void;
   logoTo?: string;
   logoSize?: number;
   leftSlot?: ReactNode;
@@ -18,7 +24,7 @@ type SiteTopBarProps = {
 };
 
 export function SiteTopBar({
-  lang,
+  lang: legacyLang,
   onLangToggle,
   logoTo = '/',
   logoSize = 46,
@@ -29,6 +35,10 @@ export function SiteTopBar({
   isDark,
   className,
 }: SiteTopBarProps) {
+  const langCtx = useContext(LanguageContext);
+  const appLang: AppLang = langCtx?.lang ?? (legacyLang === 'en' ? 'en' : 'zh-CN');
+  const legacy = toLegacyLang(appLang);
+
   return (
     <header
       className={cn(
@@ -44,15 +54,21 @@ export function SiteTopBar({
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {rightSlot}
-          {showNotifications && <SiteNotificationBell lang={lang} isDark={isDark} />}
-          <button
-            type="button"
-            onClick={onLangToggle}
-            className="h-8 min-w-[2.25rem] px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-          >
-            {lang === 'zh' ? 'EN' : '中文'}
-          </button>
-          <WalletConnectButton lang={lang} onDisconnect={onDisconnect} />
+          {showNotifications && <SiteNotificationBell lang={legacy} isDark={isDark} />}
+          {langCtx ? (
+            <AppLanguageSwitcher />
+          ) : (
+            onLangToggle && (
+              <button
+                type="button"
+                onClick={onLangToggle}
+                className="h-8 min-w-[2.25rem] px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
+              >
+                {legacyLang === 'zh' ? 'EN' : '中文'}
+              </button>
+            )
+          )}
+          <WalletConnectButton lang={legacy} onDisconnect={onDisconnect} />
         </div>
       </div>
     </header>

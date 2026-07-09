@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "協議",
+    "token": "代幣",
+    "roadmap": "路線圖",
+    "docs": "文檔",
+    "connect": "連接錢包"
+  },
+  "hero": {
+    "badge": "BSC 2026 · 去中心化贿赂金融協議",
+    "title": "真實收益",
+    "titleAccent": "鏈上可查",
+    "subtitle": "將 DeFi 治理中的灰色激励陽光化\n每一分收益都有來源，每一筆分紅都可追溯",
+    "cta1": "連接錢包",
+    "cta2": "閱讀白皮書",
+    "learnMore": "了解更多"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "賄賂池 TVL",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 流通量",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "DT 持有者",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "累計分紅",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "為什麼是賄賂金融？",
+    "subtitle": "將 DeFi 治理中的灰色地帶陽光化，让項目方、投票者、協議三方共赢",
+    "imageCaption": "D³ 贿赂金融机制",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "項目方付費",
+        "desc": "項目方向 Gauge 投放贿赂，争取 D3 排放分配，获得流動性支持"
+      },
+      {
+        "icon": "users",
+        "title": "投票者分享",
+        "desc": "锁仓 veD3 參與投票，按权重分享賄賂池收益，年化可观"
+      },
+      {
+        "icon": "lock",
+        "title": "智能合約执行",
+        "desc": "链上自动结算，无需信任第三方，所有流程透明可验证"
+      }
+    ]
+  },
+  "entry": {
+    "title": "三種入場方式",
+    "subtitle": "選擇最適合你的策略，灵活入场",
+    "methods": [
+      {
+        "name": "現貨 Swap",
+        "desc": "直接購買 D3 代幣",
+        "tag": "即時",
+        "features": [
+          "零滑點 AMM",
+          "即時到账",
+          "無鎖倉限制"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "LP 債券",
+        "desc": "提供流動性获得折扣 D3",
+        "tag": "折扣",
+        "features": [
+          "5-15% 折扣",
+          "線性釋放",
+          "雙重收益"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "銷毀債券",
+        "desc": "銷毀 DT 获得 D3",
+        "tag": "高級",
+        "features": [
+          "最大折扣",
+          "通縮机制",
+          "長期價值"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "六重價值守護",
+    "subtitle": "从代码到治理，全方位保护協議价值与用戶資產",
+    "imageCaption": "D³ 安全防護体系",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "入場門控",
+        "desc": "智能準入",
+        "detail": "KYC + 白名單"
+      },
+      {
+        "icon": "lock",
+        "name": "鎖倉封印",
+        "desc": "時間鎖定",
+        "detail": "veD3 机制"
+      },
+      {
+        "icon": "flame",
+        "name": "通縮燃烧",
+        "desc": "持续銷毀",
+        "detail": "每筆交易"
+      },
+      {
+        "icon": "activity",
+        "name": "頻率限制",
+        "desc": "防閃電貸",
+        "detail": "冷卻期"
+      },
+      {
+        "icon": "eye",
+        "name": "鏈上透明",
+        "desc": "全程可查",
+        "detail": "即時審計"
+      },
+      {
+        "icon": "ban",
+        "name": "緊急熔斷",
+        "desc": "極端保護",
+        "detail": "多簽觸發"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "发展路線圖",
+    "phases": [
+      {
+        "phase": "Phase 1",
+        "name": "協議启动",
+        "desc": "核心合約部署 · 代幣发行 · 初始流動性",
+        "status": "done"
+      },
+      {
+        "phase": "Phase 2",
+        "name": "生態擴展",
+        "desc": "賄賂市場上线 · 投票治理 · 合作夥伴接入",
+        "status": "active"
+      },
+      {
+        "phase": "Phase 3",
+        "name": "全球化",
+        "desc": "多鏈部署 · RWA 集成 · 機構合作",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Phase 4",
+        "name": "去中心化治理",
+        "desc": "完全社區治理 · DAO 转型 · 協議自治",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "常見問題",
+    "items": [
+      {
+        "q": "什麼是賄賂金融？",
+        "a": "贿赂金融是將 DeFi 治理中的灰色激励机制陽光化、合規化的創新模式。項目方通过公開透明的方式向投票者提供激励，换取流動性支持。"
+      },
+      {
+        "q": "D3 代幣有什麼用途？",
+        "a": "D3 是協議的核心治理代幣，持有者可以鎖倉獲得 veD3 參與投票、获取贿赂收益分成、享受協議分红，同时具有通縮属性。"
+      },
+      {
+        "q": "如何參與分紅？",
+        "a": "持有 DT（分红代幣）即可自動參與每期分紅。分红来源包括協議手續費、賄賂池溢出、合作收入等多個渠道。"
+      },
+      {
+        "q": "安全性如何保障？",
+        "a": "協議采用六重安全機制：入場門控、鎖倉封印、通縮燃烧、頻率限制、鏈上透明、緊急熔斷，全方位保护用戶資產。"
+      }
+    ]
+  },
+  "footer": {
+    "resources": "資源",
+    "community": "社區",
+    "legal": "法律",
+    "links": {
+      "whitepaper": "白皮書",
+      "docs": "开发文檔",
+      "audit": "審計報告",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "服務條款",
+      "privacy": "隱私政策",
+      "disclaimer": "免責聲明"
+    }
+  }
+}

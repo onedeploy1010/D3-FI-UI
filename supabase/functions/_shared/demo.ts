@@ -1,7 +1,7 @@
 import { walletEquals } from './wallet.ts';
 
 export const DEMO_WALLET_ADDRESS =
-  Deno.env.get('DEMO_WALLET_ADDRESS') ?? '0x1234567890AbCdEf1234567890AbCdEf12345678';
+  Deno.env.get('DEMO_WALLET_ADDRESS') ?? '0x1234567890abcdef1234567890abcdef12345678';
 
 export function isDemoWalletAddress(wallet: string): boolean {
   return walletEquals(wallet, DEMO_WALLET_ADDRESS);

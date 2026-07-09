@@ -7,6 +7,8 @@ import {
   fetchTopMovers,
   fetchTrending,
   fetchWatchlist,
+  generateCoinAnalysisExtras,
+  generateCoinForecasts,
 } from '../_shared/marketData.ts';
 
 function routePath(req: Request): string {
@@ -71,14 +73,16 @@ Deno.serve(async (req) => {
       const prices = await fetchLivePrices([key, 'BTC', 'ETH']);
       const coin = prices.find((p) => p.sym === key) ?? prices[0];
       if (!coin) return jsonResponse({ error: 'Symbol not found' }, 404);
+      const hourBucket = Math.floor(Date.now() / 3_600_000);
+      const extras = generateCoinAnalysisExtras(key, hourBucket);
       return jsonResponse({
         price: coin.price,
         change24h: coin.change24h,
-        longPct: 50,
-        fundingRate: 0.0001,
-        openInterest: 1.2,
-        forecasts: [],
-        summary: 'Live price from CoinGecko. Configure OpenRouter for AI forecasts.',
+        longPct: extras.longPct,
+        fundingRate: extras.fundingRate,
+        openInterest: extras.openInterest,
+        forecasts: generateCoinForecasts(key, coin.price, hourBucket),
+        summary: `${key}/USDT AI outlook anchored to live price $${coin.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}.`,
         updatedAt: new Date().toISOString(),
         source: 'coingecko',
       });

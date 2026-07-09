@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
-import { Globe, Copy, Check, X, ArrowRight, Sparkles, Crown } from 'lucide-react';
+import { Globe, Copy, Check, X, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { PortalOrbitalDiagram } from '@/components/illustrations/PortalOrbitalDiagram';
 import { IllustrationCard } from '@/components/layout/IllustrationCard';
@@ -16,6 +16,7 @@ import {
   captureReferralFromUrl,
   clearPendingReferral,
   getPendingReferral,
+  isReferralBoundForWallet,
   markReferralSkipped,
   shouldOfferReferralBind,
 } from '@/lib/referral';
@@ -55,10 +56,9 @@ export default function Portal() {
       try {
         const data = await fetchUnionProfile(wallet);
         if (cancelled) return;
-        const active = (data.referrals ?? []).some((r) => r.status === 'active' && r.sponsor_wallet_address);
-        setHasActiveReferral(active);
+        setHasActiveReferral(isReferralBoundForWallet(wallet, data.referrals));
       } catch {
-        if (!cancelled) setHasActiveReferral(false);
+        if (!cancelled) setHasActiveReferral(isReferralBoundForWallet(wallet, undefined));
       }
     })();
 
@@ -127,6 +127,7 @@ export default function Portal() {
     ai: { title: 'D³-AI 分析站', desc: 'AI 驱动的链上数据分析与智能决策辅助', badge: '已上线', cta: '进入分析站' },
     fi: { title: 'D³-Fi 贿赂金融', desc: '资产管理 · 投票治理 · 贿赂市场 · 分红收益', badge: '核心应用', cta: '进入应用' },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · USD3 / D3', badge: '节点站点', cta: '进入联盟' },
+    partner: { title: '合伙人计划', desc: '推荐绑定 · 众筹质押 · 反贿 sD3', badge: '新', cta: '进入' },
     announcements: '协议公告',
     epoch: '当前 Epoch',
     bribePool: '贿赂池新增',
@@ -143,6 +144,7 @@ export default function Portal() {
     ai: { title: 'D³-AI Analytics', desc: 'AI-powered on-chain data analysis and smart decision support', badge: 'Live', cta: 'Enter Analytics' },
     fi: { title: 'D³-Fi Protocol', desc: 'Assets · Governance · Bribe Market · Dividends', badge: 'Core App', cta: 'Enter App' },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · USD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
+    partner: { title: 'Partner Program', desc: 'Referral · Crowdfund · sD3', badge: 'New', cta: 'Enter' },
     announcements: 'Protocol Updates',
     epoch: 'Current Epoch',
     bribePool: 'Bribe Pool Added',
@@ -204,7 +206,7 @@ export default function Portal() {
         </motion.div>
 
         {/* App Entry Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <GlassCard variant="default" onClick={() => navigate('/ai/market')} className="p-5 h-full group cursor-pointer">
               <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -227,21 +229,21 @@ export default function Portal() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-            <GlassCard variant="accent" onClick={() => navigate('/union')} className="p-5 h-full group">
+            <GlassCard variant="default" onClick={() => navigate('/partner')} className="p-5 h-full group cursor-pointer">
               <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-3">
                   <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
-                    <Crown size={18} className="text-[#E0568F]" />
+                    <Handshake size={18} className="text-[#E0568F]" />
                   </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold" style={{ color: '#E0568F' }}>
-                    {t.union.badge}
+                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-violet-400 !bg-violet-500/10 !border-violet-500/15">
+                    {t.partner.badge}
                   </GlassChip>
                 </div>
-                <h3 className="site-card-title mb-1">{t.union.title}</h3>
-                <p className={`text-xs mb-4 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.union.desc}</p>
+                <h3 className="site-card-title mb-1">{t.partner.title}</h3>
+                <p className={`text-xs mb-4 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.partner.desc}</p>
                 <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
-                  {t.union.cta} <ArrowRight size={12} />
+                  {t.partner.cta} <ArrowRight size={12} />
                 </span>
               </div>
             </GlassCard>

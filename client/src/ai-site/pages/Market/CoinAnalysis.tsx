@@ -66,14 +66,9 @@ interface CoinData {
   openInterest: number;
 }
 
-function generateCoinData(coinKey: string, hourBucket: number): CoinData {
-  const coin = COINS.find(c => c.key === coinKey)!;
-  const base = hashStr(coin.key) + hourBucket * 17;
-
-  const price = coin.base * (1 + ((base % 500) - 250) / 20000);
-  const change24h = ((base % 900) - 400) / 100;
-
-  const forecasts: ModelForecast[] = MODELS.map((m, i) => {
+function generateForecasts(coinKey: string, price: number, hourBucket: number): ModelForecast[] {
+  const base = hashStr(coinKey) + hourBucket * 17;
+  return MODELS.map((m, i) => {
     const seed = base + hashStr(m.name) + i * 7919;
     const roll = seed % 10;
     const direction: Direction = roll < 5 ? "BULLISH" : roll < 8 ? "BEARISH" : "NEUTRAL";
@@ -96,6 +91,41 @@ function generateCoinData(coinKey: string, hourBucket: number): CoinData {
       reasonKey,
     };
   });
+}
+
+function recalcTargetPrice(price: number, direction: Direction, seed: number): number {
+  const movePct = (0.8 + (seed % 30) / 10) / 100;
+  if (direction === "BULLISH") return price * (1 + movePct);
+  if (direction === "BEARISH") return price * (1 - movePct);
+  return price * (1 + ((seed % 10) - 5) / 2000);
+}
+
+/** Re-anchor API targets to the displayed spot when they drift from live price. */
+function normalizeForecastTargets(forecasts: ModelForecast[], price: number): ModelForecast[] {
+  return forecasts.map((f, i) => {
+    const ratio = f.targetPrice / price;
+    const misaligned =
+      f.targetPrice <= 0 ||
+      ratio < 0.3 ||
+      ratio > 3 ||
+      (f.direction === "BULLISH" && f.targetPrice < price * 0.995) ||
+      (f.direction === "BEARISH" && f.targetPrice > price * 1.005);
+    if (!misaligned) return f;
+    return {
+      ...f,
+      targetPrice: recalcTargetPrice(price, f.direction, hashStr(f.model) + i * 7919),
+    };
+  });
+}
+
+function generateCoinData(coinKey: string, hourBucket: number, priceOverride?: number, change24hOverride?: number): CoinData {
+  const coin = COINS.find(c => c.key === coinKey)!;
+  const base = hashStr(coin.key) + hourBucket * 17;
+
+  const price = priceOverride ?? coin.base * (1 + ((base % 500) - 250) / 20000);
+  const change24h = change24hOverride ?? ((base % 900) - 400) / 100;
+
+  const forecasts = generateForecasts(coinKey, price, hourBucket);
 
   const longPct = 34 + (base % 33);
   const exchangeDepth = EXCHANGES.map((name, i) => ({
@@ -146,35 +176,44 @@ export function CoinAnalysis() {
   });
 
   const hourBucket = Math.floor(Date.now() / 3_600_000);
-  const fallback = useMemo(() => generateCoinData(selected, hourBucket), [selected, hourBucket]);
 
   const mapForecasts = (raw: { model: string; direction: string; confidence: number; targetPrice: number; reason: string }[]) =>
-    raw.map((f) => ({
-      model: f.model,
-      icon: f.model[0],
-      accent: "#8A2B57",
-      direction: f.direction as Direction,
-      confidence: f.confidence,
-      targetPrice: f.targetPrice,
-      reasonKey: f.reason,
-    }));
+    raw.map((f) => {
+      const meta = MODELS.find((m) => m.name === f.model);
+      return {
+        model: f.model,
+        icon: meta?.icon ?? f.model[0],
+        accent: meta?.accent ?? "#8A2B57",
+        direction: f.direction as Direction,
+        confidence: f.confidence,
+        targetPrice: f.targetPrice,
+        reasonKey: f.reason,
+      };
+    });
 
-  const liveForecasts = liveData?.forecasts?.length
-    ? mapForecasts(liveData.forecasts as { model: string; direction: string; confidence: number; targetPrice: number; reason: string }[])
-    : null;
+  const data = useMemo(() => {
+    const spotPrice = liveData?.price;
+    const spotChange = liveData?.change24h;
+    const generated = generateCoinData(selected, hourBucket, spotPrice, spotChange);
+    if (!liveData) return generated;
 
-  const data = liveData
-    ? {
-        price: liveData.price ?? fallback.price,
-        change24h: liveData.change24h ?? fallback.change24h,
-        longPct: liveData.longPct ?? fallback.longPct,
-        fundingRate: liveData.fundingRate ?? fallback.fundingRate,
-        openInterest: liveData.openInterest ?? fallback.openInterest,
-        exchangeDepth: fallback.exchangeDepth,
-        forecasts: liveForecasts ?? fallback.forecasts,
-        summary: liveData.summary as string | undefined,
-      }
-    : fallback;
+    const price = liveData.price ?? generated.price;
+    const apiForecasts = liveData.forecasts?.length ? mapForecasts(liveData.forecasts) : null;
+    return {
+      price,
+      change24h: liveData.change24h ?? generated.change24h,
+      longPct: liveData.longPct ?? generated.longPct,
+      fundingRate: liveData.fundingRate ?? generated.fundingRate,
+      openInterest: liveData.openInterest ?? generated.openInterest,
+      exchangeDepth: generated.exchangeDepth,
+      forecasts: apiForecasts?.length
+        ? normalizeForecastTargets(apiForecasts, price)
+        : generated.forecasts,
+      summary: liveData.summary as string | undefined,
+    };
+  }, [liveData, selected, hourBucket]);
+
+  const fallback = useMemo(() => generateCoinData(selected, hourBucket), [selected, hourBucket]);
 
   const bullish = data.forecasts.filter((f) => f.direction === "BULLISH").length;
   const bearish = data.forecasts.filter((f) => f.direction === "BEARISH").length;

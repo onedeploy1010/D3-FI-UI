@@ -135,13 +135,13 @@ async function ensureShareholderLineInfra(sb: Sb, wallet: string) {
     .maybeSingle();
 
   if (!ms) {
+    const treasuryFields = await resolveLineTreasuryFields(pk, lineId);
     const { data: newMs, error } = await sb
       .from('multisig_wallets')
       .insert({
         line_id: lineId,
         wallet_type: 'line',
-        treasury_address: pk,
-        short_address: shortWallet(pk),
+        ...treasuryFields,
         label_zh: '本线收益金库',
         label_en: 'Line treasury',
         threshold: 2,
@@ -153,6 +153,8 @@ async function ensureShareholderLineInfra(sb: Sb, wallet: string) {
       .single();
     if (error) throw error;
     ms = newMs;
+  } else if (treasuryNeedsPrivyUpgrade(ms as Record<string, unknown>)) {
+    ms = (await provisionPrivyTreasury(sb, ms as Record<string, unknown>, pk)) as typeof ms;
   }
 
   const msId = ms.id as string;
@@ -182,20 +184,57 @@ async function ensureShareholderLineInfra(sb: Sb, wallet: string) {
   return { lineId, line, multisig: ms };
 }
 
+type LineTreasuryFields = {
+  treasury_address: string;
+  short_address: string;
+  privy_wallet_id: string | null;
+  privy_key_quorum_id: string | null;
+};
+
+/** Create a dedicated Privy-owned treasury for this line (one wallet per line_id). */
+async function resolveLineTreasuryFields(lineLeader: string, lineId: string): Promise<LineTreasuryFields> {
+  const fallback: LineTreasuryFields = {
+    treasury_address: lineLeader,
+    short_address: shortWallet(lineLeader),
+    privy_wallet_id: null,
+    privy_key_quorum_id: null,
+  };
+  if (!isPrivyOnchainEnabled()) return fallback;
+  const quorumId = Deno.env.get('PRIVY_LINE_KEY_QUORUM_ID');
+  if (!quorumId) return fallback;
+  try {
+    const pw = await createPrivyTreasuryWallet(
+      quorumId,
+      `D3 Line ${shortWallet(lineLeader)}`,
+      `d3-line-treasury-${lineId}`,
+    );
+    return {
+      treasury_address: pw.address,
+      short_address: shortWallet(pw.address),
+      privy_wallet_id: pw.id,
+      privy_key_quorum_id: quorumId,
+    };
+  } catch (e) {
+    console.warn('[privy] create line treasury:', e);
+    return fallback;
+  }
+}
+
+function treasuryNeedsPrivyUpgrade(ms: Record<string, unknown>): boolean {
+  return Boolean(!ms.privy_wallet_id && isPrivyOnchainEnabled());
+}
+
 async function provisionPrivyTreasury(sb: Sb, ms: Record<string, unknown>, lineLeader: string) {
   if (!isPrivyOnchainEnabled() || ms.privy_wallet_id) return ms;
-  const quorumId = Deno.env.get('PRIVY_LINE_KEY_QUORUM_ID');
-  if (!quorumId) return ms;
+  const lineId = String(ms.line_id ?? '');
+  if (!lineId) return ms;
+  if (!treasuryNeedsPrivyUpgrade(ms)) return ms;
   try {
-    const pw = await createPrivyTreasuryWallet(quorumId, `D3 Line ${shortWallet(lineLeader)}`);
+    const fields = await resolveLineTreasuryFields(lineLeader, lineId);
+    if (!fields.privy_wallet_id) return ms;
     const { data: updated } = await sb
       .from('multisig_wallets')
-      .update({
-        privy_wallet_id: pw.id,
-        privy_key_quorum_id: quorumId,
-        treasury_address: pw.address,
-        short_address: shortWallet(pw.address),
-      })
+      .update(fields)
       .eq('id', ms.id as string)
       .select()
       .single();
@@ -384,12 +423,37 @@ async function ensureDemoPocScore(sb: Sb, pk: string) {
   );
 }
 
+const DEMO_PARTNER_SPONSOR =
+  Deno.env.get('DEMO_PARTNER_SPONSOR_WALLET') ?? '0xabcdef1234567890abcdef1234567890abcdef01';
+
+async function ensureDemoPartnerReferral(sb: Sb, pk: string) {
+  if (!isDemoWalletAddress(pk)) return;
+  const { data: existing } = await sb
+    .from('referrals')
+    .select('id')
+    .eq('wallet_address', pk)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (existing) return;
+  await ensureProfile(sb, DEMO_PARTNER_SPONSOR);
+  await sb.from('referrals').upsert(
+    {
+      wallet_address: pk,
+      sponsor_wallet_address: DEMO_PARTNER_SPONSOR,
+      referral_type: 'partner',
+      status: 'active',
+    },
+    { onConflict: 'wallet_address,sponsor_wallet_address' },
+  );
+}
+
 async function fetchProfileBundle(sb: Sb, wallet: string) {
   const profile = await findProfileByWallet(sb, wallet);
   if (!profile) throw new HttpError(404, 'Profile not found');
 
   const pk = profile.wallet_address as string;
   await ensureDemoPocScore(sb, pk);
+  await ensureDemoPartnerReferral(sb, pk);
   const [
     shareholder,
     usd3,
