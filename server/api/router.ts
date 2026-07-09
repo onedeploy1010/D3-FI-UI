@@ -40,10 +40,40 @@ import {
   coinKeyFromSymbol,
 } from '../services/market.js';
 import { analyzeJson, chatCompletion, isOpenRouterConfigured } from '../services/openrouter.js';
+import { buildLeaderboard, buildPositions, resolvePmUsername, CACHE_TTL_MS } from '../services/polymarket.js';
 import { isSupabaseConfigured } from '../lib/supabase.js';
 import { createUnionRouter } from './union.js';
 
 const CACHE_MS = 5 * 60_000;
+const pmMemCache = new Map<string, { expires: number; payload: unknown }>();
+
+function getPmMemCache<T>(key: string): T | null {
+  const hit = pmMemCache.get(key);
+  if (!hit || hit.expires < Date.now()) return null;
+  return hit.payload as T;
+}
+
+function setPmMemCache(key: string, payload: unknown, ttlMs: number) {
+  pmMemCache.set(key, { expires: Date.now() + ttlMs, payload });
+}
+
+async function getPolymarketLeaderboard(type: 'top' | 'rising') {
+  const cacheKey = `polymarket:leaderboard:${type}`;
+  if (isSupabaseConfigured()) {
+    const hit = await getCache(cacheKey);
+    if (hit) return hit;
+  } else {
+    const hit = getPmMemCache(cacheKey);
+    if (hit) return hit;
+  }
+  const payload = await buildLeaderboard(type);
+  if (isSupabaseConfigured()) {
+    await setCache(cacheKey, payload, CACHE_TTL_MS).catch(() => {});
+  } else {
+    setPmMemCache(cacheKey, payload, CACHE_TTL_MS);
+  }
+  return payload;
+}
 
 async function withCache<T>(key: string, fn: () => Promise<T>): Promise<T> {
   if (isSupabaseConfigured()) {
@@ -465,8 +495,66 @@ export function createApiRouter(): Router {
 
   api.post('/strategies', requireDb, async (_req, res) => res.json({ ok: true }));
 
-  api.get('/polymarket/leaderboard', (_req, res) => res.json([]));
-  api.post('/polymarket/refresh', (_req, res) => res.json({ ok: true }));
+  api.get('/polymarket/leaderboard', async (req, res) => {
+    try {
+      const type = req.query.type === 'rising' ? 'rising' : 'top';
+      res.json(await getPolymarketLeaderboard(type));
+    } catch (e) {
+      res.status(502).json({
+        traders: [],
+        fetchedAt: new Date().toISOString(),
+        status: 'error',
+        errorMsg: String(e),
+      });
+    }
+  });
+
+  api.post('/polymarket/refresh', async (_req, res) => {
+    Array.from(pmMemCache.keys()).forEach((key) => {
+      if (key.startsWith('polymarket:leaderboard:')) pmMemCache.delete(key);
+    });
+    if (isSupabaseConfigured()) {
+      const sb = (await import('../lib/supabase.js')).getSupabaseAdmin();
+      await sb.from('market_analysis_cache').delete().like('cache_key', 'polymarket:leaderboard:%');
+    }
+    res.json({ ok: true, refreshedAt: new Date().toISOString() });
+  });
+
+  api.get('/copytrade/polymarket/:address', async (req, res) => {
+    try {
+      const address = String(req.params.address).toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(address)) {
+        return res.status(400).json({ error: 'Invalid address' });
+      }
+      const cacheKey = `polymarket:positions:${address}`;
+      if (isSupabaseConfigured()) {
+        const hit = await getCache(cacheKey);
+        if (hit) return res.json(hit);
+      } else {
+        const hit = getPmMemCache(cacheKey);
+        if (hit) return res.json(hit);
+      }
+      const payload = await buildPositions(address);
+      if (isSupabaseConfigured()) {
+        await setCache(cacheKey, payload, 60_000).catch(() => {});
+      } else {
+        setPmMemCache(cacheKey, payload, 60_000);
+      }
+      res.json(payload);
+    } catch (e) {
+      res.status(502).json({ error: String(e) });
+    }
+  });
+
+  api.get('/copytrade/polymarket/resolve/:username', async (req, res) => {
+    try {
+      const payload = await resolvePmUsername(decodeURIComponent(req.params.username));
+      if (payload.error && !payload.address) return res.status(404).json(payload);
+      res.json(payload);
+    } catch (e) {
+      res.status(502).json({ error: String(e) });
+    }
+  });
 
   api.get('/notifications/channels', requireDb, async (req, res) => {
     const user = await withUser(req, res);

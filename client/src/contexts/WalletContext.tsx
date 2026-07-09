@@ -10,6 +10,11 @@ import {
 } from 'react';
 import { useLogin, usePrivy, useWallets } from '@privy-io/react-auth';
 import {
+  isMobileBrowser,
+  isTokenPocketBrowser,
+  openInTokenPocketApp,
+} from '@/lib/tokenPocket';
+import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
   DEMO_PARTNER_SPONSOR_WALLET,
@@ -20,6 +25,7 @@ import {
 import { shortWallet } from '@/lib/wallet';
 import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
 import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
+import { setDepositAccessTokenGetter } from '@/lib/depositApi';
 
 type WalletContextValue = {
   wallet: string | null;
@@ -35,7 +41,9 @@ type WalletContextValue = {
   isReady: boolean;
   isConnecting: boolean;
   error: string | null;
-  connect: () => Promise<void>;
+  connect: () => void;
+  /** Open TokenPocket in-app browser (mobile) or Privy wallet login with TP prioritized. */
+  connectTokenPocket: () => void;
   connectDemo: () => Promise<void>;
   disconnect: () => void;
 };
@@ -115,7 +123,10 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
       isReady: true,
       isConnecting,
       error: null,
-      connect: async () => {
+      connect: () => {
+        throw new Error(privyMissingError);
+      },
+      connectTokenPocket: () => {
         throw new Error(privyMissingError);
       },
       connectDemo,
@@ -165,7 +176,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   }, [authenticated]);
 
   useLayoutEffect(() => {
-    setUnionAccessTokenGetter(async () => {
+    const getter = async () => {
       if (demoWallet) return null;
       if (!authenticated) return null;
       try {
@@ -173,7 +184,9 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       } catch {
         return null;
       }
-    });
+    };
+    setUnionAccessTokenGetter(getter);
+    setDepositAccessTokenGetter(getter);
   }, [authenticated, getAccessToken, demoWallet]);
 
   const privyWallet = useMemo(() => {
@@ -227,6 +240,25 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     }, LOGIN_STUCK_TIMEOUT_MS);
   }, [isPrivyReady, privyInitFailed, authenticated, deactivateDemo, login]);
 
+  const connectTokenPocket = useCallback(() => {
+    setError(null);
+    if (!isPrivyReady) {
+      setError(privyInitFailed ? privyInitFailedMessage : privyNotReadyMessage);
+      return;
+    }
+    if (authenticated) return;
+
+    // Mobile Safari/Chrome: jump into TokenPocket DApp browser (Privy auto-detects TP there).
+    if (isMobileBrowser() && !isTokenPocketBrowser()) {
+      openInTokenPocketApp();
+      return;
+    }
+
+    deactivateDemo();
+    setIsConnecting(true);
+    login();
+  }, [isPrivyReady, privyInitFailed, authenticated, deactivateDemo, login]);
+
   const connectDemo = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
@@ -262,6 +294,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       isConnecting,
       error,
       connect,
+      connectTokenPocket,
       connectDemo,
       disconnect,
     }),
@@ -275,6 +308,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       isConnecting,
       error,
       connect,
+      connectTokenPocket,
       connectDemo,
       disconnect,
     ],

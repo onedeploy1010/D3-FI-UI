@@ -6,7 +6,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@ai/lib/utils";
 import { Star, Trophy, TrendingUp, TrendingDown, Zap, Activity, Shield, Target, ExternalLink, Flame, BarChart2, Plus, Check, RefreshCw } from "lucide-react";
-import type { Trader, TraderPosition } from "./types";
+import type { Trader } from "./types";
+import {
+  fetchPolymarketLeaderboard,
+  refreshPolymarketLeaderboard,
+} from "@/lib/polymarketApi";
 
 // ── Risk categorization ───────────────────────────────────────────────────────
 function getRiskCategory(trader: Trader): "conservative" | "stable" | "aggressive" {
@@ -59,10 +63,17 @@ function RealPositions({
       </div>
     );
   }
+  const hasOpen = positions.some((p) => p.currentValue > 0 && p.pricePerShare > 0);
   return (
     <div className="space-y-1.5">
+      {!hasOpen && (
+        <div className="text-[9px] text-muted-foreground/60 mb-1">
+          {t("copyTrade.settledPositionsHint")}
+        </div>
+      )}
       {positions.slice(0, 4).map((p, i) => {
-        const pct  = Math.round(p.pricePerShare * 100);
+        const isSettled = p.currentValue <= 0 || p.pricePerShare <= 0;
+        const pct  = isSettled ? 0 : Math.round(p.pricePerShare * 100);
         const isYes = p.outcome?.toLowerCase() !== "no";
         const pnlPos = p.cashPnl >= 0;
         const slug = p.slug;
@@ -80,11 +91,17 @@ function RealPositions({
             transition={{ delay: 0.05 * i + 0.15 }}
             className="flex items-center gap-2 p-2 rounded-lg bg-white/3 hover:bg-white/6 transition-colors group cursor-pointer"
           >
+            {isSettled ? (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-white/5 text-muted-foreground">
+                {t("copyTrade.settled")}
+              </span>
+            ) : (
             <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0",
               isYes ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
             )}>
               {p.outcome ?? "Yes"}
             </span>
+            )}
             <span className="text-[10px] text-muted-foreground flex-1 min-w-0 truncate group-hover:text-foreground transition-colors">
               {p.market}
             </span>
@@ -488,22 +505,11 @@ export function Leaderboard({
   const [tab, setTab] = useState<"top" | "rising">("top");
   const queryClient = useQueryClient();
 
-  const { data: pmData, isLoading, isFetching } = useQuery<PolymarketResponse>({
+  const { data: pmData, isLoading, isFetching, error: pmError } = useQuery<PolymarketResponse>({
     queryKey: ["polymarket-leaderboard", tab],
-    queryFn: async () => {
-      const r = await fetch(`/api/polymarket/leaderboard?type=${tab}`);
-      if (r.status === 202) {
-        // Still loading on server — return placeholder
-        return { traders: [], fetchedAt: new Date().toISOString(), status: "partial", loading: true };
-      }
-      return r.json();
-    },
+    queryFn: () => fetchPolymarketLeaderboard(tab) as Promise<PolymarketResponse>,
     staleTime: 4 * 60_000,
-    refetchInterval: (query) => {
-      // Poll every 12s if data is still loading server-side
-      if ((query.state.data as any)?.loading) return 12_000;
-      return false;
-    },
+    retry: 1,
   });
 
   const traders = pmData?.traders ?? [];
@@ -518,9 +524,11 @@ export function Leaderboard({
   };
 
   const handleRefresh = () => {
-    fetch("/api/polymarket/refresh", { method: "POST" }).then(() => {
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["polymarket-leaderboard"] }), 1000);
-    });
+    refreshPolymarketLeaderboard()
+      .then(() => {
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ["polymarket-leaderboard"] }), 500);
+      })
+      .catch(() => queryClient.invalidateQueries({ queryKey: ["polymarket-leaderboard"] }));
   };
 
   return (
@@ -655,7 +663,9 @@ export function Leaderboard({
       ) : !isServerLoading && traders.length === 0 ? (
         <div className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-10 text-center space-y-2">
           <p className="text-sm font-semibold text-foreground/80">{t("copyTrade.noTradersTitle")}</p>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">{t("copyTrade.noTradersDesc")}</p>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            {pmData?.errorMsg ?? pmError?.message ?? t("copyTrade.noTradersDesc")}
+          </p>
           <button
             onClick={handleRefresh}
             className="inline-flex items-center gap-1.5 mt-1 text-xs font-semibold text-primary hover:underline"

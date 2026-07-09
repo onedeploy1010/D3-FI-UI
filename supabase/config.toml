@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.partner]
 verify_jwt = false
+
+[functions.treasury]
+verify_jwt = false
+
+[functions.polymarket]
+verify_jwt = false

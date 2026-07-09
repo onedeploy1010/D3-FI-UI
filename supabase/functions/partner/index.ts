@@ -132,18 +132,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/treasury') {
-      const { treasury, committee } = await ensurePartnerTreasury(sb);
-      return jsonResponse({
-        treasuryAddress: treasury!.treasury_address,
-        shortAddress: treasury!.short_address,
-        labelZh: treasury!.label_zh,
-        labelEn: treasury!.label_en,
-        threshold: treasury!.threshold,
-        totalSigners: treasury!.total_signers,
-        privyWalletId: treasury!.privy_wallet_id ?? null,
-        multisigType: 'partner',
-        committee,
-      });
+      // Treasury address is never exposed to clients. Admin uses Turnkey dashboard.
+      throw new HttpError(403, 'Treasury details are not available to clients');
     }
 
     if (req.method === 'GET' && path === '/health') {

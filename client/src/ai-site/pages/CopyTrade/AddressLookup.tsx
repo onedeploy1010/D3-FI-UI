@@ -12,6 +12,7 @@ import {
   Layers, RefreshCw, AtSign, AlertCircle, Calendar,
 } from "lucide-react";
 import type { Trader } from "./types";
+import { fetchPolymarketPositions, resolvePolymarketUsername } from "@/lib/polymarketApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PolyPosition {
@@ -86,8 +87,7 @@ function PolyPositionsPanel({
   const { t } = useTranslation();
   const { data, isLoading, error, refetch } = useQuery<PolyData>({
     queryKey: ["polymarket-positions", address],
-    queryFn: () =>
-      fetch(`/api/copytrade/polymarket/${encodeURIComponent(address)}`).then(r => r.json()) as Promise<PolyData>,
+    queryFn: () => fetchPolymarketPositions(address) as Promise<PolyData>,
     staleTime: 30000,
     enabled: address.length > 6,
   });
@@ -536,8 +536,7 @@ export function AddressLookup({ onCopyTrader }: { onCopyTrader: (trader: Trader)
       setResolving(true);
       setResolvedUsername(undefined);
       try {
-        const resp = await fetch(`/api/copytrade/polymarket/resolve/${encodeURIComponent(uname)}`);
-        const data: ResolveResult = await resp.json();
+        const data: ResolveResult = await resolvePolymarketUsername(uname);
         if (data.address) {
           setResolvedUsername(data.username || uname);
           setQuery(data.address);

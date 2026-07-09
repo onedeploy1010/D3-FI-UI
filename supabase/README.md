@@ -120,4 +120,16 @@ supabase secrets set \
 curl -s "$VITE_SUPABASE_URL/functions/v1/union/health" \
   -H "Authorization: Bearer $VITE_SUPABASE_PUBLISHABLE_KEY" \
   -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY"
+
+curl -s "$VITE_SUPABASE_URL/functions/v1/polymarket/leaderboard?type=top" \
+  -H "Authorization: Bearer $VITE_SUPABASE_PUBLISHABLE_KEY" \
+  -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" | head -c 400
 ```
+
+部署 Polymarket 排行榜（AI 站点「AI排名」）：
+
+```bash
+supabase functions deploy polymarket --no-verify-jwt
+```
+
+数据来自 `data-api.polymarket.com`，结果缓存于 `market_analysis_cache` 表（5 分钟 TTL）。

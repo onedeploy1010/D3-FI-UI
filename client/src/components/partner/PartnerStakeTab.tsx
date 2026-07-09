@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Shield, Users } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerPayMethods, partnerPayConfirmLabel } from '@/components/partner/PartnerPayMethods';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import {
   aggregateStakeOrders,
@@ -14,6 +15,8 @@ import {
 } from '@/components/partner/partnerData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
+import type { PartnerPaymentMethod } from '@/lib/partnerDepositPay';
+import type { DepositIntent } from '@/lib/depositApi';
 
 type StakeSub = 'crowdfund' | 'partner' | 'mine';
 
@@ -21,6 +24,29 @@ function stakeKindKey(kind: StakeOrderKind): string {
   if (kind === 'crowdfund') return 'stake.kind.crowdfund';
   if (kind === 'partner_join') return 'stake.kind.join';
   return 'stake.kind.sd3';
+}
+
+function DepositHint({
+  intent,
+  isDark,
+  label,
+}: {
+  intent: DepositIntent | null | undefined;
+  isDark: boolean;
+  label: (key: string) => string;
+}) {
+  if (!intent) return null;
+  return (
+    <div className={`partner-depth-inset rounded-xl p-3 mb-4 text-left ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+      <div className="text-[10px] uppercase tracking-widest mb-1">{label('stake.depositAddress')}</div>
+      <div className={`text-xs font-mono break-all ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
+        {intent.depositAddress}
+      </div>
+      <div className="text-[10px] mt-2">
+        {label('stake.depositHint')} · BSC USDT · {intent.expectedAmount} USDT
+      </div>
+    </div>
+  );
 }
 
 function PayConfirmBody({
@@ -54,6 +80,7 @@ export function PartnerStakeTab({
   initialSub,
   paying,
   payError,
+  lastDepositIntent,
   onCrowdfundStake,
   onJoinPartner,
 }: {
@@ -65,8 +92,9 @@ export function PartnerStakeTab({
   initialSub?: StakeSub;
   paying: boolean;
   payError: string | null;
-  onCrowdfundStake: (amount: number) => Promise<boolean>;
-  onJoinPartner: () => Promise<boolean>;
+  lastDepositIntent?: DepositIntent | null;
+  onCrowdfundStake: (amount: number, method: PartnerPaymentMethod) => Promise<boolean>;
+  onJoinPartner: (method: PartnerPaymentMethod) => Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
   const crowdfundOrders = useMemo(
@@ -81,6 +109,7 @@ export function PartnerStakeTab({
   const [amount, setAmount] = useState('');
   const [stakeOpen, setStakeOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<PartnerPaymentMethod>('wallet');
 
   useEffect(() => {
     if (initialSub) setSub(initialSub);
@@ -105,23 +134,25 @@ export function PartnerStakeTab({
 
   const confirmStake = async () => {
     if (!canOpenStake) return;
-    const ok = await onCrowdfundStake(pendingAmount);
+    const ok = await onCrowdfundStake(pendingAmount, payMethod);
     if (ok) {
       setStakeOpen(false);
       setAmount('');
+      setPayMethod('wallet');
       setSub('mine');
     }
   };
 
   const confirmJoin = async () => {
-    const ok = await onJoinPartner();
+    const ok = await onJoinPartner(payMethod);
     if (ok) {
       setJoinOpen(false);
+      setPayMethod('wallet');
       setSub('mine');
     }
   };
 
-  const payActions = (onCancel: () => void, onConfirm: () => void) => (
+  const payActions = (onCancel: () => void, onConfirm: () => void, method: PartnerPaymentMethod) => (
   <>
     {payError && <p className="text-xs text-red-500 mb-3 leading-relaxed">{payError}</p>}
     <div className="flex flex-col-reverse sm:flex-row gap-3">
@@ -129,7 +160,7 @@ export function PartnerStakeTab({
         {p('stake.cancel')}
       </GlassButton>
       <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => void onConfirm()}>
-        {paying ? p('stake.paying') : p('stake.confirm')}
+        {paying ? p('stake.paying') : partnerPayConfirmLabel(method, p)}
       </GlassButton>
     </div>
   </>
@@ -268,12 +299,16 @@ export function PartnerStakeTab({
         isDark={isDark}
       >
         <PayConfirmBody label={p('stake.stakeAmount')} amount={pendingAmount} unit="USDT" isDark={isDark} />
-        {payActions(() => setStakeOpen(false), confirmStake)}
+        <PartnerPayMethods method={payMethod} onChange={setPayMethod} isDark={isDark} label={p} />
+        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
+        {payActions(() => setStakeOpen(false), confirmStake, payMethod)}
       </PartnerModal>
 
       <PartnerModal open={joinOpen} onClose={() => !paying && setJoinOpen(false)} title={p('stake.confirmPay')} isDark={isDark}>
         <PayConfirmBody label={p('stake.joinFee')} amount={PARTNER_JOIN_USDT} unit="USDT" isDark={isDark} />
-        {payActions(() => setJoinOpen(false), confirmJoin)}
+        <PartnerPayMethods method={payMethod} onChange={setPayMethod} isDark={isDark} label={p} />
+        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
+        {payActions(() => setJoinOpen(false), confirmJoin, payMethod)}
       </PartnerModal>
     </div>
   );
