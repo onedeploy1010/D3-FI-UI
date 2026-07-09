@@ -22,7 +22,7 @@ export function WalletGate({
   descEn = 'Sign in with Privy and connect your Ethereum wallet (0x address). All data is bound to your wallet.',
   lang = 'zh',
 }: WalletGateProps) {
-  const { isConnected, isReady, isConnecting, connect, connectDemo, error } = useWallet();
+  const { isConnected, isPrivyReady, privyInitFailed, isConnecting, connect, connectDemo, error } = useWallet();
   const t = lang === 'zh';
 
   if (isConnected) return <>{children}</>;
@@ -37,14 +37,21 @@ export function WalletGate({
         <p className="text-sm text-[#160510]/55 dark:text-white/55 leading-relaxed mb-6 text-pretty">
           {t ? descZh : descEn}
         </p>
-        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+        {error && <p className="text-xs text-red-500 mb-3 text-pretty">{error}</p>}
+        {privyInitFailed && !error && (
+          <p className="text-xs text-amber-600 mb-3 text-pretty">
+            {t
+              ? 'Privy 未能加载。请在 Privy Dashboard → Settings → Domains 添加本站地址（如 https://你的站点.netlify.app 和 https://d3.fi），并关闭广告拦截。'
+              : 'Privy failed to load. Add this site to Allowed origins in Privy Dashboard and disable ad blockers.'}
+          </p>
+        )}
         <GlassButton
           variant="primary"
           className="w-full !py-3.5"
-          onClick={() => void connect()}
-          disabled={isConnecting || !isReady}
+          onClick={() => connect()}
+          disabled={isConnecting || !isPrivyReady}
         >
-          {!isReady
+          {!isPrivyReady && !privyInitFailed
             ? t
               ? '正在加载 Privy…'
               : 'Loading Privy…'
@@ -52,9 +59,13 @@ export function WalletGate({
               ? t
                 ? '连接中…'
                 : 'Connecting…'
-              : t
-                ? 'Privy 登录'
-                : 'Sign in with Privy'}
+              : privyInitFailed
+                ? t
+                  ? 'Privy 不可用'
+                  : 'Privy unavailable'
+                : t
+                  ? 'Privy 登录'
+                  : 'Sign in with Privy'}
         </GlassButton>
 
         <div className="flex items-center gap-3 my-5">

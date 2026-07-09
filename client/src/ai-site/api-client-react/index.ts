@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { readDemoWalletFromSession } from "@/lib/demoWallet";
+import { readDemoWalletFromSession, DEMO_LINE_LEADER_WALLET } from "@/lib/demoWallet";
+import { marketFetch } from "@/lib/marketApi";
 
-export const DEMO_WALLET = "0x1234567890abcdef1234567890abcdef12345678";
+export const DEMO_WALLET = DEMO_LINE_LEADER_WALLET;
 
 let activeWallet: string | null = null;
 
@@ -107,7 +108,7 @@ export function useGetSimulationRuns() {
 export function useGetMarketSentiment() {
   return useQuery({
     queryKey: ["market-sentiment"],
-    queryFn: () => apiGet("/market/sentiment"),
+    queryFn: () => marketFetch("/sentiment"),
     refetchInterval: 60_000,
   });
 }
@@ -115,7 +116,7 @@ export function useGetMarketSentiment() {
 export function useGetWatchlistSymbols() {
   return useQuery({
     queryKey: ["watchlist"],
-    queryFn: () => apiGet("/market/watchlist"),
+    queryFn: () => marketFetch<unknown[]>("/watchlist"),
     refetchInterval: 30_000,
   });
 }

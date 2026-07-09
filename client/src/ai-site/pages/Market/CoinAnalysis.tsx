@@ -7,6 +7,7 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, Target, Zap, BrainCircuit, Scale,
 } from "lucide-react";
 import { CoinKlineChart } from "./CoinKlineChart";
+import { marketFetch } from "@/lib/marketApi";
 
 // ── Deterministic helpers ──────────────────────────────────────────────────────
 function hashStr(s: string): number {
@@ -139,10 +140,7 @@ export function CoinAnalysis() {
 
   const { data: liveData, isLoading } = useQuery({
     queryKey: ["coin-analysis", selected],
-    queryFn: () => fetch(`/api/market/coin-analysis/${selected}`).then(r => {
-      if (!r.ok) throw new Error(String(r.status));
-      return r.json();
-    }),
+    queryFn: () => marketFetch(`/coin-analysis/${selected}`),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });
@@ -150,14 +148,8 @@ export function CoinAnalysis() {
   const hourBucket = Math.floor(Date.now() / 3_600_000);
   const fallback = useMemo(() => generateCoinData(selected, hourBucket), [selected, hourBucket]);
 
-  const data = liveData ? {
-    price: liveData.price ?? fallback.price,
-    change24h: liveData.change24h ?? fallback.change24h,
-    longPct: liveData.longPct ?? fallback.longPct,
-    fundingRate: liveData.fundingRate ?? fallback.fundingRate,
-    openInterest: liveData.openInterest ?? fallback.openInterest,
-    exchangeDepth: fallback.exchangeDepth,
-    forecasts: (liveData.forecasts ?? []).map((f: { model: string; direction: string; confidence: number; targetPrice: number; reason: string }) => ({
+  const mapForecasts = (raw: { model: string; direction: string; confidence: number; targetPrice: number; reason: string }[]) =>
+    raw.map((f) => ({
       model: f.model,
       icon: f.model[0],
       accent: "#8A2B57",
@@ -165,14 +157,34 @@ export function CoinAnalysis() {
       confidence: f.confidence,
       targetPrice: f.targetPrice,
       reasonKey: f.reason,
-    })),
-    summary: liveData.summary as string | undefined,
-  } : fallback;
+    }));
 
-  const bullish = data.forecasts.filter(f => f.direction === "BULLISH").length;
-  const bearish = data.forecasts.filter(f => f.direction === "BEARISH").length;
-  const avgConf = Math.round(data.forecasts.reduce((s, f) => s + f.confidence, 0) / data.forecasts.length);
-  const bestModel = [...data.forecasts].sort((a, b) => b.confidence - a.confidence)[0];
+  const liveForecasts = liveData?.forecasts?.length
+    ? mapForecasts(liveData.forecasts as { model: string; direction: string; confidence: number; targetPrice: number; reason: string }[])
+    : null;
+
+  const data = liveData
+    ? {
+        price: liveData.price ?? fallback.price,
+        change24h: liveData.change24h ?? fallback.change24h,
+        longPct: liveData.longPct ?? fallback.longPct,
+        fundingRate: liveData.fundingRate ?? fallback.fundingRate,
+        openInterest: liveData.openInterest ?? fallback.openInterest,
+        exchangeDepth: fallback.exchangeDepth,
+        forecasts: liveForecasts ?? fallback.forecasts,
+        summary: liveData.summary as string | undefined,
+      }
+    : fallback;
+
+  const bullish = data.forecasts.filter((f) => f.direction === "BULLISH").length;
+  const bearish = data.forecasts.filter((f) => f.direction === "BEARISH").length;
+  const avgConf = data.forecasts.length
+    ? Math.round(data.forecasts.reduce((s, f) => s + f.confidence, 0) / data.forecasts.length)
+    : 0;
+  const bestModel =
+    data.forecasts.length > 0
+      ? [...data.forecasts].sort((a, b) => b.confidence - a.confidence)[0]
+      : fallback.forecasts[0];
   const consensus: Direction = bullish > bearish ? "BULLISH" : bearish > bullish ? "BEARISH" : "NEUTRAL";
   const isPos = data.change24h >= 0;
 

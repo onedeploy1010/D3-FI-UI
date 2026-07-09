@@ -18,8 +18,20 @@ export function WalletConnectButton({
   showDemoConnect = true,
   onDisconnect,
 }: WalletConnectButtonProps) {
-  const { isConnected, isDemo, shortAddress, isConnecting, connect, connectDemo, disconnect } = useWallet();
+  const {
+    isConnected,
+    isDemo,
+    shortAddress,
+    isConnecting,
+    isPrivyReady,
+    privyInitFailed,
+    error,
+    connect,
+    connectDemo,
+    disconnect,
+  } = useWallet();
   const t = lang === 'zh';
+  const privyBlocked = privyInitFailed || !isPrivyReady;
 
   const handleDisconnect = () => {
     disconnect();
@@ -28,16 +40,31 @@ export function WalletConnectButton({
 
   if (!isConnected) {
     return (
-      <div className={cn('flex items-center gap-1', className)}>
-        <button
-          type="button"
-          onClick={() => void connect()}
-          disabled={isConnecting}
-          className="h-8 px-2.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors inline-flex items-center gap-1.5 touch-manipulation disabled:opacity-50"
-        >
-          <Wallet size={14} />
-          {isConnecting ? (t ? '连接中' : '…') : (t ? '连接钱包' : 'Connect')}
-        </button>
+      <div className={cn('flex flex-col items-end gap-0.5', className)}>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => connect()}
+            disabled={isConnecting || privyBlocked}
+            className="h-8 px-2.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors inline-flex items-center gap-1.5 touch-manipulation disabled:opacity-50"
+          >
+            <Wallet size={14} />
+            {!isPrivyReady && !privyInitFailed
+              ? t
+                ? '加载中'
+                : '…'
+              : isConnecting
+                ? t
+                  ? '连接中'
+                  : '…'
+                : privyInitFailed
+                  ? t
+                    ? 'Privy 不可用'
+                    : 'Unavailable'
+                  : t
+                    ? '连接钱包'
+                    : 'Connect'}
+          </button>
         {showDemoConnect && (
           <button
             type="button"
@@ -49,6 +76,10 @@ export function WalletConnectButton({
             <FlaskConical size={12} />
             {t ? '演示' : 'Demo'}
           </button>
+        )}
+        </div>
+        {error && (
+          <p className="max-w-[14rem] text-[9px] leading-snug text-red-500 text-right">{error}</p>
         )}
       </div>
     );

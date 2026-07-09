@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useGetMarketSentiment, useGetWatchlistSymbols, useGetMarketNews } from "@ai/api-client-react";
+import { marketFetch } from "@/lib/marketApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercent, formatCompactNumber, formatDateTime } from "@ai/lib/format";
 import { cn } from "@ai/lib/utils";
@@ -22,7 +23,7 @@ const COIN_ICONS: Record<string, { icon: ReactNode; color: string; glow: string 
   "ARB/USDT":  { icon: <span className="text-[12px] sm:text-[13px] font-black">⬡</span>, color: "text-sky-400",    glow: "shadow-[0_0_12px_rgba(56,189,248,0.2)]" },
 };
 
-// ── Generic fetch hook for new API endpoints ──────────────────────────────────
+// ── Live market data (Supabase Edge Function → CoinGecko) ─────────────────────
 function useMarketEndpoint<T>(path: string, refreshMs = 0): { data: T | null; loading: boolean } {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,9 +31,7 @@ function useMarketEndpoint<T>(path: string, refreshMs = 0): { data: T | null; lo
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await fetch(path);
-        if (!r.ok) throw new Error(String(r.status));
-        const j = (await r.json()) as T;
+        const j = await marketFetch<T>(path);
         if (!cancelled) { setData(j); setLoading(false); }
       } catch {
         if (!cancelled) setLoading(false);
@@ -136,8 +135,8 @@ export default function Market() {
   const { data: symbols, isLoading: isLoadingSymbols } = useGetWatchlistSymbols();
   const { data: news, isLoading: isLoadingNews } = useGetMarketNews({ limit: 10 });
 
-  const { data: trending } = useMarketEndpoint<{ coins: TrendingCoin[] }>("/api/market/trending", 5 * 60_000);
-  const { data: movers } = useMarketEndpoint<{ gainers: Mover[]; losers: Mover[] }>("/api/market/top-movers", 60_000);
+  const { data: trending } = useMarketEndpoint<{ coins: TrendingCoin[] }>("/trending", 5 * 60_000);
+  const { data: movers } = useMarketEndpoint<{ gainers: Mover[]; losers: Mover[] }>("/top-movers", 60_000);
 
   const totalVol = (sentiment as { totalVolume24h?: number } | undefined)?.totalVolume24h;
   const mcapChange = (sentiment as { marketCapChange24h?: number } | undefined)?.marketCapChange24h;

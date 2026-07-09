@@ -401,7 +401,13 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
       .order('created_at', { ascending: false })
       .limit(50),
     sb.from('fi_positions').select('*').eq('wallet_address', pk).eq('status', 'active'),
-    sb.from('team_nodes').select('*').eq('wallet_address', pk).maybeSingle(),
+    sb
+      .from('team_nodes')
+      .select('*')
+      .eq('wallet_address', pk)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .then(({ data }) => ({ data: data?.[0] ?? null })),
     sb
       .from('referrals')
       .select('wallet_address, referred_at, status, referral_type')

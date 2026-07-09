@@ -11,6 +11,7 @@ import { useIsMobile } from "@ai/hooks/use-mobile";
 import { useSidebarContext } from "./sidebar-context";
 import { cn } from "@ai/lib/utils";
 import { Link } from "wouter";
+import { marketFetch } from "@/lib/marketApi";
 
 // ── Live prices for header ticker ─────────────────────────────────────────────
 type NavPrice = { sym: string; price: number; change24h: number; dir: "up" | "down" | null; flashKey: number };
@@ -24,9 +25,7 @@ function useHeaderPrices() {
 
   const fetchRest = async () => {
     try {
-      const r = await fetch("/api/market/live-prices");
-      if (!r.ok) return;
-      const list: any[] = await r.json();
+      const list = await marketFetch<{ sym: string; price: number; change24h: number }[]>("/live-prices");
       if (!list?.length) return;
       srcRef.current = "rest"; setSource("rest");
       setPrices(prev => prev.map(p => {

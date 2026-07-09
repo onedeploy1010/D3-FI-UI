@@ -8,3 +8,6 @@ major_version = 15
 
 [functions.union]
 verify_jwt = false
+
+[functions.market]
+verify_jwt = false

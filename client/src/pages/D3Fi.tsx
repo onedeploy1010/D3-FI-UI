@@ -449,11 +449,6 @@ function DashboardTab({
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
         <div className={`text-xs mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? '资产总价值' : 'Total Portfolio'}</div>
         <div className="site-stat-value-lg site-stat-value-accent mb-1">{portfolio}</div>
-        {vm && vm.portfolioTotalUsd > 0 && (
-          <div className={`text-xs ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-            {t ? '基于 Supabase 账户与仓位' : 'From Supabase accounts & positions'}
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

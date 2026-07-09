@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useLogin, usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
@@ -26,7 +26,11 @@ type WalletContextValue = {
   privyUserId: string | null;
   isConnected: boolean;
   isDemo: boolean;
-  /** Privy SDK initialized enough for login (demo mode does not require this). */
+  /** Privy SDK finished initializing (`usePrivy().ready`). */
+  isPrivyReady: boolean;
+  /** Privy failed to initialize within the timeout window. */
+  privyInitFailed: boolean;
+  /** Safe to load wallet-bound APIs (Privy ready or demo session). */
   isReady: boolean;
   isConnecting: boolean;
   error: string | null;
@@ -35,8 +39,14 @@ type WalletContextValue = {
   disconnect: () => void;
 };
 
-/** Fallback when Privy `ready` never fires (e.g. wallet connectors hang). */
-const PRIVY_INIT_TIMEOUT_MS = 4000;
+/** Detect when Privy `ready` never fires (blocked SDK, wrong origin, ad blocker). */
+const PRIVY_INIT_TIMEOUT_MS = 8000;
+/** Reset stuck "connecting" if Privy modal never completes. */
+const LOGIN_STUCK_TIMEOUT_MS = 90_000;
+
+const privyInitFailedMessage =
+  'Privy 初始化失败：请在 Privy Dashboard 将本站域名加入 Allowed origins，关闭广告拦截后刷新页面。';
+const privyNotReadyMessage = 'Privy 正在初始化，请稍候…';
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
@@ -94,6 +104,8 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
       privyUserId: null,
       isConnected: Boolean(demoWallet),
       isDemo,
+      isPrivyReady: true,
+      privyInitFailed: false,
       isReady: true,
       isConnecting,
       error: null,
@@ -110,12 +122,22 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
 }
 
 function WalletProviderInner({ children }: { children: ReactNode }) {
-  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
+  const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { demoWallet, isDemo, activateDemo, deactivateDemo } = useDemoWalletState();
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
+  const isPrivyReady = ready;
+  const privyInitFailed = privyInitTimedOut && !ready;
+
+  const { login } = useLogin({
+    onComplete: () => setIsConnecting(false),
+    onError: (loginError) => {
+      setIsConnecting(false);
+      setError(loginError?.message ?? 'Privy 登录失败');
+    },
+  });
 
   useEffect(() => {
     if (ready) {
@@ -125,6 +147,16 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => setPrivyInitTimedOut(true), PRIVY_INIT_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [ready]);
+
+  useEffect(() => {
+    if (privyInitFailed) {
+      console.warn('[Privy] SDK did not become ready — check Allowed origins in Privy Dashboard');
+    }
+  }, [privyInitFailed]);
+
+  useEffect(() => {
+    if (authenticated) setIsConnecting(false);
+  }, [authenticated]);
 
   useLayoutEffect(() => {
     setUnionAccessTokenGetter(async () => {
@@ -145,8 +177,7 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
 
   const wallet = demoWallet ?? privyWallet;
   const privyUserId = demoWallet ? null : (user?.id ?? null);
-  // Do not wait on `walletsReady` — it can hang indefinitely and block the whole app.
-  const isReady = Boolean(demoWallet) || ready || privyInitTimedOut;
+  const isReady = Boolean(demoWallet) || isPrivyReady;
 
   const syncProfile = useCallback(
     async (address: string) => {
@@ -168,20 +199,27 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     void syncProfile(privyWallet);
   }, [privyWallet, demoWallet, syncProfile]);
 
-  const connect = useCallback(async () => {
-    setIsConnecting(true);
+  const connect = useCallback(() => {
     setError(null);
-    deactivateDemo();
-    try {
-      await login();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      throw e;
-    } finally {
-      setIsConnecting(false);
+    if (!isPrivyReady) {
+      setError(privyInitFailed ? privyInitFailedMessage : privyNotReadyMessage);
+      return;
     }
-  }, [login, deactivateDemo]);
+    if (authenticated) return;
+
+    deactivateDemo();
+    setIsConnecting(true);
+    login();
+
+    window.setTimeout(() => {
+      setIsConnecting((connecting) => {
+        if (connecting) {
+          setError('登录超时：若未弹出 Privy 窗口，请检查广告拦截或将本站域名加入 Privy Allowed origins');
+        }
+        return false;
+      });
+    }, LOGIN_STUCK_TIMEOUT_MS);
+  }, [isPrivyReady, privyInitFailed, authenticated, deactivateDemo, login]);
 
   const connectDemo = useCallback(async () => {
     setIsConnecting(true);
@@ -212,6 +250,8 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       privyUserId,
       isConnected: Boolean(wallet),
       isDemo,
+      isPrivyReady,
+      privyInitFailed,
       isReady,
       isConnecting,
       error,
@@ -219,7 +259,19 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
       connectDemo,
       disconnect,
     }),
-    [wallet, privyUserId, isDemo, isReady, isConnecting, error, connect, connectDemo, disconnect],
+    [
+      wallet,
+      privyUserId,
+      isDemo,
+      isPrivyReady,
+      privyInitFailed,
+      isReady,
+      isConnecting,
+      error,
+      connect,
+      connectDemo,
+      disconnect,
+    ],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
