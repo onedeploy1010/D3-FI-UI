@@ -79,7 +79,13 @@ export type PartnerTransfer = {
   at: string;
 };
 
-export type PartnerHistoryKind = 'stake' | 'transfer';
+export type PartnerYieldWithdrawal = {
+  id: string;
+  amountUsdt: number;
+  at: string;
+};
+
+export type PartnerHistoryKind = 'stake' | 'transfer' | 'withdraw';
 
 export type PartnerHistoryRecord = {
   id: string;
@@ -91,6 +97,15 @@ export type PartnerHistoryRecord = {
   toAddress?: string;
   toLabel?: string;
   unlockAt?: string;
+};
+
+export type Sd3SettlementRecord = {
+  id: string;
+  settledAt: string;
+  teamPerformanceUsd: number;
+  dailyNewPerformanceUsd: number;
+  tierRatePct: number;
+  sd3Amount: number;
 };
 
 export type PartnerState = {
@@ -107,11 +122,13 @@ export type PartnerState = {
   lifetimeSd3Earned: number;
   lifetimeUsdtYield: number;
   transfers: PartnerTransfer[];
+  yieldWithdrawals: PartnerYieldWithdrawal[];
   dtPreorderEligible: boolean;
   marketLeaderStatus: MarketLeaderStatus;
   partnerSubsidyApplications: SubsidyApplication[];
   marketSubsidyApplications: SubsidyApplication[];
   marketSubsidyPerformanceUsed: number;
+  sd3SettlementHistory: Sd3SettlementRecord[];
 };
 
 export function stakeOrderDaysLeft(order: PartnerStakeOrder, now = Date.now()): number {
@@ -130,6 +147,32 @@ export function aggregateStakeOrders(orders: PartnerStakeOrder[]) {
   const dailyUsdtYield = orders.reduce((s, o) => s + o.dailyYieldUsdt, 0);
   const claimedYieldUsdt = orders.reduce((s, o) => s + o.claimedYieldUsdt, 0);
   return { principalUsdt, dailyUsdtYield, claimedYieldUsdt, orderCount: orders.length };
+}
+
+export function computeOrderYield(order: PartnerStakeOrder, now = Date.now()) {
+  const start = new Date(order.startedAt).getTime();
+  const days = Math.max(0, Math.floor((now - start) / 86400000));
+  const accrued = Math.round(days * order.dailyYieldUsdt * 100) / 100;
+  const claimable = Math.max(0, Math.round((accrued - order.claimedYieldUsdt) * 100) / 100);
+  return { accrued, claimable };
+}
+
+export function computeYieldBalances(orders: PartnerStakeOrder[], now = Date.now()) {
+  let accruedTotal = 0;
+  let claimable = 0;
+  for (const o of orders) {
+    const row = computeOrderYield(o, now);
+    accruedTotal += row.accrued;
+    claimable += row.claimable;
+  }
+  const { principalUsdt, dailyUsdtYield, claimedYieldUsdt } = aggregateStakeOrders(orders);
+  return {
+    principalUsdt,
+    dailyUsdtYield,
+    claimedYieldUsdt,
+    accruedTotal: Math.round(accruedTotal * 100) / 100,
+    claimable: Math.round(claimable * 100) / 100,
+  };
 }
 
 export function createStakeOrder(principalUsdt: number, kind: StakeOrderKind, now = new Date()): PartnerStakeOrder {
@@ -165,7 +208,14 @@ export function buildHistoryRecords(state: PartnerState): PartnerHistoryRecord[]
     toAddress: tr.toAddress,
     toLabel: tr.toLabel,
   }));
-  return [...stakes, ...transfers].sort((a, b) => b.at.localeCompare(a.at));
+  const withdrawals: PartnerHistoryRecord[] = (state.yieldWithdrawals ?? []).map((w) => ({
+    id: w.id,
+    kind: 'withdraw',
+    at: w.at,
+    amount: w.amountUsdt,
+    unit: 'USDT',
+  }));
+  return [...stakes, ...transfers, ...withdrawals].sort((a, b) => b.at.localeCompare(a.at));
 }
 
 export function applyCrowdfundStake(prev: PartnerState, amountUsdt: number): PartnerState {
@@ -210,6 +260,37 @@ export function applySd3Transfer(
     transfers: [
       { id: `t-${Date.now()}`, toAddress, toLabel, amountSd3: amount, at: new Date().toISOString().slice(0, 10) },
       ...prev.transfers,
+    ],
+  };
+}
+
+export function applyYieldWithdraw(prev: PartnerState, amount: number): PartnerState {
+  const { claimable } = computeYieldBalances(prev.stakeOrders);
+  if (!prev.isPartner || amount <= 0 || amount > claimable) return prev;
+
+  let remaining = amount;
+  const stakeOrders = prev.stakeOrders.map((o) => {
+    const orderClaimable = computeOrderYield(o).claimable;
+    if (remaining <= 0 || orderClaimable <= 0) return o;
+    const take = Math.min(remaining, orderClaimable);
+    remaining = Math.round((remaining - take) * 100) / 100;
+    return {
+      ...o,
+      claimedYieldUsdt: Math.round((o.claimedYieldUsdt + take) * 100) / 100,
+    };
+  });
+
+  return {
+    ...prev,
+    stakeOrders,
+    lifetimeUsdtYield: Math.round((prev.lifetimeUsdtYield + amount) * 100) / 100,
+    yieldWithdrawals: [
+      {
+        id: `yw-${Date.now()}`,
+        amountUsdt: amount,
+        at: new Date().toISOString().slice(0, 10),
+      },
+      ...(prev.yieldWithdrawals ?? []),
     ],
   };
 }
@@ -264,6 +345,10 @@ export const DEMO_PARTNER_STATE: PartnerState = {
       at: '2026-07-07',
     },
   ],
+  yieldWithdrawals: [
+    { id: 'yw-demo-1', amountUsdt: 120, at: '2026-07-06' },
+    { id: 'yw-demo-2', amountUsdt: 80, at: '2026-07-04' },
+  ],
   dtPreorderEligible: true,
   marketLeaderStatus: 'approved',
   partnerSubsidyApplications: [
@@ -295,6 +380,14 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   marketSubsidyPerformanceUsed: 16_000,
+  sd3SettlementHistory: [
+    { id: 'sd3-1', settledAt: '2026-07-08', teamPerformanceUsd: 86_400, dailyNewPerformanceUsd: 3000, tierRatePct: 100, sd3Amount: 3000 },
+    { id: 'sd3-2', settledAt: '2026-07-07', teamPerformanceUsd: 83_400, dailyNewPerformanceUsd: 2800, tierRatePct: 100, sd3Amount: 2800 },
+    { id: 'sd3-3', settledAt: '2026-07-06', teamPerformanceUsd: 80_600, dailyNewPerformanceUsd: 2500, tierRatePct: 100, sd3Amount: 2500 },
+    { id: 'sd3-4', settledAt: '2026-07-05', teamPerformanceUsd: 78_100, dailyNewPerformanceUsd: 2200, tierRatePct: 100, sd3Amount: 2200 },
+    { id: 'sd3-5', settledAt: '2026-07-04', teamPerformanceUsd: 75_900, dailyNewPerformanceUsd: 1900, tierRatePct: 100, sd3Amount: 1900 },
+    { id: 'sd3-6', settledAt: '2026-07-03', teamPerformanceUsd: 74_000, dailyNewPerformanceUsd: 1600, tierRatePct: 100, sd3Amount: 1600 },
+  ],
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
@@ -311,11 +404,13 @@ export const GUEST_PARTNER_STATE: PartnerState = {
   lifetimeSd3Earned: 0,
   lifetimeUsdtYield: 0,
   transfers: [],
+  yieldWithdrawals: [],
   dtPreorderEligible: false,
   marketLeaderStatus: 'none',
   partnerSubsidyApplications: [],
   marketSubsidyApplications: [],
   marketSubsidyPerformanceUsed: 0,
+  sd3SettlementHistory: [],
 };
 
 type LegacyPartnerState = PartnerState & {
@@ -335,6 +430,8 @@ export function migratePartnerState(raw: unknown): PartnerState {
       partnerSubsidyApplications: s.partnerSubsidyApplications ?? [],
       marketSubsidyApplications: s.marketSubsidyApplications ?? [],
       marketSubsidyPerformanceUsed: s.marketSubsidyPerformanceUsed ?? 0,
+      sd3SettlementHistory: s.sd3SettlementHistory ?? [],
+      yieldWithdrawals: s.yieldWithdrawals ?? [],
     } as PartnerState;
   }
   if (s.stake) {

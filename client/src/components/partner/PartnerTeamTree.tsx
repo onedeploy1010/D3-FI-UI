@@ -2,35 +2,38 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, ArrowUp, ChevronRight, Layers, Search, Users } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
-import { partnerTeamDepth, partnerTeamNodes, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { partnerTeamDepth, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
 export function PartnerTeamTree({
   lang,
   isDark,
-  nodes = partnerTeamNodes,
+  nodes,
+  loading = false,
 }: {
   lang: AppLang;
   isDark: boolean;
-  nodes?: Record<string, PartnerTeamNode>;
+  nodes: Record<string, PartnerTeamNode>;
+  loading?: boolean;
 }) {
   const p = usePartnerTranslation(lang);
   const [focusId, setFocusId] = useState('me');
   const [q, setQ] = useState('');
 
   const focus = nodes[focusId] ?? nodes.me;
-  const parent = focus.parentId ? nodes[focus.parentId] : null;
-  const children = focus.childrenIds.map((id) => nodes[id]).filter(Boolean);
-  const currentDepth = useMemo(() => partnerTeamDepth(nodes, focusId), [nodes, focusId]);
-  const layerLabel =
-    focusId === 'me'
+  const parent = focus?.parentId ? nodes[focus.parentId] : null;
+  const children = focus?.childrenIds.map((id) => nodes[id]).filter(Boolean) ?? [];
+  const currentDepth = useMemo(() => (focus ? partnerTeamDepth(nodes, focusId) : 0), [nodes, focusId, focus]);
+  const layerLabel = !focus
+    ? ''
+    : focusId === 'me'
       ? p('tree.layerMe', { depth: currentDepth })
       : p('tree.layer', { depth: currentDepth });
 
   const searchHits = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return [] as PartnerTeamNode[];
+    if (!needle || !focus) return [] as PartnerTeamNode[];
     return Object.values(nodes).filter(
       (n) =>
         n.id !== 'me' &&
@@ -38,7 +41,15 @@ export function PartnerTeamTree({
           n.short.toLowerCase().includes(needle) ||
           n.label.toLowerCase().includes(needle)),
     );
-  }, [q, nodes]);
+  }, [q, nodes, focus]);
+
+  if (!focus) {
+    return (
+      <div className={`text-center py-12 text-sm ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+        {loading ? p('tree.loading') : p('tree.noDownline')}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -23,6 +23,28 @@ function stakeKindKey(kind: StakeOrderKind): string {
   return 'stake.kind.sd3';
 }
 
+function PayConfirmBody({
+  label,
+  amount,
+  unit,
+  isDark,
+}: {
+  label: string;
+  amount: number;
+  unit: string;
+  isDark: boolean;
+}) {
+  return (
+    <div className="partner-depth-inset p-4 mb-5 text-center rounded-2xl">
+      <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+        {label}
+      </div>
+      <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{amount.toLocaleString()}</div>
+      <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{unit}</div>
+    </div>
+  );
+}
+
 export function PartnerStakeTab({
   lang,
   isDark,
@@ -30,6 +52,8 @@ export function PartnerStakeTab({
   hasReferralBound,
   minCrowdfundUsdt,
   initialSub,
+  paying,
+  payError,
   onCrowdfundStake,
   onJoinPartner,
 }: {
@@ -39,8 +63,10 @@ export function PartnerStakeTab({
   hasReferralBound: boolean;
   minCrowdfundUsdt: number;
   initialSub?: StakeSub;
-  onCrowdfundStake: (amount: number) => boolean;
-  onJoinPartner: () => boolean;
+  paying: boolean;
+  payError: string | null;
+  onCrowdfundStake: (amount: number) => Promise<boolean>;
+  onJoinPartner: () => Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
   const crowdfundOrders = useMemo(
@@ -53,8 +79,8 @@ export function PartnerStakeTab({
   const defaultSub: StakeSub = initialSub ?? (hasStake ? 'mine' : 'crowdfund');
   const [sub, setSub] = useState<StakeSub>(defaultSub);
   const [amount, setAmount] = useState('');
+  const [stakeOpen, setStakeOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
-  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     if (initialSub) setSub(initialSub);
@@ -74,23 +100,40 @@ export function PartnerStakeTab({
     );
   }
 
-  const submitCrowdfund = () => {
-    const n = Number(amount);
-    if (n >= minCrowdfundUsdt && onCrowdfundStake(n)) {
+  const pendingAmount = Number(amount);
+  const canOpenStake = Number.isFinite(pendingAmount) && pendingAmount >= minCrowdfundUsdt;
+
+  const confirmStake = async () => {
+    if (!canOpenStake) return;
+    const ok = await onCrowdfundStake(pendingAmount);
+    if (ok) {
+      setStakeOpen(false);
       setAmount('');
       setSub('mine');
     }
   };
 
-  const confirmJoin = () => {
-    setJoining(true);
-    const ok = onJoinPartner();
-    setJoining(false);
+  const confirmJoin = async () => {
+    const ok = await onJoinPartner();
     if (ok) {
       setJoinOpen(false);
       setSub('mine');
     }
   };
+
+  const payActions = (onCancel: () => void, onConfirm: () => void) => (
+  <>
+    {payError && <p className="text-xs text-red-500 mb-3 leading-relaxed">{payError}</p>}
+    <div className="flex flex-col-reverse sm:flex-row gap-3">
+      <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={onCancel}>
+        {p('stake.cancel')}
+      </GlassButton>
+      <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => void onConfirm()}>
+        {paying ? p('stake.paying') : p('stake.confirm')}
+      </GlassButton>
+    </div>
+  </>
+  );
 
   return (
     <div className="space-y-4">
@@ -113,7 +156,9 @@ export function PartnerStakeTab({
                 placeholder={`${minCrowdfundUsdt}+ USDT`}
                 className={`flex-1 partner-depth-inset px-3 py-3 text-sm rounded-xl outline-none ${isDark ? 'text-white bg-transparent' : 'text-[#160510]'}`}
               />
-              <GlassButton className="!px-5" onClick={submitCrowdfund}>{p('stake.stakeBtn')}</GlassButton>
+              <GlassButton className="!px-5" disabled={!canOpenStake} onClick={() => setStakeOpen(true)}>
+                {p('stake.stakeBtn')}
+              </GlassButton>
             </div>
             <div className="flex gap-2">
               {[100, 500, 1000, 5000].map((v) => (
@@ -216,24 +261,19 @@ export function PartnerStakeTab({
         )
       )}
 
-      <PartnerModal open={joinOpen} onClose={() => !joining && setJoinOpen(false)} title={p('stake.confirmPay')} isDark={isDark}>
-        <div className="partner-depth-inset p-4 mb-5 text-center rounded-2xl">
-          <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-            {p('stake.joinFee')}
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">
-            {PARTNER_JOIN_USDT.toLocaleString()}
-          </div>
-          <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>USDT</div>
-        </div>
-        <div className="flex flex-col-reverse sm:flex-row gap-3">
-          <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={joining} onClick={() => setJoinOpen(false)}>
-            {p('stake.cancel')}
-          </GlassButton>
-          <GlassButton className="w-full sm:flex-1 !py-3" disabled={joining} onClick={confirmJoin}>
-            {joining ? p('stake.paying') : p('stake.confirm')}
-          </GlassButton>
-        </div>
+      <PartnerModal
+        open={stakeOpen}
+        onClose={() => !paying && setStakeOpen(false)}
+        title={p('stake.confirmStake')}
+        isDark={isDark}
+      >
+        <PayConfirmBody label={p('stake.stakeAmount')} amount={pendingAmount} unit="USDT" isDark={isDark} />
+        {payActions(() => setStakeOpen(false), confirmStake)}
+      </PartnerModal>
+
+      <PartnerModal open={joinOpen} onClose={() => !paying && setJoinOpen(false)} title={p('stake.confirmPay')} isDark={isDark}>
+        <PayConfirmBody label={p('stake.joinFee')} amount={PARTNER_JOIN_USDT} unit="USDT" isDark={isDark} />
+        {payActions(() => setJoinOpen(false), confirmJoin)}
       </PartnerModal>
     </div>
   );

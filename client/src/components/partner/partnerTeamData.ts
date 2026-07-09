@@ -1,3 +1,6 @@
+import type { UnionProfileBundle } from '@/lib/d3fiTypes';
+import { shortWallet } from '@/lib/wallet';
+
 export type PartnerTeamNode = {
   id: string;
   address: string;
@@ -13,6 +16,11 @@ export type PartnerTeamNode = {
   isDirect: boolean;
 };
 
+function num(v: unknown): number {
+  return Number(v ?? 0) || 0;
+}
+
+/** @deprecated Demo-only seed tree; use buildPartnerTeamNodes for connected wallets. */
 export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
   me: {
     id: 'me',
@@ -124,4 +132,143 @@ export function partnerTeamDepth(nodes: Record<string, PartnerTeamNode>, nodeId:
     id = node.parentId;
   }
   return depth;
+}
+
+export function emptyPartnerTeamNodes(
+  wallet: string,
+  meLabel?: string,
+): Record<string, PartnerTeamNode> {
+  return {
+    me: {
+      id: 'me',
+      address: wallet,
+      short: shortWallet(wallet),
+      label: meLabel ?? shortWallet(wallet),
+      parentId: null,
+      childrenIds: [],
+      teamUsd: 0,
+      dailyNewUsd: 0,
+      personalUsd: 0,
+      directCount: 0,
+      teamCount: 0,
+      isDirect: false,
+    },
+  };
+}
+
+export function findPartnerTeamNodeLabel(
+  nodes: Record<string, PartnerTeamNode>,
+  address: string,
+): string | undefined {
+  const hit = Object.values(nodes).find(
+    (n) => n.address.toLowerCase() === address.toLowerCase(),
+  );
+  return hit?.label;
+}
+
+/** Build per-wallet team tree from union profile (centered on the connected wallet). */
+export function buildPartnerTeamNodes(
+  wallet: string,
+  bundle: UnionProfileBundle,
+): Record<string, PartnerTeamNode> {
+  const meDisplay =
+    bundle.profile?.display_name?.trim() ||
+    bundle.profile?.short_address ||
+    shortWallet(wallet);
+  const rows = bundle.lineTeamNodes ?? [];
+  const walletLower = wallet.toLowerCase();
+
+  if (rows.length > 0) {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    let meId = rows.find((r) => r.wallet_address.toLowerCase() === walletLower)?.id ?? rows[0]?.id;
+    const map: Record<string, PartnerTeamNode> = {};
+
+    for (const row of rows) {
+      const children = rows
+        .filter((c) => c.parent_node_id === row.id)
+        .map((c) => (c.id === meId ? 'me' : c.id));
+      const nodeKey = row.id === meId ? 'me' : row.id;
+      map[nodeKey] = {
+        id: nodeKey,
+        address: row.wallet_address,
+        short: shortWallet(row.wallet_address),
+        label:
+          nodeKey === 'me'
+            ? meDisplay
+            : row.level_label || shortWallet(row.wallet_address),
+        parentId: row.parent_node_id
+          ? row.parent_node_id === meId
+            ? 'me'
+            : row.parent_node_id
+          : null,
+        childrenIds: children,
+        teamUsd: num(row.team_usd),
+        dailyNewUsd: 0,
+        personalUsd: num(row.personal_usd),
+        directCount: row.direct_count ?? 0,
+        teamCount: row.team_count ?? 0,
+        isDirect: row.is_direct ?? false,
+      };
+    }
+
+    if (!map.me && meId && byId.has(meId)) {
+      const row = byId.get(meId)!;
+      map.me = {
+        id: 'me',
+        address: row.wallet_address,
+        short: shortWallet(row.wallet_address),
+        label: meDisplay,
+        parentId: null,
+        childrenIds: rows
+          .filter((c) => c.parent_node_id === meId)
+          .map((c) => (c.id === meId ? 'me' : c.id)),
+        teamUsd: num(row.team_usd),
+        dailyNewUsd: 0,
+        personalUsd: num(row.personal_usd),
+        directCount: row.direct_count ?? 0,
+        teamCount: row.team_count ?? 0,
+        isDirect: row.is_direct ?? false,
+      };
+    }
+
+    if (map.me) map.me.parentId = null;
+    return map;
+  }
+
+  const partnerRefs = bundle.directReferrals.filter(
+    (r) => r.referral_type === 'partner' && r.status === 'active',
+  );
+  const tn = bundle.teamNode;
+  const me: PartnerTeamNode = {
+    id: 'me',
+    address: wallet,
+    short: shortWallet(wallet),
+    label: meDisplay,
+    parentId: null,
+    childrenIds: partnerRefs.map((_, i) => `d-${i}`),
+    teamUsd: num(tn?.team_usd),
+    dailyNewUsd: 0,
+    personalUsd: num(tn?.personal_usd),
+    directCount: partnerRefs.length,
+    teamCount: tn?.team_count ?? partnerRefs.length,
+    isDirect: false,
+  };
+  const map: Record<string, PartnerTeamNode> = { me };
+  partnerRefs.forEach((r, i) => {
+    map[`d-${i}`] = {
+      id: `d-${i}`,
+      address: r.wallet_address,
+      short: shortWallet(r.wallet_address),
+      label: shortWallet(r.wallet_address),
+      parentId: 'me',
+      childrenIds: [],
+      teamUsd: 0,
+      dailyNewUsd: 0,
+      personalUsd: 0,
+      directCount: 0,
+      teamCount: 0,
+      isDirect: true,
+    };
+  });
+  return map;
 }

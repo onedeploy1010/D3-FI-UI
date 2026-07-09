@@ -37,10 +37,10 @@ export function getLandingContent(lang: AppLang): LandingContent {
 }
 
 export function partnerT(lang: AppLang, key: string, vars?: Record<string, string | number>): string {
-  let text = partnerMap[lang]?.[key] ?? partnerMap.en[key] ?? key;
+  let text = partnerMap[lang]?.[key] ?? partnerMap.en[key] ?? partnerMap['zh-CN']?.[key] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
-      text = text.replace(`{${k}}`, String(v));
+      text = text.replaceAll(`{${k}}`, String(v)).replaceAll(`\${${k}}`, String(v));
     }
   }
   return text;

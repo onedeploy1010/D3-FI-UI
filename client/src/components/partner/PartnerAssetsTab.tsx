@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
+import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerSubsidyPanel } from '@/components/partner/PartnerSubsidyPanel';
-import { ArrowRightLeft, Landmark, Search, Send } from 'lucide-react';
+import { ArrowRightLeft, Landmark, Search, Send, Zap } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import {
-  aggregateStakeOrders,
   buildHistoryRecords,
+  computeYieldBalances,
   getSd3Quotas,
   type PartnerHistoryKind,
   type PartnerState,
@@ -29,6 +30,7 @@ export function PartnerAssetsTab({
   state,
   onStakeSd3,
   onTransferSd3,
+  onWithdrawYield,
   onPartnerSubsidy,
   onMarketSubsidy,
 }: {
@@ -37,6 +39,7 @@ export function PartnerAssetsTab({
   state: PartnerState;
   onStakeSd3: (amount: number) => void;
   onTransferSd3: (to: string, amount: number) => void;
+  onWithdrawYield: (amount: number) => boolean;
   onPartnerSubsidy: (amount: number, purpose: string) => boolean;
   onMarketSubsidy: (amount: number, purpose: string) => boolean;
 }) {
@@ -50,15 +53,20 @@ export function PartnerAssetsTab({
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
+  const [flashOpen, setFlashOpen] = useState(false);
+  const [flashAmount, setFlashAmount] = useState('');
 
   const quotas = getSd3Quotas(state);
-  const yieldStats = aggregateStakeOrders(state.stakeOrders);
+  const yieldBalances = computeYieldBalances(state.stakeOrders);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
 
   const assetsHistory = useMemo(
     () =>
       buildHistoryRecords(state).filter(
-        (row) => row.kind === 'transfer' || (row.kind === 'stake' && row.stakeKind === 'sd3'),
+        (row) =>
+          row.kind === 'withdraw' ||
+          row.kind === 'transfer' ||
+          (row.kind === 'stake' && row.stakeKind === 'sd3'),
       ),
     [state],
   );
@@ -93,6 +101,14 @@ export function PartnerAssetsTab({
     }
   };
 
+  const submitFlashSwap = () => {
+    const n = clampAmount(flashAmount, yieldBalances.claimable);
+    if (n > 0 && onWithdrawYield(n)) {
+      setFlashAmount('');
+      setFlashOpen(false);
+    }
+  };
+
   if (!state.isPartner) {
     return (
       <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
@@ -114,11 +130,25 @@ export function PartnerAssetsTab({
 
   const histTabs = [
     { id: 'all', label: p('assets.all') },
+    { id: 'withdraw', label: p('assets.withdrawHist') },
     { id: 'stake', label: p('assets.sd3StakeHist') },
     { id: 'transfer', label: p('assets.transferHist') },
   ];
 
   const quickStakeAmounts = [100, 500, 1000].filter((v) => v <= quotas.stakeQuota);
+  const quickFlashAmounts = [10, 50, 100].filter((v) => v <= yieldBalances.claimable);
+
+  const historyKindLabel = (kind: PartnerHistoryKind) => {
+    if (kind === 'withdraw') return p('assets.withdrawHist');
+    if (kind === 'transfer') return p('assets.transferHist');
+    return p('assets.sd3StakeHist');
+  };
+
+  const historyKindColor = (kind: PartnerHistoryKind) => {
+    if (kind === 'withdraw') return 'text-emerald-500';
+    if (kind === 'transfer') return 'text-amber-500';
+    return 'text-[#E0568F]';
+  };
 
   return (
     <div className="space-y-4">
@@ -128,19 +158,52 @@ export function PartnerAssetsTab({
         <>
           <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
-            <div className="site-stat-label mb-2">{p('assets.assetsOverview')}</div>
-            <div className="site-stat-value-lg site-stat-value-accent mb-3">
-              {quotas.available.toLocaleString()} sD3
+            <div className="site-stat-label mb-3">{p('assets.assetsOverview')}</div>
+            <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+              <div className="ios-glass-inset p-2.5">
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.totalInvest')}</div>
+                <div className="font-bold text-sm mt-0.5">${yieldBalances.principalUsdt.toLocaleString()}</div>
+              </div>
+              <div className="ios-glass-inset p-2.5">
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.accumulatedYield')}</div>
+                <div className="font-bold text-sm mt-0.5 text-emerald-500">
+                  ${yieldBalances.accruedTotal.toLocaleString()}
+                </div>
+              </div>
+              <div className="ios-glass-inset p-2.5">
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.lifetimeSd3')}</div>
+                <div className="font-bold text-sm mt-0.5">{state.lifetimeSd3Earned.toLocaleString()} sD3</div>
+              </div>
+              <div className="ios-glass-inset p-2.5">
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.newSd3')}</div>
+                <div className="font-bold text-sm mt-0.5 text-[#E0568F]">
+                  {state.dailySd3Earned.toLocaleString()} sD3
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[10px]">
-              <div className="ios-glass-inset p-2 text-center">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.dailyUsdt')}</div>
-                <div className="font-semibold mt-0.5 text-emerald-500">${yieldStats.dailyUsdtYield.toFixed(2)}</div>
+          </div>
+
+          <div className={glassCardClass('default', 'p-5')}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="site-stat-label">{p('assets.flashYield')}</div>
+                <div className="text-2xl font-black text-emerald-500 mt-1">
+                  ${yieldBalances.claimable.toLocaleString()}
+                </div>
+                <div className={`text-[10px] mt-1 ${muted}`}>{p('assets.flashYieldAvailable')}</div>
               </div>
-              <div className="ios-glass-inset p-2 text-center">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.totalSd3')}</div>
-                <div className="font-semibold mt-0.5">{state.lifetimeSd3Earned.toLocaleString()}</div>
-              </div>
+              <GlassButton
+                className="!py-2.5 !px-4 flex items-center gap-1.5 shrink-0"
+                disabled={yieldBalances.claimable <= 0}
+                onClick={() => setFlashOpen(true)}
+              >
+                <Zap size={14} />
+                {p('assets.flashSwap')}
+              </GlassButton>
+            </div>
+            <div className={`text-[10px] ${muted}`}>
+              {p('assets.dailyUsdt')}: ${yieldBalances.dailyUsdtYield.toFixed(2)} · {p('assets.withdrawn')}: $
+              {yieldBalances.claimedYieldUsdt.toLocaleString()}
             </div>
           </div>
 
@@ -335,8 +398,8 @@ export function PartnerAssetsTab({
               filteredHistory.map((row) => (
                 <div key={row.id} className={glassCardClass('default', 'p-4')}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`text-xs font-bold ${row.kind === 'transfer' ? 'text-amber-500' : 'text-[#E0568F]'}`}>
-                      {row.kind === 'transfer' ? p('assets.transferHist') : p('assets.sd3StakeHist')}
+                    <span className={`text-xs font-bold ${historyKindColor(row.kind)}`}>
+                      {historyKindLabel(row.kind)}
                     </span>
                     <span className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{row.at}</span>
                   </div>
@@ -364,6 +427,60 @@ export function PartnerAssetsTab({
           </div>
         </>
       )}
+
+      <PartnerModal
+        open={flashOpen}
+        onClose={() => setFlashOpen(false)}
+        title={p('assets.flashSwapTitle')}
+        isDark={isDark}
+      >
+        <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>{p('assets.flashSwapHint')}</p>
+        <div className="ios-glass-inset p-3 flex justify-between items-center text-xs mb-4">
+          <span className={muted}>{p('assets.flashYield')}</span>
+          <span className="font-bold text-emerald-500">${yieldBalances.claimable.toLocaleString()}</span>
+        </div>
+        <div>
+          <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.flashSwapAmount')}</div>
+          <div className="flex items-center gap-3 ios-glass-inset px-3 py-3">
+            <input
+              type="number"
+              min={0}
+              max={yieldBalances.claimable}
+              value={flashAmount}
+              onChange={(e) => setFlashAmount(e.target.value)}
+              placeholder="0"
+              className={`flex-1 bg-transparent text-xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`}
+            />
+            <span className={`text-sm shrink-0 ${muted}`}>USDT</span>
+            <button
+              type="button"
+              className="text-[#E0568F] text-xs font-bold shrink-0"
+              onClick={() => setFlashAmount(String(yieldBalances.claimable))}
+            >
+              MAX
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap mt-3 mb-5">
+          {quickFlashAmounts.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setFlashAmount(String(v))}
+              className="text-[10px] px-2.5 py-1 rounded-lg ios-glass-inset ios-glass-pressable text-emerald-500 font-semibold"
+            >
+              ${v}
+            </button>
+          ))}
+        </div>
+        <GlassButton
+          className="w-full !py-3.5 flex items-center justify-center gap-2"
+          disabled={yieldBalances.claimable <= 0}
+          onClick={submitFlashSwap}
+        >
+          <ArrowRightLeft size={14} /> {p('assets.confirmFlashSwap')}
+        </GlassButton>
+      </PartnerModal>
     </div>
   );
 }

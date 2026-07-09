@@ -100,6 +100,15 @@ const partnerJa = {
   'subsidy.submit': '送信', 'subsidy.err.purpose': '用途を入力', 'subsidy.err.amount': '有効な金額を入力',
   'subsidy.err.quota': '枠超過', 'status.pending': '審査中', 'status.approved': '承認済', 'status.rejected': '却下', 'status.paid': '入金済',
   'tier.proBribe': 'プロ賄賂担当', 'tier.seniorBribe': '上級賄賂担当', 'tier.director': '賄賂ディレクター', 'tier.chief': 'チーフ',
+  'team.partnersOnly': 'パートナー限定', 'team.performance': '業績', 'team.tree': '紹介ツリー',
+  'team.teamTotal': '傘下累計', 'team.todayNew': '当日新增', 'team.yesterdaySd3': '昨日決済 sD3',
+  'team.sd3History': 'sD3 決済履歴一覧', 'team.sd3HistoryEmpty': '決済記録はありません',
+  'team.sd3HistoryNewPerf': '新規業績 {amount}',
+  'team.referralTitle': '紹介リンク', 'team.referralDesc': 'リンクから接続・紐付け後、直紹介の傘下として参加できます。',
+  'tree.title': '紹介ツリー', 'tree.teamPerf': '傘下業績', 'tree.up': '上へ', 'tree.root': '自分へ',
+  'tree.search': 'アドレス / 名前', 'tree.noMatch': '該当なし', 'tree.noDownline': '下線なし',
+  'tree.direct': '直紹介', 'tree.team': '傘下', 'tree.open': '開く',
+  'tree.layer': '第 {depth} 層', 'tree.layerMe': '第 {depth} 層 · 自分', 'tree.loading': 'チーム読み込み中…',
 };
 
 const partnerKo = {
@@ -143,6 +152,15 @@ const partnerKo = {
   'subsidy.submit': '제출', 'subsidy.err.purpose': '용도를 입력하세요', 'subsidy.err.amount': '유효한 금액을 입력',
   'subsidy.err.quota': '한도 초과', 'status.pending': '심사 중', 'status.approved': '승인됨', 'status.rejected': '거절', 'status.paid': '입금됨',
   'tier.proBribe': '프로 뇌물 담당', 'tier.seniorBribe': '시니어 뇌물 담당', 'tier.director': '뇌물 디렉터', 'tier.chief': '치프',
+  'team.partnersOnly': '파트너 전용', 'team.performance': '실적', 'team.tree': '추천 트리',
+  'team.teamTotal': '傘하 누적', 'team.todayNew': '당일 신규', 'team.yesterdaySd3': '어제 정산 sD3',
+  'team.sd3History': 'sD3 정산 내역', 'team.sd3HistoryEmpty': '정산 기록이 없습니다',
+  'team.sd3HistoryNewPerf': '신규 실적 {amount}',
+  'team.referralTitle': '내 추천 링크', 'team.referralDesc': '링크로 연결·바인딩 후 직추천 하선으로 참여합니다.',
+  'tree.title': '추천 트리', 'tree.teamPerf': '傘하 실적', 'tree.up': '위로', 'tree.root': '나에게',
+  'tree.search': '주소 / 닉네임', 'tree.noMatch': '일치 없음', 'tree.noDownline': '하선 없음',
+  'tree.direct': '직추천', 'tree.team': '傘하', 'tree.open': '열기',
+  'tree.layer': '{depth}층', 'tree.layerMe': '{depth}층 · 나', 'tree.loading': '팀 로딩 중…',
 };
 
 const partnerTh = {
@@ -186,6 +204,15 @@ const partnerTh = {
   'subsidy.submit': 'ส่ง', 'subsidy.err.purpose': 'กรอกวัตถุประสงค์', 'subsidy.err.amount': 'กรอกจำนวนที่ถูกต้อง',
   'subsidy.err.quota': 'เกินโควต้า', 'status.pending': 'รออนุมัติ', 'status.approved': 'อนุมัติแล้ว', 'status.rejected': 'ปฏิเสธ', 'status.paid': 'โอนแล้ว',
   'tier.proBribe': 'เจ้าหน้าที่สินบน', 'tier.seniorBribe': 'สินบนอาวุโส', 'tier.director': 'ผู้อำนวยการ', 'tier.chief': 'ชีฟ',
+  'team.partnersOnly': 'เฉพาะพาร์ทเนอร์', 'team.performance': 'ผลงาน', 'team.tree': 'ต้นไม้แนะนำ',
+  'team.teamTotal': 'ยอดรวมสายล่าง', 'team.todayNew': 'ใหม่วันนี้', 'team.yesterdaySd3': 'sD3 เมื่อวาน',
+  'team.sd3History': 'ประวัติการชำระ sD3', 'team.sd3HistoryEmpty': 'ยังไม่มีบันทึกการชำระ',
+  'team.sd3HistoryNewPerf': 'ผลงานใหม่ {amount}',
+  'team.referralTitle': 'ลิงก์แนะนำของฉัน', 'team.referralDesc': 'เชื่อมกระเป๋าและผูกผ่านลิงก์นี้ จะเป็นสายล่างตรงของคุณ',
+  'tree.title': 'ต้นไม้แนะนำ', 'tree.teamPerf': 'ผลงานสายล่าง', 'tree.up': 'ขึ้น', 'tree.root': 'กลับหาฉัน',
+  'tree.search': 'ค้นหาที่อยู่ / ชื่อ', 'tree.noMatch': 'ไม่พบ', 'tree.noDownline': 'ไม่มีสายล่าง',
+  'tree.direct': 'แนะนำตรง', 'tree.team': 'สายล่าง', 'tree.open': 'เปิด',
+  'tree.layer': 'ชั้น {depth}', 'tree.layerMe': 'ชั้น {depth} · ฉัน', 'tree.loading': 'กำลังโหลดทีม…',
 };
 
 function mergePartner(base, overrides) {

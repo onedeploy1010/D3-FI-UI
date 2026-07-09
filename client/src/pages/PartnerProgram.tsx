@@ -10,6 +10,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { usePartnerProgram } from '@/hooks/usePartnerProgram';
 import { useReferralStatus } from '@/hooks/useReferralStatus';
+import { usePartnerTreasury } from '@/hooks/usePartnerTreasury';
+import { usePartnerTreasuryPayment } from '@/hooks/usePartnerTreasuryPayment';
+import { PARTNER_JOIN_USDT } from '@/components/partner/partnerData';
 import { PartnerHomeTab } from '@/components/partner/PartnerHomeTab';
 import { PartnerStakeTab } from '@/components/partner/PartnerStakeTab';
 import { PartnerAssetsTab } from '@/components/partner/PartnerAssetsTab';
@@ -42,13 +45,19 @@ export default function PartnerProgram() {
   const isDark = theme === 'dark';
 
   const { hasReferralBound } = useReferralStatus(wallet);
+  const treasury = usePartnerTreasury();
+  const { payToTreasury, paying: treasuryPaying, error: treasuryPayError, clearError: clearTreasuryPayError } =
+    usePartnerTreasuryPayment(treasury);
 
   const {
     state,
+    teamNodes,
+    teamLoading,
     crowdfundStake,
     joinPartner,
     stakeSd3,
     transferSd3,
+    withdrawYield,
     submitPartnerSubsidy,
     submitMarketSubsidy,
     minCrowdfundUsdt,
@@ -66,11 +75,29 @@ export default function PartnerProgram() {
     }
   }, [tab, state.isPartner]);
 
-  const handleJoinPartner = useCallback(() => joinPartner(hasReferralBound), [joinPartner, hasReferralBound]);
+  const handleJoinPartner = useCallback(async () => {
+    if (!hasReferralBound) return false;
+    clearTreasuryPayError();
+    try {
+      await payToTreasury(PARTNER_JOIN_USDT);
+      return joinPartner(hasReferralBound);
+    } catch {
+      return false;
+    }
+  }, [hasReferralBound, clearTreasuryPayError, payToTreasury, joinPartner]);
 
   const handleCrowdfundStake = useCallback(
-    (amount: number) => crowdfundStake(amount, hasReferralBound),
-    [crowdfundStake, hasReferralBound],
+    async (amount: number) => {
+      if (!hasReferralBound) return false;
+      clearTreasuryPayError();
+      try {
+        await payToTreasury(amount);
+        return crowdfundStake(amount, hasReferralBound);
+      } catch {
+        return false;
+      }
+    },
+    [hasReferralBound, clearTreasuryPayError, payToTreasury, crowdfundStake],
   );
 
   const handleGoPartnerJoin = useCallback(() => {
@@ -141,6 +168,8 @@ export default function PartnerProgram() {
                   hasReferralBound={hasReferralBound}
                   minCrowdfundUsdt={minCrowdfundUsdt}
                   initialSub={stakeSub}
+                  paying={treasuryPaying}
+                  payError={treasuryPayError}
                   onCrowdfundStake={handleCrowdfundStake}
                   onJoinPartner={handleJoinPartner}
                 />
@@ -152,12 +181,20 @@ export default function PartnerProgram() {
                   state={state}
                   onStakeSd3={stakeSd3}
                   onTransferSd3={transferSd3}
+                  onWithdrawYield={withdrawYield}
                   onPartnerSubsidy={submitPartnerSubsidy}
                   onMarketSubsidy={submitMarketSubsidy}
                 />
               )}
               {tab === 'team' && state.isPartner && (
-                <PartnerTeamTab lang={lang} isDark={isDark} state={state} wallet={wallet} />
+                <PartnerTeamTab
+                  lang={lang}
+                  isDark={isDark}
+                  state={state}
+                  wallet={wallet}
+                  teamNodes={teamNodes}
+                  teamLoading={teamLoading}
+                />
               )}
             </motion.div>
           </AnimatePresence>
