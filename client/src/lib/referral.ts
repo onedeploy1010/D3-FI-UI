@@ -101,7 +101,6 @@ export function shouldOfferReferralBind(
   if (!wallet || !sponsor || !isEthAddress(sponsor)) return false;
   if (walletEquals(wallet, sponsor)) return false;
   if (hasActiveReferral) return false;
-  if (isReferralSkipped(wallet, sponsor)) return false;
   return true;
 }
 

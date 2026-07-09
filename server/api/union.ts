@@ -288,6 +288,15 @@ export function createUnionRouter(): Router {
     res.json({ epoch: epoch ?? null, bribeProjects, migrated: true });
   });
 
+  router.get('/sponsor/:wallet/registered', async (req, res) => {
+    if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
+    const w = req.params.wallet;
+    if (!isEthAddress(w)) return res.status(400).json({ error: 'Invalid wallet' });
+    const sb = getSupabaseAdmin();
+    const profile = await findProfileByWallet(sb, w);
+    res.json({ registered: Boolean(profile) });
+  });
+
   router.get('/profile/:wallet', async (req, res) => {
     if (!isSupabaseConfigured()) return res.status(503).json({ error: 'Service not configured' });
     const wallet = requireWallet(req);
@@ -520,10 +529,9 @@ export function createUnionRouter(): Router {
 
     const sb = getSupabaseAdmin();
     await ensureProfile(sb, wallet);
-    await ensureProfile(sb, sponsorWallet.trim());
     const sponsor = await findProfileByWallet(sb, sponsorWallet.trim());
     if (!sponsor) {
-      return res.status(404).json({ error: 'Sponsor profile not found' });
+      return res.status(404).json({ error: 'Sponsor not registered' });
     }
 
     const { data: existingList } = await sb

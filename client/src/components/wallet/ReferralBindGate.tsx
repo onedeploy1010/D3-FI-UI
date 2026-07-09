@@ -1,0 +1,265 @@
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
+import { AddressBlock } from '@/components/ui/AddressBlock';
+import { GlassButton } from '@/components/ui/GlassSurface';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useWallet } from '@/contexts/WalletContext';
+import { useReferralStatus } from '@/hooks/useReferralStatus';
+import { useAppLang } from '@/i18n/LanguageContext';
+import { toLegacyLang } from '@/i18n/types';
+import { bindReferral, checkSponsorRegistered } from '@/lib/unionApi';
+import { isDemoWallet } from '@/lib/demoWallet';
+import {
+  captureReferralFromUrl,
+  clearPendingReferral,
+  getPendingReferral,
+} from '@/lib/referral';
+import { isEthAddress, walletEquals } from '@/lib/wallet';
+
+const copy = {
+  'zh-CN': {
+    title: '绑定推荐人',
+    desc: '连接钱包后须绑定一名已注册的推荐人，关系写入数据库且不可更改。',
+    fromLink: '来自推荐链接',
+    manualLabel: '推荐人钱包地址',
+    manualPlaceholder: '0x…',
+    confirm: '确认绑定',
+    binding: '绑定中…',
+    warning: '绑定后不可更改，请仔细核对推荐人地址。',
+    errSelf: '不能绑定自己的钱包',
+    errInvalid: '请输入有效的以太坊地址',
+    errNotRegistered: '该地址尚未注册，请让对方先连接钱包完成注册',
+    errRequired: '请填写推荐人地址或通过推荐链接进入',
+    loading: '正在检查推荐关系…',
+  },
+  'zh-TW': {
+    title: '綁定推薦人',
+    desc: '連接錢包後須綁定一名已註冊的推薦人，關係寫入資料庫且不可更改。',
+    fromLink: '來自推薦連結',
+    manualLabel: '推薦人錢包地址',
+    manualPlaceholder: '0x…',
+    confirm: '確認綁定',
+    binding: '綁定中…',
+    warning: '綁定後不可更改，請仔細核對推薦人地址。',
+    errSelf: '不能綁定自己的錢包',
+    errInvalid: '請輸入有效的以太坊地址',
+    errNotRegistered: '該地址尚未註冊，請讓對方先連接錢包完成註冊',
+    errRequired: '請填寫推薦人地址或通過推薦連結進入',
+    loading: '正在檢查推薦關係…',
+  },
+  en: {
+    title: 'Bind referrer',
+    desc: 'After connecting your wallet you must bind a registered referrer. This is saved to the database and cannot be changed.',
+    fromLink: 'From referral link',
+    manualLabel: 'Referrer wallet address',
+    manualPlaceholder: '0x…',
+    confirm: 'Confirm binding',
+    binding: 'Binding…',
+    warning: 'Binding is irreversible. Verify the referrer address carefully.',
+    errSelf: 'You cannot refer yourself',
+    errInvalid: 'Enter a valid Ethereum address',
+    errNotRegistered: 'This address is not registered. Ask them to connect their wallet first.',
+    errRequired: 'Enter a referrer address or open a referral link',
+    loading: 'Checking referral status…',
+  },
+  ja: {
+    title: '紹介者を紐付け',
+    desc: 'ウォレット接続後、登録済みの紹介者を紐付ける必要があります。データベースに保存され変更できません。',
+    fromLink: '紹介リンクから',
+    manualLabel: '紹介者ウォレット',
+    manualPlaceholder: '0x…',
+    confirm: '紐付け確認',
+    binding: '紐付け中…',
+    warning: '紐付け後は変更できません。アドレスをご確認ください。',
+    errSelf: '自分自身は紹介者にできません',
+    errInvalid: '有効なイーサリアムアドレスを入力',
+    errNotRegistered: '未登録のアドレスです。先にウォレット接続を依頼してください。',
+    errRequired: '紹介者アドレスを入力するか紹介リンクから入場',
+    loading: '紹介関係を確認中…',
+  },
+  ko: {
+    title: '추천인 연결',
+    desc: '지갑 연결 후 등록된 추천인을 반드시 연결해야 합니다. DB에 저장되며 변경할 수 없습니다.',
+    fromLink: '추천 링크에서',
+    manualLabel: '추천인 지갑 주소',
+    manualPlaceholder: '0x…',
+    confirm: '연결 확인',
+    binding: '연결 중…',
+    warning: '연결 후 변경 불가. 추천인 주소를 확인하세요.',
+    errSelf: '본인 지갑은 추천인이 될 수 없습니다',
+    errInvalid: '유효한 이더리움 주소를 입력하세요',
+    errNotRegistered: '등록되지 않은 주소입니다. 먼저 지갑 연결을 요청하세요.',
+    errRequired: '추천인 주소를 입력하거나 추천 링크로 접속하세요',
+    loading: '추천 관계 확인 중…',
+  },
+  th: {
+    title: 'ผูกผู้แนะนำ',
+    desc: 'หลังเชื่อมกระเป๋าต้องผูกผู้แนะนำที่ลงทะเบียนแล้ว บันทึกในฐานข้อมูลและแก้ไขไม่ได้',
+    fromLink: 'จากลิงก์แนะนำ',
+    manualLabel: 'ที่อยู่กระเป๋าผู้แนะนำ',
+    manualPlaceholder: '0x…',
+    confirm: 'ยืนยันการผูก',
+    binding: 'กำลังผูก…',
+    warning: 'ผูกแล้วแก้ไขไม่ได้ ตรวจสอบที่อยู่ให้ถูกต้อง',
+    errSelf: 'ไม่สามารถแนะนำตัวเองได้',
+    errInvalid: 'กรอกที่อยู่ Ethereum ที่ถูกต้อง',
+    errNotRegistered: 'ที่อยู่นี้ยังไม่ลงทะเบียน ให้เชื่อมกระเป๋าก่อน',
+    errRequired: 'กรอกที่อยู่ผู้แนะนำหรือเปิดจากลิงก์แนะนำ',
+    loading: 'กำลังตรวจสอบความสัมพันธ์…',
+  },
+} as const;
+
+function t(lang: keyof typeof copy, key: keyof (typeof copy)['en']) {
+  return copy[lang]?.[key] ?? copy.en[key];
+}
+
+function ReferralBindScreen({ onBound }: { onBound: () => void }) {
+  const { wallet } = useWallet();
+  const { lang } = useAppLang();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const legacy = toLegacyLang(lang);
+
+  const [sponsorInput, setSponsorInput] = useState(() => getPendingReferral() ?? '');
+  const [fromLink, setFromLink] = useState(() => Boolean(getPendingReferral()));
+  const [binding, setBinding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    captureReferralFromUrl();
+    const pending = getPendingReferral();
+    if (pending) {
+      setSponsorInput(pending);
+      setFromLink(true);
+    }
+  }, []);
+
+  const sponsor = sponsorInput.trim();
+
+  const handleBind = useCallback(async () => {
+    if (!wallet) return;
+    setError(null);
+
+    if (!sponsor || !isEthAddress(sponsor)) {
+      setError(t(lang, 'errInvalid'));
+      return;
+    }
+    if (walletEquals(wallet, sponsor)) {
+      setError(t(lang, 'errSelf'));
+      return;
+    }
+
+    setBinding(true);
+    try {
+      const { registered } = await checkSponsorRegistered(sponsor);
+      if (!registered) {
+        setError(t(lang, 'errNotRegistered'));
+        return;
+      }
+      await bindReferral(wallet, sponsor, 'partner');
+      clearPendingReferral();
+      onBound();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('not registered') || msg.includes('not found')) {
+        setError(t(lang, 'errNotRegistered'));
+      } else if (msg.includes('yourself')) {
+        setError(t(lang, 'errSelf'));
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setBinding(false);
+    }
+  }, [wallet, sponsor, lang, onBound]);
+
+  return (
+    <div
+      className={`min-h-[100dvh] flex items-center justify-center page-px py-12 ${
+        isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-foreground'
+      }`}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="ios-glass-card ios-glass-highlight w-full max-w-md rounded-3xl p-6 relative"
+      >
+        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+        <h2 className="site-content-title mb-2">{t(lang, 'title')}</h2>
+        <p className={`text-xs mb-5 leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+          {t(lang, 'desc')}
+        </p>
+
+        {fromLink && sponsor && isEthAddress(sponsor) ? (
+          <div className="mb-4">
+            <AddressBlock label={t(lang, 'fromLink')} value={sponsor} isDark={isDark} />
+          </div>
+        ) : (
+          <div className="mb-4">
+            <label className={`block text-[10px] font-semibold mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+              {t(lang, 'manualLabel')}
+            </label>
+            <input
+              type="text"
+              value={sponsorInput}
+              onChange={(e) => {
+                setFromLink(false);
+                setSponsorInput(e.target.value);
+                setError(null);
+              }}
+              placeholder={t(lang, 'manualPlaceholder')}
+              className={`w-full partner-depth-inset px-3 py-3 text-sm rounded-xl outline-none font-mono ${
+                isDark ? 'text-white bg-transparent' : 'text-[#160510]'
+              }`}
+              spellCheck={false}
+              autoCapitalize="off"
+            />
+          </div>
+        )}
+
+        <div className={`ios-glass-inset text-[11px] mb-5 px-3 py-2.5 ${isDark ? 'text-[#E0568F]/75' : 'text-[#8A2B57]/75'}`}>
+          ⚠️ {t(lang, 'warning')}
+        </div>
+
+        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+
+        <GlassButton
+          variant="primary"
+          className="w-full !py-3.5"
+          disabled={binding || !sponsor}
+          onClick={() => void handleBind()}
+        >
+          {binding ? t(lang, 'binding') : t(lang, 'confirm')}
+        </GlassButton>
+
+        <p className={`text-[10px] mt-4 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+          {legacy === 'zh' ? '您的钱包' : 'Your wallet'}: {wallet}
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
+export function ReferralBindGate({ children }: { children: ReactNode }) {
+  const { wallet, isConnected } = useWallet();
+  const { hasReferralBound, loading, refetch } = useReferralStatus(wallet);
+
+  if (!isConnected || !wallet || isDemoWallet(wallet)) {
+    return <>{children}</>;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#E0568F]/60" />
+      </div>
+    );
+  }
+
+  if (!hasReferralBound) {
+    return <ReferralBindScreen onBound={refetch} />;
+  }
+
+  return <>{children}</>;
+}

@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isReferralBoundForWallet } from '@/lib/referral';
 import { fetchUnionProfile } from '@/lib/unionApi';
 
 export function useReferralStatus(wallet: string | null) {
   const [hasReferralBound, setHasReferralBound] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+
+  const refetch = useCallback(() => {
+    setVersion((v) => v + 1);
+  }, []);
 
   useEffect(() => {
     if (!wallet) {
       setHasReferralBound(false);
+      setLoading(false);
       return;
     }
 
@@ -29,7 +35,7 @@ export function useReferralStatus(wallet: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [wallet]);
+  }, [wallet, version]);
 
-  return { hasReferralBound, loading };
+  return { hasReferralBound, loading, refetch };
 }

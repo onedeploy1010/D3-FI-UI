@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
+import { AddressBlock } from '@/components/ui/AddressBlock';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { PartnerTeamTree } from '@/components/partner/PartnerTeamTree';
 import { partnerTeamNodes } from '@/components/partner/partnerTeamData';
 import { BRIBE_TIERS, calcDailySd3, getBribeTier, type PartnerState } from '@/components/partner/partnerData';
+import { buildReferralLink } from '@/lib/referral';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
@@ -11,8 +13,19 @@ const TIER_KEYS = ['tier.proBribe', 'tier.seniorBribe', 'tier.director', 'tier.c
 
 type TeamSub = 'overview' | 'tree';
 
-export function PartnerTeamTab({ lang, isDark, state }: { lang: AppLang; isDark: boolean; state: PartnerState }) {
+export function PartnerTeamTab({
+  lang,
+  isDark,
+  state,
+  wallet,
+}: {
+  lang: AppLang;
+  isDark: boolean;
+  state: PartnerState;
+  wallet: string | null;
+}) {
   const p = usePartnerTranslation(lang);
+  const referralLink = buildReferralLink(wallet);
   const tier = getBribeTier(state.teamPerformanceUsd);
   const tierIdx = BRIBE_TIERS.indexOf(tier);
   const expectedSd3 = calcDailySd3(state.teamPerformanceUsd, state.dailyNewPerformanceUsd);
@@ -37,6 +50,15 @@ export function PartnerTeamTab({ lang, isDark, state }: { lang: AppLang; isDark:
 
   return (
     <div className="space-y-4">
+      <div className={`partner-elevated-card p-4 ${glassCardClass('default', '')}`}>
+        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+        <div className="site-section-title mb-2">{p('team.referralTitle')}</div>
+        <p className={`text-[11px] mb-3 leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+          {p('team.referralDesc')}
+        </p>
+        <AddressBlock value={referralLink} isDark={isDark} />
+      </div>
+
       <SectionTabBar tabs={subs} active={sub} onChange={(id) => setSub(id as TeamSub)} isDark={isDark} />
 
       {sub === 'overview' && (

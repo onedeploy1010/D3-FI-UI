@@ -119,6 +119,8 @@
   "team.todayNew": "Today new",
   "team.yesterdaySd3": "Yesterday sD3",
   "team.directDownline": "Direct downline",
+  "team.referralTitle": "My referral link",
+  "team.referralDesc": "When they connect via this link and bind, they join as your direct downline for crowdfund and membership.",
   "tree.title": "Referral tree",
   "tree.teamPerf": "Team perf.",
   "tree.up": "Up",

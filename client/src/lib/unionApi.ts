@@ -101,6 +101,13 @@ export function fetchUnionProfile(wallet: string) {
   return unionFetch<UnionProfileBundle>(`/profile/${encodeURIComponent(wallet)}`, wallet);
 }
 
+/** Public — whether sponsor wallet has registered (connected) before. */
+export function checkSponsorRegistered(sponsorWallet: string) {
+  return unionPublicFetch<{ registered: boolean }>(
+    `/sponsor/${encodeURIComponent(sponsorWallet)}/registered`,
+  );
+}
+
 export function claimUsd3(wallet: string) {
   return unionFetch<{ usd3Account: unknown }>('/usd3/claim', wallet, { method: 'POST' });
 }

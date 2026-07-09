@@ -609,7 +609,10 @@ Deno.serve(async (req) => {
   const sb = getSupabaseAdmin();
 
   try {
-    const publicGet = req.method === 'GET' && (path === '/health' || path === '/protocol');
+    const sponsorReg = path.match(/^\/sponsor\/(0x[0-9a-fA-F]{40})\/registered$/);
+    const publicGet =
+      req.method === 'GET' &&
+      (path === '/health' || path === '/protocol' || Boolean(sponsorReg));
     const demoMode = isDemoModeRequest(req);
     let privyUserId: string | undefined;
     if (!publicGet && !demoMode) {
@@ -625,6 +628,13 @@ Deno.serve(async (req) => {
     // GET /protocol
     if (req.method === 'GET' && path === '/protocol') {
       return jsonResponse(await handleProtocol(sb));
+    }
+
+    if (req.method === 'GET' && sponsorReg) {
+      const sponsorWallet = sponsorReg[1];
+      if (!isEthAddress(sponsorWallet)) throw new HttpError(400, 'Invalid wallet');
+      const profile = await findProfileByWallet(sb, sponsorWallet);
+      return jsonResponse({ registered: Boolean(profile) });
     }
 
     const profileGet = path.match(/^\/profile\/(0x[0-9a-fA-F]{40})$/);
@@ -774,9 +784,8 @@ Deno.serve(async (req) => {
       if (walletEquals(wallet, sponsorWallet)) throw new HttpError(400, 'Cannot refer yourself');
 
       await ensureProfile(sb, wallet);
-      await ensureProfile(sb, sponsorWallet.trim());
       const sponsor = await findProfileByWallet(sb, sponsorWallet.trim());
-      if (!sponsor) throw new HttpError(404, 'Sponsor profile not found');
+      if (!sponsor) throw new HttpError(404, 'Sponsor not registered');
 
       const { data: existingList } = await sb
         .from('referrals')

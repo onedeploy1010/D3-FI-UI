@@ -157,7 +157,7 @@ export default function PartnerProgram() {
                 />
               )}
               {tab === 'team' && state.isPartner && (
-                <PartnerTeamTab lang={lang} isDark={isDark} state={state} />
+                <PartnerTeamTab lang={lang} isDark={isDark} state={state} wallet={wallet} />
               )}
             </motion.div>
           </AnimatePresence>

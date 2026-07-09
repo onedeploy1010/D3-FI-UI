@@ -5,8 +5,8 @@ import { FlowDot } from './FlowDot';
 type Lang = 'zh' | 'en';
 
 const copy = {
-  zh: { ai: 'AI 分析', fi: '贿赂金融', hub: '协议枢纽', union: '股东联盟' },
-  en: { ai: 'AI Analytics', fi: 'Bribe-Fi', hub: 'Protocol Hub', union: 'Shareholders' },
+  zh: { ai: 'AI 分析', fi: '贿赂金融', hub: '协议枢纽', partner: '合伙人计划' },
+  en: { ai: 'AI Analytics', fi: 'Bribe-Fi', hub: 'Protocol Hub', partner: 'Partner Program' },
 } as const;
 
 const CX = 100;
@@ -84,17 +84,17 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       delay: 0.3,
     },
     {
-      key: 'union',
+      key: 'partner',
       x: 4,
       y: 158,
       w: 90,
       h: 34,
-      label: t.union,
+      label: t.partner,
       fill: isDark ? 'rgba(224,86,143,0.18)' : 'rgba(224,86,143,0.1)',
       stroke: gold,
       strokeOpacity: 0.7,
       text: gold,
-      icon: 'crown' as const,
+      icon: 'partner' as const,
       delay: 0.45,
     },
     {
@@ -310,14 +310,17 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
                 />
               </>
             )}
-            {node.icon === 'crown' && (
+            {node.icon === 'partner' && (
               <>
+                <circle cx={node.x + 11} cy={node.y + 16} r="3" fill={gold} opacity="0.85" />
+                <circle cx={node.x + 17} cy={node.y + 16} r="3" fill={gold} opacity="0.85" />
                 <path
-                  d={`M${node.x + 9} ${node.y + 21} L${node.x + 11} ${node.y + 13} L${node.x + 14} ${node.y + 17} L${node.x + 17} ${node.y + 13} L${node.x + 19} ${node.y + 21} Z`}
-                  fill={gold}
-                  opacity="0.85"
+                  d={`M${node.x + 8} ${node.y + 20} Q${node.x + 14} ${node.y + 24} ${node.x + 20} ${node.y + 20}`}
+                  stroke={gold}
+                  strokeWidth="1.2"
+                  fill="none"
+                  opacity="0.75"
                 />
-                <rect x={node.x + 9} y={node.y + 20} width="10" height="2" rx="0.5" fill={gold} opacity="0.7" />
               </>
             )}
             {node.icon === 'globe' && (
@@ -341,7 +344,7 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
               y={node.y + 21}
               textAnchor="middle"
               fill={node.text}
-              fontSize={lang === 'en' && node.label.length > 10 ? 8.5 : 9.5}
+              fontSize={lang === 'en' && node.label.length > 12 ? 7.5 : node.label.length > 5 ? 8.5 : 9.5}
               fontWeight="700"
             >
               {node.label}

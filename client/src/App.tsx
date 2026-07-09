@@ -11,7 +11,8 @@ import D3Fi from "./pages/D3Fi";
 import BribeeUnion from "./pages/BribeeUnion";
 import PartnerProgram from "./pages/PartnerProgram";
 import D3AISite from "./pages/D3AISite";
-import { ReferralLanding } from "./components/wallet/ReferralLanding";
+import { ReferralBindGate } from "@/components/wallet/ReferralBindGate";
+import { ReferralLanding } from "@/components/wallet/ReferralLanding";
 
 
 function Router() {
@@ -47,7 +48,9 @@ function App() {
         <ThemeProvider defaultTheme="light" switchable={false}>
           <TooltipProvider>
             <Toaster />
-            <Router />
+            <ReferralBindGate>
+              <Router />
+            </ReferralBindGate>
           </TooltipProvider>
         </ThemeProvider>
       </WalletProvider>
