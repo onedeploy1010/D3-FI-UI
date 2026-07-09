@@ -29,11 +29,11 @@ const VB = { x: 0, y: 0, w: 228, h: 198 };
 
 export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: boolean }) {
   const t = copy[lang];
-  const gold = '#C9A96E';
-  const burgundy = isDark ? '#E8D5A3' : '#6B1A3A';
-  const arrow = isDark ? 'rgba(201,169,110,0.7)' : 'rgba(107,26,58,0.55)';
-  const dash = isDark ? 'rgba(201,169,110,0.45)' : 'rgba(107,26,58,0.35)';
-  const labelMuted = isDark ? 'rgba(201,169,110,0.55)' : 'rgba(107,26,58,0.5)';
+  const gold = '#E0568F';
+  const burgundy = isDark ? '#E8D5A3' : '#8A2B57';
+  const arrow = isDark ? 'rgba(224,86,143,0.7)' : 'rgba(138,43,87,0.55)';
+  const dash = isDark ? 'rgba(224,86,143,0.45)' : 'rgba(138,43,87,0.35)';
+  const labelMuted = isDark ? 'rgba(224,86,143,0.55)' : 'rgba(138,43,87,0.5)';
 
   const nodes = [
     {
@@ -42,8 +42,8 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
       w: 80,
       h: 40,
       label: t.projects,
-      fill: isDark ? 'rgba(201,169,110,0.15)' : 'rgba(201,169,110,0.12)',
-      stroke: isDark ? 'rgba(201,169,110,0.45)' : 'rgba(201,169,110,0.6)',
+      fill: isDark ? 'rgba(224,86,143,0.15)' : 'rgba(224,86,143,0.12)',
+      stroke: isDark ? 'rgba(224,86,143,0.45)' : 'rgba(224,86,143,0.6)',
       text: gold,
       delay: 0,
     },
@@ -53,8 +53,8 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
       w: 80,
       h: 40,
       label: t.gaugePool,
-      fill: isDark ? 'rgba(107,26,58,0.35)' : 'rgba(107,26,58,0.12)',
-      stroke: isDark ? 'rgba(155,45,90,0.55)' : 'rgba(107,26,58,0.45)',
+      fill: isDark ? 'rgba(138,43,87,0.35)' : 'rgba(138,43,87,0.12)',
+      stroke: isDark ? 'rgba(178,58,110,0.55)' : 'rgba(138,43,87,0.45)',
       text: burgundy,
       delay: 0.15,
       pulse: true,
@@ -65,8 +65,8 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
       w: 80,
       h: 40,
       label: t.voters,
-      fill: isDark ? 'rgba(201,169,110,0.12)' : 'rgba(201,169,110,0.08)',
-      stroke: isDark ? 'rgba(201,169,110,0.35)' : 'rgba(201,169,110,0.5)',
+      fill: isDark ? 'rgba(224,86,143,0.12)' : 'rgba(224,86,143,0.08)',
+      stroke: isDark ? 'rgba(224,86,143,0.35)' : 'rgba(224,86,143,0.5)',
       text: gold,
       delay: 0.3,
     },
@@ -93,7 +93,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
       y: 64,
       anchor: 'end' as const,
       text: t.bribe,
-      fill: isDark ? 'rgba(155,45,90,0.9)' : 'rgba(107,26,58,0.7)',
+      fill: isDark ? 'rgba(178,58,110,0.9)' : 'rgba(138,43,87,0.7)',
       fontSize: 9,
       fontWeight: 600,
       w: lang === 'zh' ? 34 : 38,
@@ -136,8 +136,8 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
         style={{
           background: isDark
-            ? 'radial-gradient(ellipse at 50% 45%, rgba(107,26,58,0.35) 0%, transparent 65%)'
-            : 'radial-gradient(ellipse at 50% 45%, rgba(155,90,110,0.12) 0%, transparent 65%)',
+            ? 'radial-gradient(ellipse at 50% 45%, rgba(138,43,87,0.35) 0%, transparent 65%)'
+            : 'radial-gradient(ellipse at 50% 45%, rgba(178,58,110,0.12) 0%, transparent 65%)',
         }}
       />
 
@@ -191,7 +191,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
         <FlowDot path="M64 52 L64 72 L64 97" color={gold} duration={2.2} />
         <FlowDot path="M104 97 L124 97 L164 97" color={gold} duration={2.6} delay={0.8} />
         <FlowDot path="M164 117 L164 142 L164 167" color="#10B981" duration={2} delay={1.2} />
-        <FlowDot path="M64 117 L64 172 L134 172" color={isDark ? 'rgba(201,169,110,0.6)' : 'rgba(107,26,58,0.45)'} duration={3.2} delay={0.4} />
+        <FlowDot path="M64 117 L64 172 L134 172" color={isDark ? 'rgba(224,86,143,0.6)' : 'rgba(138,43,87,0.45)'} duration={3.2} delay={0.4} />
 
         {nodes.map((node, i) => (
           <motion.g
@@ -208,7 +208,7 @@ export function BribeMechanismDiagram({ lang, isDark }: { lang: Lang; isDark: bo
                 height={node.h + 8}
                 rx="12"
                 fill="none"
-                stroke={isDark ? 'rgba(201,169,110,0.25)' : 'rgba(107,26,58,0.2)'}
+                stroke={isDark ? 'rgba(224,86,143,0.25)' : 'rgba(138,43,87,0.2)'}
                 strokeWidth="1"
                 animate={{ opacity: [0.3, 0.8, 0.3], scale: [1, 1.04, 1] }}
                 transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}

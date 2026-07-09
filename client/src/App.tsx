@@ -4,9 +4,12 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { WalletProvider } from "./contexts/WalletContext";
 import Landing from "./pages/Landing";
 import Portal from "./pages/Portal";
 import D3Fi from "./pages/D3Fi";
+import BribeeUnion from "./pages/BribeeUnion";
+import D3AISite from "./pages/D3AISite";
 
 
 function Router() {
@@ -15,6 +18,10 @@ function Router() {
       <Route path={"/"} component={Landing} />
       <Route path={"/portal"} component={Portal} />
       <Route path={"/d3fi"} component={D3Fi} />
+      <Route path={"/union"} component={BribeeUnion} />
+      <Route path="/ai" nest>
+        <D3AISite />
+      </Route>
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
@@ -30,15 +37,14 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="dark"
-        switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <WalletProvider>
+        <ThemeProvider defaultTheme="light" switchable={false}>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </WalletProvider>
     </ErrorBoundary>
   );
 }

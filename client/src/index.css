@@ -43,61 +43,73 @@
   --font-heading: var(--font-heading);
   --font-body: var(--font-body);
   --font-sans: var(--font-sans);
+  --font-stat: var(--font-numeric);
 }
 
-/* ===== LIGHT THEME (Premium Warm Romance · 柔情米白) ===== */
+/* ===== LIGHT THEME — D³ Brand Identity (绛紫 · 浅色) ===== */
 :root {
   --radius: 0.75rem;
-  --font-heading: "Playfair Display", "Noto Serif SC", Georgia, serif;
-  --font-body: "Noto Serif SC", "Cormorant Garamond", Georgia, serif;
-  --font-sans: "Noto Sans SC", "Inter", system-ui, sans-serif;
 
-  /* 米白珍珠调 — 低饱和、带玫瑰暖晕的高级品牌色 */
-  --ivory-50: #FDFBF9;
-  --ivory-100: #FAF7F4;
-  --ivory-200: #F5F0EB;
-  --ivory-300: #EDE6DF;
-  --ivory-400: #E5DCD4;
-  --ivory-rgb: 250, 247, 244;
-  --text-primary: #2C2824;
-  --text-muted: #7A726C;
-  --rose-glow: rgba(155, 90, 110, 0.07);
-  --champagne-glow: rgba(201, 176, 138, 0.09);
-  --blush-warm: rgba(237, 224, 216, 0.45);
+  /* 雅圆粗体风格 — 与 D3-AI 站点一致 */
+  --font-rounded-cn: "雅圆", "FZLanTingYuan", "Yuanti SC", "STYuanti", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-rounded-en: "Nunito", "Varela Round", "Quicksand", sans-serif;
+  --font-heading: "Nunito", "Varela Round", var(--font-rounded-cn), sans-serif;
+  --font-body: var(--font-rounded-cn), var(--font-rounded-en), sans-serif;
+  --font-sans: 'Nunito', 'Varela Round', var(--font-rounded-cn), sans-serif;
+  --font-numeric: "Cormorant Garamond", "Bodoni Moda", Georgia, "Times New Roman", serif;
 
-  /* Light theme: pearl ivory + rose burgundy + champagne */
-  --background: oklch(0.98 0.007 78);
-  --foreground: oklch(0.27 0.014 50);
-  --card: oklch(0.97 0.009 79);
-  --card-foreground: oklch(0.27 0.014 50);
-  --popover: oklch(0.98 0.008 78);
-  --popover-foreground: oklch(0.27 0.014 50);
-  --primary: oklch(0.38 0.17 350);
-  --primary-foreground: oklch(0.98 0.007 78);
-  --secondary: oklch(0.96 0.010 79);
-  --secondary-foreground: oklch(0.35 0.013 50);
-  --muted: oklch(0.95 0.011 78);
-  --muted-foreground: oklch(0.52 0.012 50);
-  --accent: oklch(0.74 0.07 75);
-  --accent-foreground: oklch(0.27 0.014 50);
-  --destructive: oklch(0.60 0.20 20);
-  --destructive-foreground: oklch(0.98 0.007 78);
-  --border: oklch(0.91 0.013 78);
-  --input: oklch(0.93 0.011 78);
-  --ring: oklch(0.38 0.17 350);
-  --chart-1: oklch(0.38 0.17 350);
-  --chart-2: oklch(0.74 0.07 75);
-  --chart-3: oklch(0.65 0.18 150);
-  --chart-4: oklch(0.62 0.18 40);
-  --chart-5: oklch(0.55 0.15 260);
-  --sidebar: oklch(0.97 0.009 79);
-  --sidebar-foreground: oklch(0.30 0.013 50);
-  --sidebar-accent: oklch(0.95 0.011 78);
-  --sidebar-accent-foreground: oklch(0.27 0.014 50);
-  --sidebar-border: oklch(0.91 0.013 78);
-  --sidebar-ring: oklch(0.38 0.17 350);
-  --sidebar-primary: oklch(0.38 0.17 350);
-  --sidebar-primary-foreground: oklch(0.98 0.007 78);
+  /* Brand palette — Brand Identity System §04 */
+  --brand-imperial: #5E1A3C;
+  --brand-primary: #8A2B57;
+  --brand-vivid: #B23A6E;
+  --brand-accent: #E0568F;
+  --brand-ink: #160510;
+
+  /* Light surfaces — warm pearl with brand rose undertone */
+  --ivory-50: #FDFBFC;
+  --ivory-100: #FBF7F9;
+  --ivory-200: #F7F0F4;
+  --ivory-300: #EFE6EC;
+  --ivory-400: #E8DCE5;
+  --ivory-rgb: 251, 247, 249;
+  --text-primary: var(--brand-ink);
+  --text-muted: color-mix(in srgb, var(--brand-imperial) 55%, white);
+  --rose-glow: rgba(178, 58, 110, 0.08);
+  --brand-glow: rgba(138, 43, 87, 0.07);
+  --blush-warm: rgba(224, 86, 143, 0.06);
+
+  --background: oklch(0.98 0.012 350);
+  --foreground: oklch(0.18 0.04 330);
+  --card: oklch(0.97 0.014 350);
+  --card-foreground: oklch(0.18 0.04 330);
+  --popover: oklch(0.98 0.012 350);
+  --popover-foreground: oklch(0.18 0.04 330);
+  --primary: oklch(0.42 0.14 350);
+  --primary-foreground: oklch(0.98 0.012 350);
+  --secondary: oklch(0.96 0.014 350);
+  --secondary-foreground: oklch(0.32 0.06 330);
+  --muted: oklch(0.95 0.015 350);
+  --muted-foreground: oklch(0.48 0.05 330);
+  --accent: oklch(0.62 0.18 350);
+  --accent-foreground: oklch(0.18 0.04 330);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0.012 350);
+  --border: oklch(0.91 0.018 350);
+  --input: oklch(0.93 0.016 350);
+  --ring: oklch(0.42 0.14 350);
+  --chart-1: oklch(0.42 0.14 350);
+  --chart-2: oklch(0.62 0.18 350);
+  --chart-3: oklch(0.55 0.16 330);
+  --chart-4: oklch(0.68 0.14 355);
+  --chart-5: oklch(0.50 0.12 340);
+  --sidebar: oklch(0.97 0.014 350);
+  --sidebar-foreground: oklch(0.28 0.05 330);
+  --sidebar-accent: oklch(0.95 0.015 350);
+  --sidebar-accent-foreground: oklch(0.18 0.04 330);
+  --sidebar-border: oklch(0.91 0.018 350);
+  --sidebar-ring: oklch(0.42 0.14 350);
+  --sidebar-primary: oklch(0.42 0.14 350);
+  --sidebar-primary-foreground: oklch(0.98 0.012 350);
 }
 
 /* ===== DARK THEME (Warm Plum Romance · 柔情深紫) ===== */
@@ -108,9 +120,9 @@
   --plum-600: #221528;
   --plum-rgb: 20, 13, 24;
   --warm-text: #F5F0EB;
-  --dark-rose-glow: rgba(155, 90, 110, 0.14);
-  --dark-burgundy-glow: rgba(107, 26, 58, 0.22);
-  --dark-champagne-glow: rgba(201, 169, 110, 0.08);
+  --dark-rose-glow: rgba(178, 58, 110, 0.14);
+  --dark-burgundy-glow: rgba(138, 43, 87, 0.22);
+  --dark-champagne-glow: rgba(224, 86, 143, 0.08);
 
   --background: oklch(0.10 0.018 330);
   --foreground: oklch(0.95 0.012 75);
@@ -152,13 +164,14 @@
   }
   :root:not(.dark) body {
     background:
-      radial-gradient(ellipse 70% 45% at 8% 0%, var(--champagne-glow) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 45% at 8% 0%, var(--brand-glow) 0%, transparent 60%),
       radial-gradient(ellipse 55% 40% at 95% 15%, var(--rose-glow) 0%, transparent 55%),
       radial-gradient(ellipse 60% 50% at 50% 100%, var(--blush-warm) 0%, transparent 65%),
       linear-gradient(168deg, var(--ivory-50) 0%, var(--ivory-100) 30%, var(--ivory-200) 62%, var(--ivory-300) 88%, var(--ivory-400) 100%);
     background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
+    font-weight: 500;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -172,11 +185,13 @@
     background-attachment: fixed;
     color: var(--foreground);
     font-family: var(--font-sans);
+    font-weight: 500;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3 {
     font-family: var(--font-heading);
+    font-weight: 700;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -223,18 +238,46 @@
   /* Font utility classes */
   .font-heading {
     font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .font-display {
+    font-family: var(--font-heading);
+    letter-spacing: 0.05em;
   }
   .font-body {
     font-family: var(--font-body);
+    font-weight: 500;
   }
   .font-sans-ui {
     font-family: var(--font-sans);
+    font-weight: 500;
+  }
+  .font-stat,
+  .font-numeric {
+    font-family: var(--font-numeric);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.02em;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  .site-page-title {
+    @apply text-sm sm:text-base font-bold font-heading text-primary leading-tight;
+  }
+
+  .site-page-subtitle {
+    @apply text-[10px] sm:text-xs text-muted-foreground leading-relaxed;
+  }
+
+  .site-section-title {
+    @apply text-xs font-bold uppercase tracking-wide text-muted-foreground;
   }
 
   /* Light theme — warm romantic surfaces */
   .bg-light-gradient {
     background:
-      radial-gradient(ellipse 70% 45% at 8% 0%, var(--champagne-glow) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 45% at 8% 0%, var(--brand-glow) 0%, transparent 60%),
       radial-gradient(ellipse 55% 40% at 95% 15%, var(--rose-glow) 0%, transparent 55%),
       radial-gradient(ellipse 60% 50% at 50% 100%, var(--blush-warm) 0%, transparent 65%),
       linear-gradient(168deg, var(--ivory-50) 0%, var(--ivory-100) 30%, var(--ivory-200) 62%, var(--ivory-300) 88%, var(--ivory-400) 100%);
@@ -256,8 +299,8 @@
 
   .bg-light-card {
     background: linear-gradient(155deg, rgba(255, 253, 251, 0.88) 0%, rgba(var(--ivory-rgb), 0.78) 100%);
-    border: 1px solid rgba(155, 90, 110, 0.07);
-    box-shadow: 0 1px 24px rgba(155, 90, 110, 0.04);
+    border: 1px solid rgba(138, 43, 87, 0.08);
+    box-shadow: 0 1px 24px rgba(138, 43, 87, 0.05);
   }
 
   /* Dark theme — warm plum romantic surfaces */
@@ -281,13 +324,13 @@
 
   .bg-dark-modal {
     background: linear-gradient(155deg, var(--plum-700) 0%, var(--plum-800) 50%, var(--plum-900) 100%);
-    border: 1px solid rgba(201, 169, 110, 0.10);
+    border: 1px solid rgba(224, 86, 143, 0.10);
   }
 
   .bg-dark-card {
-    background: linear-gradient(155deg, rgba(107, 26, 58, 0.12) 0%, rgba(var(--plum-rgb), 0.85) 100%);
-    border: 1px solid rgba(201, 169, 110, 0.08);
-    box-shadow: 0 1px 32px rgba(107, 26, 58, 0.08);
+    background: linear-gradient(155deg, rgba(138, 43, 87, 0.12) 0%, rgba(var(--plum-rgb), 0.85) 100%);
+    border: 1px solid rgba(224, 86, 143, 0.08);
+    box-shadow: 0 1px 32px rgba(138, 43, 87, 0.08);
   }
 
   @keyframes shimmer-line {
@@ -314,7 +357,7 @@
   }
 
   .premium-shimmer {
-    background: linear-gradient(90deg, transparent 0%, rgba(201, 169, 110, 0.12) 50%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(224, 86, 143, 0.14) 50%, transparent 100%);
     background-size: 200% 100%;
     animation: shimmer-line 4s ease-in-out infinite;
   }
@@ -362,9 +405,9 @@
     border: 1px solid rgba(255, 255, 255, 0.82);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.95) inset,
-      0 -1px 0 rgba(107, 26, 58, 0.04) inset,
-      0 10px 28px rgba(107, 26, 58, 0.08),
-      0 4px 12px rgba(44, 40, 36, 0.05);
+      0 -1px 0 rgba(94, 26, 60, 0.04) inset,
+      0 10px 28px rgba(138, 43, 87, 0.08),
+      0 4px 12px rgba(22, 5, 16, 0.05);
   }
 
   .dark .ios-glass-card {
@@ -386,24 +429,24 @@
     background: linear-gradient(
       155deg,
       rgba(255, 255, 255, 0.88) 0%,
-      rgba(237, 224, 216, 0.45) 45%,
-      rgba(250, 247, 244, 0.72) 100%
+      rgba(239, 230, 236, 0.45) 45%,
+      rgba(251, 247, 249, 0.72) 100%
     );
-    border-color: rgba(201, 169, 110, 0.28);
+    border-color: rgba(178, 58, 110, 0.22);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 1) inset,
-      0 12px 32px rgba(107, 26, 58, 0.1),
-      0 4px 14px rgba(155, 90, 110, 0.08);
+      0 12px 32px rgba(138, 43, 87, 0.1),
+      0 4px 14px rgba(178, 58, 110, 0.08);
   }
 
   .dark .ios-glass-highlight {
     background: linear-gradient(
       155deg,
-      rgba(107, 26, 58, 0.32) 0%,
+      rgba(138, 43, 87, 0.32) 0%,
       rgba(255, 255, 255, 0.04) 40%,
       rgba(10, 6, 14, 0.72) 100%
     );
-    border-color: rgba(201, 169, 110, 0.22);
+    border-color: rgba(224, 86, 143, 0.22);
   }
 
   .ios-glass-green {
@@ -421,17 +464,17 @@
   }
 
   .ios-glass-accent {
-    border-color: rgba(107, 26, 58, 0.18);
+    border-color: rgba(138, 43, 87, 0.18);
   }
 
   .dark .ios-glass-accent {
     background: linear-gradient(
       155deg,
-      rgba(107, 26, 58, 0.28) 0%,
+      rgba(138, 43, 87, 0.28) 0%,
       rgba(255, 255, 255, 0.04) 45%,
       rgba(8, 5, 12, 0.75) 100%
     );
-    border-color: rgba(201, 169, 110, 0.2);
+    border-color: rgba(224, 86, 143, 0.2);
   }
 
   .ios-glass-pressable {
@@ -462,7 +505,7 @@
     border: 1px solid rgba(255, 255, 255, 0.75);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 4px 12px rgba(107, 26, 58, 0.06);
+      0 4px 12px rgba(138, 43, 87, 0.06);
   }
 
   .dark .ios-glass-chip {
@@ -494,21 +537,21 @@
 
   .ios-glass-btn-primary {
     color: #fff;
-    background: linear-gradient(145deg, #7d2248 0%, #6b1a3a 48%, #5a1530 100%);
+    background: linear-gradient(145deg, #B23A6E 0%, #8A2B57 48%, #5E1A3C 100%);
     border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.25) inset,
-      0 10px 24px rgba(107, 26, 58, 0.35),
-      0 4px 10px rgba(0, 0, 0, 0.15);
+      0 10px 24px rgba(138, 43, 87, 0.35),
+      0 4px 10px rgba(22, 5, 16, 0.12);
   }
 
   .ios-glass-btn-secondary {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     background: rgba(255, 255, 255, 0.55);
-    border: 1px solid rgba(107, 26, 58, 0.12);
-    color: #6b1a3a;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset, 0 6px 16px rgba(107, 26, 58, 0.08);
+    border: 1px solid rgba(138, 43, 87, 0.12);
+    color: #8A2B57;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset, 0 6px 16px rgba(138, 43, 87, 0.08);
   }
 
   .dark .ios-glass-btn-secondary {
@@ -521,13 +564,13 @@
   .ios-glass-btn-ghost {
     background: transparent;
     border: 1px solid transparent;
-    color: #c9a96e;
+    color: #B23A6E;
     padding: 0.5rem 0.25rem;
     box-shadow: none;
   }
 
   .dark .ios-glass-btn-ghost {
-    color: #c9a96e;
+    color: #E0568F;
   }
 
   .ios-glass-btn-success {
@@ -555,7 +598,7 @@
     -webkit-backdrop-filter: blur(16px);
     background: rgba(255, 255, 255, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.65);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 4px 10px rgba(107, 26, 58, 0.06);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 4px 10px rgba(138, 43, 87, 0.06);
     transition: transform 0.18s ease;
     -webkit-tap-highlight-color: transparent;
   }
@@ -577,7 +620,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.85);
     box-shadow:
       0 -1px 0 rgba(255, 255, 255, 0.95) inset,
-      0 -12px 32px rgba(107, 26, 58, 0.06);
+      0 -12px 32px rgba(138, 43, 87, 0.06);
   }
 
   .dark .ios-glass-nav {
@@ -593,7 +636,7 @@
     -webkit-backdrop-filter: blur(28px) saturate(1.5);
     background: rgba(250, 247, 244, 0.8);
     border-bottom: 1px solid rgba(255, 255, 255, 0.9);
-    box-shadow: 0 4px 20px rgba(107, 26, 58, 0.04);
+    box-shadow: 0 4px 20px rgba(138, 43, 87, 0.05);
   }
 
   .dark .ios-glass-topbar {
@@ -611,7 +654,7 @@
     border: 1px solid rgba(255, 255, 255, 0.72);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 8px 20px rgba(107, 26, 58, 0.06);
+      0 8px 20px rgba(138, 43, 87, 0.06);
   }
 
   .dark .ios-glass-tab-bar {
@@ -626,12 +669,12 @@
     border: 1px solid rgba(255, 255, 255, 0.95);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 1) inset,
-      0 6px 14px rgba(107, 26, 58, 0.1);
+      0 6px 14px rgba(138, 43, 87, 0.1);
   }
 
   .dark .ios-glass-tab-active {
-    background: linear-gradient(145deg, rgba(107, 26, 58, 0.38), rgba(255, 255, 255, 0.06));
-    border: 1px solid rgba(201, 169, 110, 0.18);
+    background: linear-gradient(145deg, rgba(138, 43, 87, 0.38), rgba(255, 255, 255, 0.06));
+    border: 1px solid rgba(224, 86, 143, 0.18);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.12) inset,
       0 6px 16px rgba(0, 0, 0, 0.28);
@@ -639,9 +682,9 @@
 
   .ios-glass-inset {
     border-radius: 0.875rem;
-    background: rgba(107, 26, 58, 0.04);
-    border: 1px solid rgba(107, 26, 58, 0.06);
-    box-shadow: inset 0 2px 6px rgba(107, 26, 58, 0.04);
+    background: rgba(138, 43, 87, 0.04);
+    border: 1px solid rgba(138, 43, 87, 0.06);
+    box-shadow: inset 0 2px 6px rgba(138, 43, 87, 0.04);
   }
 
   .dark .ios-glass-inset {

@@ -2,20 +2,20 @@ import { motion } from 'framer-motion';
 import { FlowDot } from './FlowDot';
 
 const GUARDIAN_POINTS = [
-  { cx: 100, cy: 25, label: 'GATE', color: 'rgba(201,169,110,0.6)' },
-  { cx: 165, cy: 55, label: 'SEAL', color: 'rgba(155,45,90,0.7)' },
+  { cx: 100, cy: 25, label: 'GATE', color: 'rgba(224,86,143,0.6)' },
+  { cx: 165, cy: 55, label: 'SEAL', color: 'rgba(178,58,110,0.7)' },
   { cx: 165, cy: 130, label: 'BURN', color: 'rgba(16,185,129,0.65)' },
-  { cx: 100, cy: 195, label: 'BAND', color: 'rgba(201,169,110,0.5)' },
-  { cx: 35, cy: 130, label: 'SHIELD', color: 'rgba(155,45,90,0.6)' },
-  { cx: 35, cy: 55, label: 'HALT', color: 'rgba(201,169,110,0.7)' },
+  { cx: 100, cy: 195, label: 'BAND', color: 'rgba(224,86,143,0.5)' },
+  { cx: 35, cy: 130, label: 'SHIELD', color: 'rgba(178,58,110,0.6)' },
+  { cx: 35, cy: 55, label: 'HALT', color: 'rgba(224,86,143,0.7)' },
 ];
 
 export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
-  const outerStroke = isDark ? 'rgba(201,169,110,0.45)' : 'rgba(107,26,58,0.35)';
-  const innerStroke = isDark ? 'rgba(201,169,110,0.22)' : 'rgba(201,169,110,0.35)';
-  const outerFill = isDark ? 'rgba(107,26,58,0.22)' : 'rgba(107,26,58,0.08)';
-  const innerFill = isDark ? 'rgba(201,169,110,0.06)' : 'rgba(201,169,110,0.05)';
-  const centerText = isDark ? 'rgba(201,169,110,0.65)' : 'rgba(107,26,58,0.55)';
+  const outerStroke = isDark ? 'rgba(224,86,143,0.45)' : 'rgba(138,43,87,0.35)';
+  const innerStroke = isDark ? 'rgba(224,86,143,0.22)' : 'rgba(224,86,143,0.35)';
+  const outerFill = isDark ? 'rgba(138,43,87,0.22)' : 'rgba(138,43,87,0.08)';
+  const innerFill = isDark ? 'rgba(224,86,143,0.06)' : 'rgba(224,86,143,0.05)';
+  const centerText = isDark ? 'rgba(224,86,143,0.65)' : 'rgba(138,43,87,0.55)';
 
   return (
     <div className="relative z-10 w-full flex items-center justify-center py-2 px-1">
@@ -25,8 +25,8 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
         style={{
           background: isDark
-            ? 'radial-gradient(ellipse at 50% 50%, rgba(107,26,58,0.4) 0%, transparent 70%)'
-            : 'radial-gradient(ellipse at 50% 50%, rgba(155,90,110,0.1) 0%, transparent 70%)',
+            ? 'radial-gradient(ellipse at 50% 50%, rgba(138,43,87,0.4) 0%, transparent 70%)'
+            : 'radial-gradient(ellipse at 50% 50%, rgba(178,58,110,0.1) 0%, transparent 70%)',
         }}
       />
 
@@ -45,7 +45,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           cy="110"
           rx="88"
           ry="98"
-          stroke={isDark ? 'rgba(201,169,110,0.15)' : 'rgba(107,26,58,0.12)'}
+          stroke={isDark ? 'rgba(224,86,143,0.15)' : 'rgba(138,43,87,0.12)'}
           strokeWidth="0.8"
           strokeDasharray="4 8"
           animate={{ rotate: 360 }}
@@ -80,7 +80,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
             y1="110"
             x2={pt.cx}
             y2={pt.cy}
-            stroke={isDark ? 'rgba(201,169,110,0.12)' : 'rgba(107,26,58,0.1)'}
+            stroke={isDark ? 'rgba(224,86,143,0.12)' : 'rgba(138,43,87,0.1)'}
             strokeWidth="0.8"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
@@ -88,10 +88,10 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           />
         ))}
 
-        <FlowDot path="M100 110 L100 25" color="#C9A96E" duration={2.5} />
-        <FlowDot path="M100 110 L165 55" color="#9B2D5A" duration={2.8} delay={0.5} />
+        <FlowDot path="M100 110 L100 25" color="#E0568F" duration={2.5} />
+        <FlowDot path="M100 110 L165 55" color="#B23A6E" duration={2.8} delay={0.5} />
         <FlowDot path="M100 110 L165 130" color="#10B981" duration={3} delay={1} />
-        <FlowDot path="M100 110 L35 55" color="#C9A96E" duration={2.6} delay={1.5} />
+        <FlowDot path="M100 110 L35 55" color="#E0568F" duration={2.6} delay={1.5} />
 
         <motion.text
           x="100"
@@ -100,7 +100,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
           fill={centerText}
           fontSize="30"
           fontWeight="bold"
-          fontFamily="'Playfair Display', Georgia, serif"
+          fontFamily="'Cormorant Garamond', Georgia, serif"
           fontStyle="italic"
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 3, repeat: Infinity }}
@@ -127,7 +127,7 @@ export function SecurityShieldDiagram({ isDark }: { isDark: boolean }) {
               x={pt.cx}
               y={pt.cy - 10}
               textAnchor="middle"
-              fill={isDark ? 'rgba(201,169,110,0.55)' : 'rgba(107,26,58,0.45)'}
+              fill={isDark ? 'rgba(224,86,143,0.55)' : 'rgba(138,43,87,0.45)'}
               fontSize="7"
               fontWeight="600"
             >

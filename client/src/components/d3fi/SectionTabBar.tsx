@@ -31,10 +31,10 @@ export function SectionTabBar({
                 isActive
                   ? isDark
                     ? 'text-white'
-                    : 'text-[#6B1A3A]'
+                    : 'text-[#8A2B57]'
                   : isDark
                     ? 'text-white/40'
-                    : 'text-[#2C2824]/40'
+                    : 'text-[#160510]/40'
               }`}
             >
               {isActive && (

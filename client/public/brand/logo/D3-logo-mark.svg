@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="D³ Finance">
+  <defs>
+    <linearGradient id="d3-ring" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5E1A3C"/>
+      <stop offset="0.45" stop-color="#8A2B57"/>
+      <stop offset="1" stop-color="#E0568F"/>
+    </linearGradient>
+    <linearGradient id="d3-inner" x1="18" y1="16" x2="46" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B23A6E"/>
+      <stop offset="1" stop-color="#E0568F"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" stroke="url(#d3-ring)" stroke-width="3.5" fill="none"/>
+  <circle cx="32" cy="32" r="18" fill="url(#d3-inner)" fill-opacity="0.14"/>
+  <text x="32" y="38.5" text-anchor="middle" fill="url(#d3-ring)" font-family="Nunito, Varela Round, PingFang SC, sans-serif" font-size="17" font-weight="800" letter-spacing="-0.02em">D³</text>
+</svg>

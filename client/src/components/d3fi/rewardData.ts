@@ -1,16 +1,16 @@
-/** Reward taxonomy aligned with whitepaper + market PPT + dUSD product layer */
+/** Reward taxonomy aligned with whitepaper + market PPT + USD3 product layer */
 
-/** Referral reward on downline entry: 30% total, 100% dUSD (for staking/investment, not withdrawal) */
+/** Referral reward on downline entry: 30% total, 100% USD3 (for staking/investment, not withdrawal) */
 export const REFERRAL_REWARD_RATE = 0.3;
 export const REFERRAL_DUSD_SELF_RATE = 0.15;
 export const REFERRAL_DUSD_TRANSFERABLE_RATE = 0.15;
 
-/** Epoch #42 — downline entry × 30%, all dUSD */
+/** Epoch #42 — downline entry × 30%, all USD3 */
 export const referralEpoch = {
   epoch: '#42',
   /** Total accrued this epoch (e.g. $2,000 downline entry × 30%) */
   total: 600,
-  /** Already credited to dUSD balance / transferable quota */
+  /** Already credited to USD3 balance / transferable quota */
   claimed: 360,
 };
 
@@ -31,7 +31,7 @@ export const transferableQuota = {
   },
 };
 
-/** dUSD account snapshot — numbers must stay internally consistent */
+/** USD3 account snapshot — numbers must stay internally consistent */
 export const dUsdAccount = {
   total: 3200,
   staked: 2000,
@@ -101,23 +101,23 @@ export const rewardStreams: RewardStream[] = [
     id: 'referral',
     titleZh: '推荐奖励（入金 30%）',
     titleEn: 'Referral (30% of entry)',
-    assetZh: '100% dUSD',
-    assetEn: '100% dUSD',
-    whereZh: '推荐页 + 资产 → dUSD',
-    whereEn: 'Refer tab + Assets → dUSD',
-    descZh: '下级入金的 30% 全部以 dUSD 入账，用于质押投资，不可提现。其中 15% 自留 + 15% 可转让直推下线。',
-    descEn: '30% of downline entry paid entirely in dUSD for staking/investment — not withdrawable. 15% self + 15% transferable to direct downline.',
+    assetZh: '100% USD3',
+    assetEn: '100% USD3',
+    whereZh: '推荐页 + 资产 → USD3',
+    whereEn: 'Refer tab + Assets → USD3',
+    descZh: '下级入金的 30% 全部以 USD3 入账，用于质押投资，不可提现。其中 15% 自留 + 15% 可转让直推下线。',
+    descEn: '30% of downline entry paid entirely in USD3 for staking/investment — not withdrawable. 15% self + 15% transferable to direct downline.',
   },
   {
     id: 'dusd',
-    titleZh: 'dUSD 推荐份额',
-    titleEn: 'dUSD referral share',
-    assetZh: 'dUSD（入金 30%）',
-    assetEn: 'dUSD (30% of entry)',
-    whereZh: '资产 → dUSD',
-    whereEn: 'Assets → dUSD',
-    descZh: '推荐奖励全部记入 dUSD 余额；可转让额度仅来自其中 15%，且只能转给直推下线用于质押。',
-    descEn: 'All referral rewards credit as dUSD; transferable quota is the 15% slice only, to direct downline for staking.',
+    titleZh: 'USD3 推荐份额',
+    titleEn: 'USD3 referral share',
+    assetZh: 'USD3（入金 30%）',
+    assetEn: 'USD3 (30% of entry)',
+    whereZh: '资产 → USD3',
+    whereEn: 'Assets → USD3',
+    descZh: '推荐奖励全部记入 USD3 余额；可转让额度仅来自其中 15%，且只能转给直推下线用于质押。',
+    descEn: 'All referral rewards credit as USD3; transferable quota is the 15% slice only, to direct downline for staking.',
   },
 ];
 

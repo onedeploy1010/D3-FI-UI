@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { Menu, X, ChevronDown, Shield, Zap, Users, Lock, TrendingUp, Globe, ArrowRight, ExternalLink, Flame, Eye, Ban, Activity } from 'lucide-react';
 import { D3Logo } from '@/components/D3Logo';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { BribeMechanismDiagram } from '@/components/illustrations/BribeMechanismDiagram';
 import { BrandMotif } from '@/components/illustrations/BrandMotif';
 import { SecurityShieldDiagram } from '@/components/illustrations/SecurityShieldDiagram';
@@ -44,9 +43,9 @@ const content = {
       title: '三种入场方式',
       subtitle: '选择最适合你的策略，灵活入场',
       methods: [
-        { name: '现货 Swap', desc: '直接购买 D3 代币', tag: '即时', features: ['零滑点 AMM', '即时到账', '无锁仓限制'], color: '#C9A96E' },
-        { name: 'LP 债券', desc: '提供流动性获得折扣 D3', tag: '折扣', features: ['5-15% 折扣', '线性释放', '双重收益'], color: '#9B2D5A' },
-        { name: '销毁债券', desc: '销毁 DT 获得 D3', tag: '高级', features: ['最大折扣', '通缩机制', '长期价值'], color: '#6B1A3A' },
+        { name: '现货 Swap', desc: '直接购买 D3 代币', tag: '即时', features: ['零滑点 AMM', '即时到账', '无锁仓限制'], color: '#E0568F' },
+        { name: 'LP 债券', desc: '提供流动性获得折扣 D3', tag: '折扣', features: ['5-15% 折扣', '线性释放', '双重收益'], color: '#B23A6E' },
+        { name: '销毁债券', desc: '销毁 DT 获得 D3', tag: '高级', features: ['最大折扣', '通缩机制', '长期价值'], color: '#8A2B57' },
       ],
     },
     guardians: {
@@ -119,9 +118,9 @@ const content = {
       title: 'Three Entry Methods',
       subtitle: 'Choose the strategy that suits you best',
       methods: [
-        { name: 'Spot Swap', desc: 'Buy D3 tokens directly', tag: 'Instant', features: ['Zero-slippage AMM', 'Instant settlement', 'No lock-up'], color: '#C9A96E' },
-        { name: 'LP Bond', desc: 'Provide liquidity for discounted D3', tag: 'Discount', features: ['5-15% discount', 'Linear vesting', 'Dual rewards'], color: '#9B2D5A' },
-        { name: 'Burn Bond', desc: 'Burn DT to acquire D3', tag: 'Advanced', features: ['Maximum discount', 'Deflationary', 'Long-term value'], color: '#6B1A3A' },
+        { name: 'Spot Swap', desc: 'Buy D3 tokens directly', tag: 'Instant', features: ['Zero-slippage AMM', 'Instant settlement', 'No lock-up'], color: '#E0568F' },
+        { name: 'LP Bond', desc: 'Provide liquidity for discounted D3', tag: 'Discount', features: ['5-15% discount', 'Linear vesting', 'Dual rewards'], color: '#B23A6E' },
+        { name: 'Burn Bond', desc: 'Burn DT to acquire D3', tag: 'Advanced', features: ['Maximum discount', 'Deflationary', 'Long-term value'], color: '#8A2B57' },
       ],
     },
     guardians: {
@@ -192,43 +191,42 @@ export default function Landing() {
 
   return (
     <div className={`min-h-screen overflow-x-hidden transition-colors duration-300 ${
-      isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-[#2C2824]'
+      isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-[#160510]'
     }`}>
       {/* ===== NAVBAR ===== */}
       <nav className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl border-b transition-colors duration-300 ${
-        isDark ? 'bg-dark-surface border-[#C9A96E]/[0.06]' : 'bg-light-surface border-[#9B5A6E]/[0.08]'
+        isDark ? 'bg-dark-surface border-[#E0568F]/[0.06]' : 'bg-light-surface border-[#B23A6E]/[0.08]'
       }`}>
         <div className="flex items-center justify-between page-px py-3 sm:py-3.5 max-w-6xl mx-auto gap-2">
-          <D3Logo size={38} showText to="/" className="min-w-0 shrink" textClassName={`text-base sm:text-lg ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`} />
+          <D3Logo size={38} showText to="/" className="min-w-0 shrink" textClassName={`text-base sm:text-lg ${isDark ? 'text-white' : 'text-[#8A2B57]'}`} />
           
           {/* Desktop nav */}
           <div className={`hidden md:flex items-center gap-8 text-sm font-medium ${
-            isDark ? 'text-white/50' : 'text-[#2C2824]/50'
+            isDark ? 'text-white/50' : 'text-[#160510]/50'
           }`}>
-            <a href="#protocol" className={`transition-colors ${isDark ? 'hover:text-[#C9A96E]' : 'hover:text-[#6B1A3A]'}`}>{t.nav.protocol}</a>
-            <a href="#token" className={`transition-colors ${isDark ? 'hover:text-[#C9A96E]' : 'hover:text-[#6B1A3A]'}`}>{t.nav.token}</a>
-            <a href="#roadmap" className={`transition-colors ${isDark ? 'hover:text-[#C9A96E]' : 'hover:text-[#6B1A3A]'}`}>{t.nav.roadmap}</a>
-            <a href="#docs" className={`transition-colors ${isDark ? 'hover:text-[#C9A96E]' : 'hover:text-[#6B1A3A]'}`}>{t.nav.docs}</a>
+            <a href="#protocol" className={`transition-colors ${isDark ? 'hover:text-[#E0568F]' : 'hover:text-[#8A2B57]'}`}>{t.nav.protocol}</a>
+            <a href="#token" className={`transition-colors ${isDark ? 'hover:text-[#E0568F]' : 'hover:text-[#8A2B57]'}`}>{t.nav.token}</a>
+            <a href="#roadmap" className={`transition-colors ${isDark ? 'hover:text-[#E0568F]' : 'hover:text-[#8A2B57]'}`}>{t.nav.roadmap}</a>
+            <a href="#docs" className={`transition-colors ${isDark ? 'hover:text-[#E0568F]' : 'hover:text-[#8A2B57]'}`}>{t.nav.docs}</a>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <ThemeToggle />
             <button
               onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
               className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition ${
-                isDark ? 'bg-[#C9A96E]/[0.06] text-[#F5F0EB]/60 hover:bg-[#C9A96E]/[0.10]' : 'bg-[#9B5A6E]/[0.05] text-[#6B1A3A]/60 hover:bg-[#9B5A6E]/[0.08]'
+                isDark ? 'bg-[#E0568F]/[0.06] text-[#F5F0EB]/60 hover:bg-[#E0568F]/[0.10]' : 'bg-[#B23A6E]/[0.05] text-[#8A2B57]/60 hover:bg-[#B23A6E]/[0.08]'
               }`}
             >
               {lang === 'zh' ? 'EN' : '中文'}
             </button>
             <button
               onClick={() => navigate('/portal')}
-              className="hidden md:block text-sm px-5 py-2.5 rounded-xl font-semibold text-white transition-all hover:shadow-lg hover:shadow-[#6B1A3A]/20 active:scale-[0.97]"
-              style={{ background: 'linear-gradient(135deg, #6B1A3A, #7B2D8B)' }}
+              className="hidden md:block text-sm px-5 py-2.5 rounded-xl font-semibold text-white transition-all hover:shadow-lg hover:shadow-[#8A2B57]/20 active:scale-[0.97]"
+              style={{ background: 'linear-gradient(135deg, #8A2B57, #5E1A3C)' }}
             >
               {t.nav.connect}
             </button>
-            <button onClick={() => setMenuOpen(!menuOpen)} className={`md:hidden p-1.5 rounded-lg ${isDark ? 'hover:bg-[#C9A96E]/[0.06]' : 'hover:bg-[#9B5A6E]/[0.06]'}`}>
+            <button onClick={() => setMenuOpen(!menuOpen)} className={`md:hidden p-1.5 rounded-lg ${isDark ? 'hover:bg-[#E0568F]/[0.06]' : 'hover:bg-[#B23A6E]/[0.06]'}`}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
@@ -241,17 +239,17 @@ export default function Landing() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className={`md:hidden overflow-hidden border-t ${isDark ? 'border-[#C9A96E]/[0.06]' : 'border-[#9B5A6E]/[0.08]'}`}
+              className={`md:hidden overflow-hidden border-t ${isDark ? 'border-[#E0568F]/[0.06]' : 'border-[#B23A6E]/[0.08]'}`}
             >
               <div className="flex flex-col gap-1 page-px py-4">
-                <a href="#protocol" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>{t.nav.protocol}</a>
-                <a href="#token" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>{t.nav.token}</a>
-                <a href="#roadmap" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>{t.nav.roadmap}</a>
-                <a href="#docs" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>{t.nav.docs}</a>
+                <a href="#protocol" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{t.nav.protocol}</a>
+                <a href="#token" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{t.nav.token}</a>
+                <a href="#roadmap" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{t.nav.roadmap}</a>
+                <a href="#docs" onClick={() => setMenuOpen(false)} className={`py-2.5 text-sm font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{t.nav.docs}</a>
                 <button
                   onClick={() => navigate('/portal')}
                   className="w-full py-3.5 rounded-xl font-semibold text-white text-center mt-2 active:scale-[0.97] transition-transform"
-                  style={{ background: 'linear-gradient(135deg, #6B1A3A, #7B2D8B)' }}
+                  style={{ background: 'linear-gradient(135deg, #8A2B57, #5E1A3C)' }}
                 >
                   {t.nav.connect}
                 </button>
@@ -267,18 +265,18 @@ export default function Landing() {
         <div className="absolute inset-0">
           {isDark ? (
             <>
-              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(107,26,58,0.28) 0%, transparent 55%)' }} />
-              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 80% 65%, rgba(155,90,110,0.12) 0%, transparent 50%)' }} />
-              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 20% 80%, rgba(201,169,110,0.06) 0%, transparent 45%)' }} />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(138,43,87,0.28) 0%, transparent 55%)' }} />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 80% 65%, rgba(178,58,110,0.12) 0%, transparent 50%)' }} />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 20% 80%, rgba(224,86,143,0.06) 0%, transparent 45%)' }} />
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#140D18]" />
-              <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(201,169,110,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(201,169,110,0.3) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+              <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(224,86,143,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(224,86,143,0.3) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
             </>
           ) : (
             <>
-              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(155,90,110,0.06) 0%, transparent 55%)' }} />
-              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 80% 70%, rgba(201,176,138,0.08) 0%, transparent 50%)' }} />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(178,58,110,0.06) 0%, transparent 55%)' }} />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 80% 70%, rgba(224,86,143,0.08) 0%, transparent 50%)' }} />
               <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 55%, rgba(237,224,216,0.35) 100%)' }} />
-              <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'linear-gradient(rgba(155,90,110,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(155,90,110,0.15) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+              <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'linear-gradient(rgba(178,58,110,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(178,58,110,0.15) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
             </>
           )}
           {/* Brand motif overlay */}
@@ -295,20 +293,20 @@ export default function Landing() {
             transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
           >
             <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full backdrop-blur-md border text-[11px] sm:text-xs font-medium mb-6 sm:mb-8 max-w-[calc(100vw-3rem)] ${
-              isDark ? 'border-[#C9A96E]/20 bg-[#C9A96E]/[0.08]' : 'border-[#9B5A6E]/12 bg-[#9B5A6E]/[0.04]'
+              isDark ? 'border-[#E0568F]/20 bg-[#E0568F]/[0.08]' : 'border-[#B23A6E]/12 bg-[#B23A6E]/[0.04]'
             }`}>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className={`text-center leading-snug ${isDark ? 'text-[#C9A96E]/80' : 'text-[#6B1A3A]/70'}`}>{t.hero.badge}</span>
+              <span className={`text-center leading-snug ${isDark ? 'text-[#E0568F]/80' : 'text-[#8A2B57]/70'}`}>{t.hero.badge}</span>
             </div>
             
             <h1 className="text-[2rem] sm:text-[2.5rem] md:text-7xl font-bold leading-[1.1] mb-5 font-heading">
-              <span className={isDark ? 'text-white' : 'text-[#6B1A3A]'}>{t.hero.title}</span>
+              <span className={isDark ? 'text-white' : 'text-[#8A2B57]'}>{t.hero.title}</span>
               <br />
-              <span className="bg-gradient-to-r from-[#C9A96E] via-[#E8D5A3] to-[#C9A96E] bg-clip-text text-transparent">{t.hero.titleAccent}</span>
+              <span className="bg-gradient-to-r from-[#E0568F] via-[#E8D5A3] to-[#E0568F] bg-clip-text text-transparent">{t.hero.titleAccent}</span>
             </h1>
             
             <p className={`text-sm md:text-base mb-10 leading-relaxed whitespace-pre-line text-pretty-wrap max-w-sm mx-auto ${
-              isDark ? 'text-white/50' : 'text-[#2C2824]/50'
+              isDark ? 'text-white/50' : 'text-[#160510]/50'
             }`}>
               {t.hero.subtitle}
             </p>
@@ -316,13 +314,13 @@ export default function Landing() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => navigate('/portal')}
-                className="px-7 py-4 rounded-2xl font-semibold text-white text-sm shadow-xl shadow-[#6B1A3A]/30 active:scale-[0.97] transition-all hover:shadow-2xl hover:shadow-[#6B1A3A]/40"
-                style={{ background: 'linear-gradient(135deg, #6B1A3A, #7B2D8B)' }}
+                className="px-7 py-4 rounded-2xl font-semibold text-white text-sm shadow-xl shadow-[#8A2B57]/30 active:scale-[0.97] transition-all hover:shadow-2xl hover:shadow-[#8A2B57]/40"
+                style={{ background: 'linear-gradient(135deg, #8A2B57, #5E1A3C)' }}
               >
                 {t.hero.cta1}
               </button>
               <button className={`px-7 py-4 rounded-2xl font-semibold text-sm border active:scale-[0.97] transition-all ${
-                isDark ? 'text-white/70 border-white/10 hover:bg-white/[0.04] hover:border-white/20' : 'text-[#6B1A3A]/70 border-[#6B1A3A]/15 hover:bg-[#6B1A3A]/[0.04] hover:border-[#6B1A3A]/25'
+                isDark ? 'text-white/70 border-white/10 hover:bg-white/[0.04] hover:border-white/20' : 'text-[#8A2B57]/70 border-[#8A2B57]/15 hover:bg-[#8A2B57]/[0.04] hover:border-[#8A2B57]/25'
               }`}>
                 {t.hero.cta2}
               </button>
@@ -333,7 +331,7 @@ export default function Landing() {
         {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
           <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}>
-            <ChevronDown size={18} className={isDark ? 'text-[#C9A96E]/40' : 'text-[#6B1A3A]/30'} />
+            <ChevronDown size={18} className={isDark ? 'text-[#E0568F]/40' : 'text-[#8A2B57]/30'} />
           </motion.div>
         </div>
       </section>
@@ -353,15 +351,15 @@ export default function Landing() {
                   isDark ? '' : 'shadow-sm'
                 }`}
                 style={isDark
-                  ? { background: 'linear-gradient(160deg, rgba(107,26,58,0.12), rgba(20,13,24,0.8))', border: '1px solid rgba(201,169,110,0.1)' }
-                  : { background: 'linear-gradient(155deg, rgba(155,90,110,0.04), rgba(250,247,244,0.82))', border: '1px solid rgba(155,90,110,0.08)' }
+                  ? { background: 'linear-gradient(160deg, rgba(138,43,87,0.12), rgba(20,13,24,0.8))', border: '1px solid rgba(224,86,143,0.1)' }
+                  : { background: 'linear-gradient(155deg, rgba(178,58,110,0.04), rgba(250,247,244,0.82))', border: '1px solid rgba(178,58,110,0.08)' }
                 }
               >
                 <div className="absolute -top-4 -right-4 w-16 h-16 opacity-20">
                   <BrandMotif className="w-full h-full" />
                 </div>
-                <div className="text-2xl md:text-3xl font-bold tracking-tight font-heading" style={{ color: isDark ? '#C9A96E' : '#6B1A3A' }}>{stat.value}</div>
-                <div className={`text-[11px] mt-1.5 font-medium ${isDark ? 'text-white/40' : 'text-[#2C2824]/40'}`}>{stat.label}</div>
+                <div className="text-2xl md:text-3xl font-bold tracking-tight font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{stat.value}</div>
+                <div className={`text-[11px] mt-1.5 font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{stat.label}</div>
                 {stat.change && <div className="text-[10px] text-emerald-500 mt-1 font-medium">{stat.change}</div>}
               </motion.div>
             ))}
@@ -373,8 +371,8 @@ export default function Landing() {
       <section id="protocol" className="py-14 sm:py-20 page-px">
         <div className="max-w-md mx-auto md:max-w-5xl">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-12">
-            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-heading ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>{t.why.title}</h2>
-            <p className={`text-sm max-w-md text-pretty-wrap ${isDark ? 'text-white/40' : 'text-[#2C2824]/50'}`}>{t.why.subtitle}</p>
+            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{t.why.title}</h2>
+            <p className={`text-sm max-w-md text-pretty-wrap ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.why.subtitle}</p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-8 items-start">
@@ -393,21 +391,21 @@ export default function Landing() {
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.15, duration: 0.5 }}
                   className={`rounded-2xl p-5 flex gap-4 items-start group transition-colors ${
-                    isDark ? 'hover:border-[#C9A96E]/20' : 'hover:border-[#6B1A3A]/20'
+                    isDark ? 'hover:border-[#E0568F]/20' : 'hover:border-[#8A2B57]/20'
                   }`}
                   style={isDark
                     ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }
-                    : { background: 'rgba(107,26,58,0.02)', border: '1px solid rgba(107,26,58,0.06)' }
+                    : { background: 'rgba(138,43,87,0.02)', border: '1px solid rgba(138,43,87,0.06)' }
                   }
                 >
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, rgba(107,26,58,0.6), rgba(155,45,90,0.4))' }}>
-                    {item.icon === 'zap' && <Zap size={18} className="text-[#C9A96E]" />}
-                    {item.icon === 'users' && <Users size={18} className="text-[#C9A96E]" />}
-                    {item.icon === 'lock' && <Lock size={18} className="text-[#C9A96E]" />}
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, rgba(138,43,87,0.6), rgba(178,58,110,0.4))' }}>
+                    {item.icon === 'zap' && <Zap size={18} className="text-[#E0568F]" />}
+                    {item.icon === 'users' && <Users size={18} className="text-[#E0568F]" />}
+                    {item.icon === 'lock' && <Lock size={18} className="text-[#E0568F]" />}
                   </div>
                   <div>
-                    <h3 className={`font-bold text-sm mb-1.5 ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>{item.title}</h3>
-                    <p className={`text-xs leading-relaxed text-pretty-wrap ${isDark ? 'text-white/40' : 'text-[#2C2824]/50'}`}>{item.desc}</p>
+                    <h3 className={`font-bold text-sm mb-1.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{item.title}</h3>
+                    <p className={`text-xs leading-relaxed text-pretty-wrap ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{item.desc}</p>
                   </div>
                 </motion.div>
               ))}
@@ -418,11 +416,11 @@ export default function Landing() {
 
       {/* ===== ENTRY METHODS ===== */}
       <section id="token" className="py-14 sm:py-20 page-px relative">
-        <div className={`absolute inset-0 pointer-events-none ${isDark ? 'bg-gradient-to-b from-transparent via-[#6B1A3A]/[0.04] to-transparent' : 'bg-gradient-to-b from-transparent via-[#6B1A3A]/[0.02] to-transparent'}`} />
+        <div className={`absolute inset-0 pointer-events-none ${isDark ? 'bg-gradient-to-b from-transparent via-[#8A2B57]/[0.04] to-transparent' : 'bg-gradient-to-b from-transparent via-[#8A2B57]/[0.02] to-transparent'}`} />
         <div className="max-w-md mx-auto md:max-w-5xl relative">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-heading ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>{t.entry.title}</h2>
-            <p className={`text-sm ${isDark ? 'text-white/40' : 'text-[#2C2824]/50'}`}>{t.entry.subtitle}</p>
+            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{t.entry.title}</h2>
+            <p className={`text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.entry.subtitle}</p>
           </motion.div>
 
           <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
@@ -436,27 +434,27 @@ export default function Landing() {
                 className={`rounded-2xl p-6 relative overflow-hidden group ${isDark ? '' : 'shadow-sm'}`}
                 style={isDark
                   ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }
-                  : { background: 'rgba(107,26,58,0.02)', border: '1px solid rgba(107,26,58,0.08)' }
+                  : { background: 'rgba(138,43,87,0.02)', border: '1px solid rgba(138,43,87,0.08)' }
                 }
               >
                 <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${method.color}, transparent)` }} />
                 <div className="flex items-start justify-between mb-4">
-                  <h3 className={`font-bold text-base ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>{method.name}</h3>
+                  <h3 className={`font-bold text-base ${isDark ? 'text-white' : 'text-[#160510]'}`}>{method.name}</h3>
                   <span className="text-[10px] px-2.5 py-1 rounded-full font-semibold" style={{ background: `${method.color}20`, color: method.color }}>
                     {method.tag}
                   </span>
                 </div>
-                <p className={`text-xs mb-5 ${isDark ? 'text-white/40' : 'text-[#2C2824]/50'}`}>{method.desc}</p>
+                <p className={`text-xs mb-5 ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{method.desc}</p>
                 <div className="flex flex-col gap-2.5 mb-5">
                   {method.features.map((f, j) => (
-                    <div key={j} className={`flex items-center gap-2.5 text-xs ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>
+                    <div key={j} className={`flex items-center gap-2.5 text-xs ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: method.color }} />
                       {f}
                     </div>
                   ))}
                 </div>
                 <button className={`w-full py-3 rounded-xl text-xs font-semibold border transition flex items-center justify-center gap-1.5 ${
-                  isDark ? 'border-white/8 hover:bg-white/[0.04] group-hover:border-white/15' : 'border-[#6B1A3A]/10 hover:bg-[#6B1A3A]/[0.04] group-hover:border-[#6B1A3A]/20'
+                  isDark ? 'border-white/8 hover:bg-white/[0.04] group-hover:border-white/15' : 'border-[#8A2B57]/10 hover:bg-[#8A2B57]/[0.04] group-hover:border-[#8A2B57]/20'
                 }`}>
                   {lang === 'zh' ? '了解更多' : 'Learn More'} <ArrowRight size={12} />
                 </button>
@@ -470,8 +468,8 @@ export default function Landing() {
       <section className="py-14 sm:py-20 page-px">
         <div className="max-w-md mx-auto md:max-w-5xl">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-12">
-            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-heading ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>{t.guardians.title}</h2>
-            <p className={`text-sm max-w-md ${isDark ? 'text-white/40' : 'text-[#2C2824]/50'}`}>{t.guardians.subtitle}</p>
+            <h2 className={`text-2xl md:text-5xl font-bold mb-4 font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{t.guardians.title}</h2>
+            <p className={`text-sm max-w-md ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.guardians.subtitle}</p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8 items-start">
@@ -488,19 +486,19 @@ export default function Landing() {
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.08, duration: 0.4 }}
                   className={`rounded-2xl p-4 text-center relative overflow-hidden group transition-colors ${
-                    isDark ? 'hover:border-[#C9A96E]/20' : 'hover:border-[#6B1A3A]/20'
+                    isDark ? 'hover:border-[#E0568F]/20' : 'hover:border-[#8A2B57]/20'
                   }`}
                   style={isDark
                     ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }
-                    : { background: 'rgba(107,26,58,0.02)', border: '1px solid rgba(107,26,58,0.06)' }
+                    : { background: 'rgba(138,43,87,0.02)', border: '1px solid rgba(138,43,87,0.06)' }
                   }
                 >
-                  <div className="w-9 h-9 rounded-xl mx-auto mb-2.5 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(201,169,110,0.15), rgba(107,26,58,0.2))' }}>
+                  <div className="w-9 h-9 rounded-xl mx-auto mb-2.5 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(224,86,143,0.15), rgba(138,43,87,0.2))' }}>
                     <GuardianIcon type={item.icon} />
                   </div>
-                  <div className="text-xs font-bold mb-0.5" style={{ color: isDark ? '#C9A96E' : '#6B1A3A' }}>{item.name}</div>
-                  <div className={`text-[11px] font-medium ${isDark ? 'text-white/60' : 'text-[#2C2824]/60'}`}>{item.desc}</div>
-                  <div className={`text-[10px] mt-1 ${isDark ? 'text-white/30' : 'text-[#2C2824]/35'}`}>{item.detail}</div>
+                  <div className="text-xs font-bold mb-0.5" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{item.name}</div>
+                  <div className={`text-[11px] font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{item.desc}</div>
+                  <div className={`text-[10px] mt-1 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{item.detail}</div>
                 </motion.div>
               ))}
             </div>
@@ -510,14 +508,14 @@ export default function Landing() {
 
       {/* ===== ROADMAP ===== */}
       <section id="roadmap" className="py-14 sm:py-20 page-px relative">
-        <div className={`absolute inset-0 pointer-events-none ${isDark ? 'bg-gradient-to-b from-transparent via-[#C9A96E]/[0.02] to-transparent' : 'bg-gradient-to-b from-transparent via-[#6B1A3A]/[0.01] to-transparent'}`} />
+        <div className={`absolute inset-0 pointer-events-none ${isDark ? 'bg-gradient-to-b from-transparent via-[#E0568F]/[0.02] to-transparent' : 'bg-gradient-to-b from-transparent via-[#8A2B57]/[0.01] to-transparent'}`} />
         <div className="max-w-md mx-auto md:max-w-4xl relative">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-            <h2 className={`text-2xl md:text-5xl font-bold font-heading ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>{t.roadmap.title}</h2>
+            <h2 className={`text-2xl md:text-5xl font-bold font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{t.roadmap.title}</h2>
           </motion.div>
 
           <div className="relative">
-            <div className="absolute left-5 top-0 bottom-0 w-px" style={{ background: isDark ? 'linear-gradient(180deg, rgba(201,169,110,0.3), rgba(107,26,58,0.3), rgba(255,255,255,0.05))' : 'linear-gradient(180deg, rgba(107,26,58,0.3), rgba(201,169,110,0.3), rgba(107,26,58,0.05))' }} />
+            <div className="absolute left-5 top-0 bottom-0 w-px" style={{ background: isDark ? 'linear-gradient(180deg, rgba(224,86,143,0.3), rgba(138,43,87,0.3), rgba(255,255,255,0.05))' : 'linear-gradient(180deg, rgba(138,43,87,0.3), rgba(224,86,143,0.3), rgba(138,43,87,0.05))' }} />
             
             <div className="flex flex-col gap-8">
               {t.roadmap.phases.map((phase, i) => (
@@ -531,17 +529,17 @@ export default function Landing() {
                 >
                   <div className="absolute left-3.5 top-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center"
                     style={{
-                      borderColor: phase.status === 'done' ? '#C9A96E' : phase.status === 'active' ? '#9B2D5A' : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(107,26,58,0.15)'),
-                      background: phase.status === 'done' ? '#C9A96E' : phase.status === 'active' ? '#9B2D5A' : 'transparent',
-                      boxShadow: phase.status === 'active' ? '0 0 12px rgba(155,45,90,0.5)' : 'none',
+                      borderColor: phase.status === 'done' ? '#E0568F' : phase.status === 'active' ? '#B23A6E' : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(138,43,87,0.15)'),
+                      background: phase.status === 'done' ? '#E0568F' : phase.status === 'active' ? '#B23A6E' : 'transparent',
+                      boxShadow: phase.status === 'active' ? '0 0 12px rgba(178,58,110,0.5)' : 'none',
                     }}
                   >
                     {phase.status === 'done' && <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-[#140D18]' : 'bg-[#FAF7F4]'}`} />}
                   </div>
                   
-                  <div className={`text-[10px] uppercase tracking-widest font-medium mb-1 ${isDark ? 'text-white/30' : 'text-[#2C2824]/30'}`}>{phase.phase}</div>
-                  <div className="font-bold text-sm mb-0.5" style={{ color: phase.status === 'active' ? '#C9A96E' : phase.status === 'done' ? (isDark ? 'white' : '#1A1A1A') : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(26,26,26,0.4)') }}>{phase.name}</div>
-                  <div className={`text-[11px] ${isDark ? 'text-white/30' : 'text-[#2C2824]/40'}`}>{phase.desc}</div>
+                  <div className={`text-[10px] uppercase tracking-widest font-medium mb-1 ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{phase.phase}</div>
+                  <div className="font-bold text-sm mb-0.5" style={{ color: phase.status === 'active' ? '#E0568F' : phase.status === 'done' ? (isDark ? 'white' : '#1A1A1A') : (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(26,26,26,0.4)') }}>{phase.name}</div>
+                  <div className={`text-[11px] ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>{phase.desc}</div>
                 </motion.div>
               ))}
             </div>
@@ -553,7 +551,7 @@ export default function Landing() {
       <section id="docs" className="py-14 sm:py-20 page-px">
         <div className="max-w-md mx-auto md:max-w-3xl">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <h2 className={`text-2xl md:text-5xl font-bold font-heading ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>{t.faq.title}</h2>
+            <h2 className={`text-2xl md:text-5xl font-bold font-stat ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>{t.faq.title}</h2>
           </motion.div>
 
           <div className="flex flex-col gap-3">
@@ -566,16 +564,16 @@ export default function Landing() {
                 transition={{ delay: i * 0.08 }}
                 className="rounded-2xl overflow-hidden transition-colors"
                 style={isDark
-                  ? { background: faqOpen === i ? 'rgba(107,26,58,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${faqOpen === i ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.05)'}` }
-                  : { background: faqOpen === i ? 'rgba(107,26,58,0.04)' : 'rgba(107,26,58,0.01)', border: `1px solid ${faqOpen === i ? 'rgba(107,26,58,0.15)' : 'rgba(107,26,58,0.06)'}` }
+                  ? { background: faqOpen === i ? 'rgba(138,43,87,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${faqOpen === i ? 'rgba(224,86,143,0.15)' : 'rgba(255,255,255,0.05)'}` }
+                  : { background: faqOpen === i ? 'rgba(138,43,87,0.04)' : 'rgba(138,43,87,0.01)', border: `1px solid ${faqOpen === i ? 'rgba(138,43,87,0.15)' : 'rgba(138,43,87,0.06)'}` }
                 }
               >
                 <button
                   onClick={() => setFaqOpen(faqOpen === i ? null : i)}
                   className="w-full flex items-center justify-between p-5 text-left"
                 >
-                  <span className={`text-sm font-semibold pr-4 text-pretty-wrap ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>{item.q}</span>
-                  <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${faqOpen === i ? 'rotate-180' : ''} ${isDark ? 'text-[#C9A96E]/60' : 'text-[#6B1A3A]/40'}`} />
+                  <span className={`text-sm font-semibold pr-4 text-pretty-wrap ${isDark ? 'text-white' : 'text-[#160510]'}`}>{item.q}</span>
+                  <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${faqOpen === i ? 'rotate-180' : ''} ${isDark ? 'text-[#E0568F]/60' : 'text-[#8A2B57]/40'}`} />
                 </button>
                 <AnimatePresence>
                   {faqOpen === i && (
@@ -586,7 +584,7 @@ export default function Landing() {
                       transition={{ duration: 0.3 }}
                       className="overflow-hidden"
                     >
-                      <p className={`px-5 pb-5 text-xs leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#2C2824]/55'}`}>{item.a}</p>
+                      <p className={`px-5 pb-5 text-xs leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#160510]/55'}`}>{item.a}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

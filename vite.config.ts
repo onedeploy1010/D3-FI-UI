@@ -5,6 +5,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { config as loadEnv } from "dotenv";
+import express from "express";
+import { createApiRouter } from "./server/api/router";
+
+loadEnv({ path: path.resolve(import.meta.dirname, ".env") });
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -203,7 +208,22 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
+function vitePluginApiServer(): Plugin {
+  return {
+    name: "d3-api-server",
+    configureServer(server: ViteDevServer) {
+      const api = express();
+      api.use(express.json());
+      api.use("/api", createApiRouter());
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith("/api")) return next();
+        api(req, res, next);
+      });
+    },
+  };
+}
+
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy(), vitePluginApiServer()];
 
 export default defineConfig({
   // GitHub Pages serves this project under the repository subpath.
@@ -213,6 +233,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
+      "@ai": path.resolve(import.meta.dirname, "client", "src", "ai-site"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },

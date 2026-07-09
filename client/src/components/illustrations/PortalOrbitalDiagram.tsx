@@ -5,8 +5,8 @@ import { FlowDot } from './FlowDot';
 type Lang = 'zh' | 'en';
 
 const copy = {
-  zh: { ai: 'AI 分析', fi: '贿赂金融', hub: '协议枢纽', website: '官网' },
-  en: { ai: 'AI Analytics', fi: 'Bribe-Fi', hub: 'Protocol Hub', website: 'Website' },
+  zh: { ai: 'AI 分析', fi: '贿赂金融', hub: '协议枢纽', union: '股东联盟' },
+  en: { ai: 'AI Analytics', fi: 'Bribe-Fi', hub: 'Protocol Hub', union: 'Shareholders' },
 } as const;
 
 const CX = 100;
@@ -61,12 +61,12 @@ function OrbitRing({
 
 export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boolean }) {
   const t = copy[lang];
-  const gold = '#C9A96E';
-  const burgundy = isDark ? '#E8D5A3' : '#6B1A3A';
-  const arrow = isDark ? 'rgba(201,169,110,0.65)' : 'rgba(107,26,58,0.5)';
-  const fiStroke = isDark ? 'rgba(155,45,90,0.55)' : 'rgba(107,26,58,0.4)';
+  const gold = '#E0568F';
+  const burgundy = isDark ? '#E8D5A3' : '#8A2B57';
+  const arrow = isDark ? 'rgba(224,86,143,0.65)' : 'rgba(138,43,87,0.5)';
+  const fiStroke = isDark ? 'rgba(178,58,110,0.55)' : 'rgba(138,43,87,0.4)';
   const labelBg = isDark ? 'rgba(20,13,24,0.92)' : 'rgba(250,247,244,0.96)';
-  const hubMuted = isDark ? 'rgba(201,169,110,0.55)' : 'rgba(107,26,58,0.5)';
+  const hubMuted = isDark ? 'rgba(224,86,143,0.55)' : 'rgba(138,43,87,0.5)';
 
   const nodes = [
     {
@@ -76,7 +76,7 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       w: 88,
       h: 34,
       label: t.ai,
-      fill: isDark ? 'rgba(201,169,110,0.14)' : 'rgba(201,169,110,0.12)',
+      fill: isDark ? 'rgba(224,86,143,0.14)' : 'rgba(224,86,143,0.12)',
       stroke: gold,
       strokeOpacity: 0.55,
       text: gold,
@@ -84,18 +84,18 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       delay: 0.3,
     },
     {
-      key: 'website',
+      key: 'union',
       x: 4,
       y: 158,
       w: 90,
       h: 34,
-      label: t.website,
-      fill: isDark ? 'rgba(201,169,110,0.08)' : 'rgba(201,169,110,0.06)',
-      stroke: isDark ? 'rgba(201,169,110,0.35)' : 'rgba(201,169,110,0.45)',
-      strokeOpacity: 1,
-      text: isDark ? 'rgba(201,169,110,0.85)' : 'rgba(107,26,58,0.65)',
-      icon: 'home' as const,
-      delay: 0.55,
+      label: t.union,
+      fill: isDark ? 'rgba(224,86,143,0.18)' : 'rgba(224,86,143,0.1)',
+      stroke: gold,
+      strokeOpacity: 0.7,
+      text: gold,
+      icon: 'crown' as const,
+      delay: 0.45,
     },
     {
       key: 'fi',
@@ -104,12 +104,12 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       w: 90,
       h: 34,
       label: t.fi,
-      fill: isDark ? 'rgba(107,26,58,0.35)' : 'rgba(107,26,58,0.09)',
+      fill: isDark ? 'rgba(138,43,87,0.35)' : 'rgba(138,43,87,0.09)',
       stroke: fiStroke,
       strokeOpacity: 1,
       text: burgundy,
       icon: 'globe' as const,
-      delay: 0.45,
+      delay: 0.55,
     },
   ];
 
@@ -127,15 +127,14 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       d: `M${CX - 17} ${CY + 12} L${CX - 44} ${CY + 50}`,
       stroke: arrow,
       dot: `M${CX - 44} ${CY + 50} L${CX - 17} ${CY + 12}`,
-      delay: 0.55,
+      delay: 0.48,
       arrow: { x: CX - 40, y: CY + 46 },
-      dashed: true,
     },
     {
       d: `M${CX + 17} ${CY + 12} L${CX + 44} ${CY + 50}`,
       stroke: fiStroke,
       dot: `M${CX + 17} ${CY + 12} L${CX + 44} ${CY + 50}`,
-      delay: 0.7,
+      delay: 0.6,
       arrow: { x: CX + 40, y: CY + 46 },
     },
   ];
@@ -149,8 +148,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
         style={{
           background: isDark
-            ? 'radial-gradient(circle at 50% 48%, rgba(107,26,58,0.45) 0%, transparent 68%)'
-            : 'radial-gradient(circle at 50% 48%, rgba(155,90,110,0.14) 0%, transparent 68%)',
+            ? 'radial-gradient(circle at 50% 48%, rgba(138,43,87,0.45) 0%, transparent 68%)'
+            : 'radial-gradient(circle at 50% 48%, rgba(178,58,110,0.14) 0%, transparent 68%)',
         }}
       />
 
@@ -159,8 +158,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
         className="absolute inset-3 rounded-full pointer-events-none portal-orbit-spin"
         style={{
           background: isDark
-            ? 'conic-gradient(from 0deg, transparent 0%, rgba(201,169,110,0.2) 18%, transparent 38%, rgba(107,26,58,0.28) 58%, transparent 78%)'
-            : 'conic-gradient(from 0deg, transparent 0%, rgba(201,176,138,0.25) 18%, transparent 38%, rgba(155,90,110,0.16) 58%, transparent 78%)',
+            ? 'conic-gradient(from 0deg, transparent 0%, rgba(224,86,143,0.2) 18%, transparent 38%, rgba(138,43,87,0.28) 58%, transparent 78%)'
+            : 'conic-gradient(from 0deg, transparent 0%, rgba(224,86,143,0.25) 18%, transparent 38%, rgba(178,58,110,0.16) 58%, transparent 78%)',
         }}
       />
 
@@ -176,13 +175,13 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       >
         <OrbitRing
           r={68}
-          stroke={isDark ? 'rgba(201,169,110,0.28)' : 'rgba(107,26,58,0.2)'}
+          stroke={isDark ? 'rgba(224,86,143,0.28)' : 'rgba(138,43,87,0.2)'}
           strokeWidth={1}
           duration={22}
         />
         <OrbitRing
           r={68}
-          stroke={isDark ? 'rgba(201,169,110,0.16)' : 'rgba(107,26,58,0.12)'}
+          stroke={isDark ? 'rgba(224,86,143,0.16)' : 'rgba(138,43,87,0.12)'}
           strokeWidth={0.8}
           dash="6 8"
           duration={14}
@@ -190,7 +189,7 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
         />
         <OrbitRing
           r={50}
-          stroke={isDark ? 'rgba(107,26,58,0.4)' : 'rgba(155,90,110,0.22)'}
+          stroke={isDark ? 'rgba(138,43,87,0.4)' : 'rgba(178,58,110,0.22)'}
           strokeWidth={0.7}
           dash="4 5"
           duration={10}
@@ -232,8 +231,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
         ))}
 
         <FlowDot path={paths[0].dot} color={gold} duration={1.6} />
-        <FlowDot path={paths[1].dot} color={isDark ? 'rgba(201,169,110,0.65)' : 'rgba(107,26,58,0.45)'} duration={2} delay={0.3} r={3} />
-        <FlowDot path={paths[2].dot} color={burgundy} duration={1.8} delay={0.6} />
+        <FlowDot path={paths[1].dot} color={isDark ? 'rgba(224,86,143,0.65)' : 'rgba(138,43,87,0.45)'} duration={2} delay={0.3} r={3} />
+        <FlowDot path={paths[2].dot} color={burgundy} duration={1.8} delay={0.5} />
 
         {/* Center hub */}
         <motion.g
@@ -257,14 +256,14 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
             cx={CX}
             cy={CY}
             r="24"
-            fill={isDark ? 'rgba(107,26,58,0.42)' : 'rgba(107,26,58,0.1)'}
+            fill={isDark ? 'rgba(138,43,87,0.42)' : 'rgba(138,43,87,0.1)'}
             stroke={gold}
             strokeWidth="1.4"
             animate={{ scale: [1, 1.06, 1] }}
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             style={{ transformOrigin: `${CX}px ${CY}px`, transformBox: 'fill-box' }}
           />
-          <text x={CX} y={CY + 5} textAnchor="middle" fill={gold} fontSize="14" fontWeight="bold" fontFamily="'Playfair Display', serif" fontStyle="italic">
+          <text x={CX} y={CY + 5} textAnchor="middle" fill={gold} fontSize="14" fontWeight="bold" fontFamily="'Nunito', sans-serif" fontStyle="italic">
             D³
           </text>
         </motion.g>
@@ -311,14 +310,14 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
                 />
               </>
             )}
-            {node.icon === 'home' && (
+            {node.icon === 'crown' && (
               <>
                 <path
-                  d={`M${node.x + 14} ${node.y + 20} L${node.x + 14} ${node.y + 12} L${node.x + 9} ${node.y + 16} L${node.x + 19} ${node.y + 16} Z`}
+                  d={`M${node.x + 9} ${node.y + 21} L${node.x + 11} ${node.y + 13} L${node.x + 14} ${node.y + 17} L${node.x + 17} ${node.y + 13} L${node.x + 19} ${node.y + 21} Z`}
                   fill={gold}
-                  opacity="0.75"
+                  opacity="0.85"
                 />
-                <rect x={node.x + 11} y={node.y + 16} width="6" height="6" rx="0.5" stroke={gold} strokeWidth="0.9" fill="none" opacity="0.8" />
+                <rect x={node.x + 9} y={node.y + 20} width="10" height="2" rx="0.5" fill={gold} opacity="0.7" />
               </>
             )}
             {node.icon === 'globe' && (

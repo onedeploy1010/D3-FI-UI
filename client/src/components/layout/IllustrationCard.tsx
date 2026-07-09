@@ -28,14 +28,14 @@ export function IllustrationCard({
         className="absolute inset-0 pointer-events-none opacity-40"
         style={{
           background: isDark
-            ? 'radial-gradient(ellipse at 30% 20%, rgba(201,169,110,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(107,26,58,0.2) 0%, transparent 45%)'
-            : 'radial-gradient(ellipse at 30% 20%, rgba(201,176,138,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(155,90,110,0.08) 0%, transparent 45%)',
+            ? 'radial-gradient(ellipse at 30% 20%, rgba(224,86,143,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(138,43,87,0.2) 0%, transparent 45%)'
+            : 'radial-gradient(ellipse at 30% 20%, rgba(224,86,143,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(178,58,110,0.08) 0%, transparent 45%)',
         }}
       />
       <div className="relative z-10 w-full flex flex-col items-center justify-center flex-1">{children}</div>
       {caption && (
         <div className="mt-2 md:mt-4 text-center relative z-10">
-          <div className={`text-xs md:text-[11px] font-medium tracking-wide ${isDark ? 'text-[#C9A96E]/75' : 'text-[#6B1A3A]/65'}`}>
+          <div className={`text-xs md:text-[11px] font-medium tracking-wide ${isDark ? 'text-[#E0568F]/75' : 'text-[#8A2B57]/65'}`}>
             {caption}
           </div>
         </div>

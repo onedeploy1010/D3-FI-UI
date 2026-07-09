@@ -20,8 +20,8 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
       onClick={toggleTheme}
       className={`relative p-2 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
         theme === 'dark'
-          ? 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-[#C9A96E]'
-          : 'bg-[#6B1A3A]/[0.06] text-[#6B1A3A]/60 hover:bg-[#6B1A3A]/[0.1] hover:text-[#6B1A3A]'
+          ? 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-[#E0568F]'
+          : 'bg-[#8A2B57]/[0.06] text-[#8A2B57]/60 hover:bg-[#8A2B57]/[0.1] hover:text-[#8A2B57]'
       } ${className}`}
       aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
     >

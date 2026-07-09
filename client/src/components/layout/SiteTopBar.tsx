@@ -1,0 +1,54 @@
+import type { ReactNode } from 'react';
+import { D3Logo } from '@/components/D3Logo';
+import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
+import { cn } from '@/lib/utils';
+
+type SiteTopBarProps = {
+  lang: 'zh' | 'en';
+  onLangToggle: () => void;
+  logoTo?: string;
+  logoSize?: number;
+  leftSlot?: ReactNode;
+  rightSlot?: ReactNode;
+  onDisconnect?: () => void;
+  className?: string;
+};
+
+export function SiteTopBar({
+  lang,
+  onLangToggle,
+  logoTo = '/',
+  logoSize = 46,
+  leftSlot,
+  rightSlot,
+  onDisconnect,
+  className,
+}: SiteTopBarProps) {
+  return (
+    <header
+      className={cn(
+        'sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 safe-area-pt',
+        className,
+      )}
+    >
+      <div className="h-12 sm:h-11 flex items-center justify-between gap-2 page-px">
+        <div className="flex items-center gap-2 min-w-0">
+          {leftSlot}
+          <D3Logo size={logoSize} showText to={logoTo} className="min-w-0 shrink" />
+        </div>
+
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {rightSlot}
+          <button
+            type="button"
+            onClick={onLangToggle}
+            className="h-8 min-w-[2.25rem] px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
+          >
+            {lang === 'zh' ? 'EN' : '中文'}
+          </button>
+          <WalletConnectButton lang={lang} onDisconnect={onDisconnect} />
+        </div>
+      </div>
+    </header>
+  );
+}

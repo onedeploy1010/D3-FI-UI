@@ -59,13 +59,13 @@ export function VoteTabContent({
       <div className={glassCardClass('default', 'p-4')}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#2C2824]/35'}`}>Epoch #42</div>
-            <div className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>
-              <Clock size={12} className="text-[#C9A96E]" />
+            <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>Epoch #42</div>
+            <div className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              <Clock size={12} className="text-[#E0568F]" />
               {t ? '结算倒计时 5d 12h' : 'Settlement in 5d 12h'}
             </div>
           </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
+          <span className="text-[10px] px-2 py-1 rounded-full bg-[#E0568F]/10 text-[#E0568F] font-medium">
             {t ? '投票期' : 'Voting'}
           </span>
         </div>
@@ -74,9 +74,9 @@ export function VoteTabContent({
             <div key={phase} className="flex-1 text-center">
               <div className={cn(
                 'h-1 rounded-full mb-1',
-                i <= 1 ? 'bg-[#C9A96E]' : isDark ? 'bg-white/10' : 'bg-[#6B1A3A]/10',
+                i <= 1 ? 'bg-[#E0568F]' : isDark ? 'bg-white/10' : 'bg-[#8A2B57]/10',
               )} />
-              <div className={`text-[8px] ${i === 1 ? 'text-[#C9A96E] font-semibold' : isDark ? 'text-white/30' : 'text-[#2C2824]/30'}`}>
+              <div className={`text-[8px] ${i === 1 ? 'text-[#E0568F] font-semibold' : isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
                 {phase}
               </div>
             </div>
@@ -86,35 +86,35 @@ export function VoteTabContent({
 
       {/* veD3 power */}
       <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C9A96E]/40 to-transparent" />
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
         <div className="flex items-center justify-between mb-2">
-          <div className={`text-xs ${isDark ? 'text-white/40' : 'text-[#2C2824]/40'}`}>{t ? 'veD3 投票权' : 'veD3 Voting Power'}</div>
+          <div className={`text-xs ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t ? 'veD3 投票权' : 'veD3 Voting Power'}</div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-medium">{t ? '可投票' : 'Active'}</span>
             <GlassIconButton
               onClick={() => setRulesOpen(true)}
               aria-label="Open voting rules"
             >
-              <HelpCircle size={16} className={isDark ? 'text-white/40' : 'text-[#2C2824]/40'} />
+              <HelpCircle size={16} className={isDark ? 'text-white/40' : 'text-[#160510]/40'} />
             </GlassIconButton>
           </div>
         </div>
-        <div className="text-3xl font-bold font-heading" style={{ color: isDark ? '#C9A96E' : '#6B1A3A' }}>{totalPower.toLocaleString()} veD3</div>
+        <div className="text-3xl font-bold font-stat" style={{ color: isDark ? '#E0568F' : '#8A2B57' }}>{totalPower.toLocaleString()} veD3</div>
         <div className="flex gap-4 mt-2 text-[10px]">
-          <span className={isDark ? 'text-white/35' : 'text-[#2C2824]/35'}>{t ? '已分配' : 'Allocated'}: <span className="text-[#C9A96E] font-semibold">{used}</span></span>
-          <span className={isDark ? 'text-white/35' : 'text-[#2C2824]/35'}>{t ? '剩余' : 'Remaining'}: <span className={remaining < 0 ? 'text-red-400' : ''}>{remaining}</span></span>
+          <span className={isDark ? 'text-white/35' : 'text-[#160510]/35'}>{t ? '已分配' : 'Allocated'}: <span className="text-[#E0568F] font-semibold">{used}</span></span>
+          <span className={isDark ? 'text-white/35' : 'text-[#160510]/35'}>{t ? '剩余' : 'Remaining'}: <span className={remaining < 0 ? 'text-red-400' : ''}>{remaining}</span></span>
         </div>
-        <div className={`h-1.5 rounded-full mt-3 overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#6B1A3A]/[0.06]'}`}>
-          <div className="h-full rounded-full bg-gradient-to-r from-[#6B1A3A] to-[#C9A96E]" style={{ width: `${Math.min(100, (used / totalPower) * 100)}%` }} />
+        <div className={`h-1.5 rounded-full mt-3 overflow-hidden ${isDark ? 'bg-white/[0.06]' : 'bg-[#8A2B57]/[0.06]'}`}>
+          <div className="h-full rounded-full bg-gradient-to-r from-[#8A2B57] to-[#E0568F]" style={{ width: `${Math.min(100, (used / totalPower) * 100)}%` }} />
         </div>
-        <div className={`mt-3 text-[10px] ${isDark ? 'text-white/35' : 'text-[#2C2824]/35'}`}>
+        <div className={`mt-3 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
           {t ? '我的权重分红率（按项目）= 我对该项目的票数 ÷ 该项目总票数' : 'Your rate per project = your votes ÷ project total votes'}
         </div>
       </div>
 
       {/* Vote allocation by project */}
       <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#2C2824]/40'}`}>
+        <div className={`text-xs font-bold uppercase tracking-wider mb-4 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? '项目投票' : 'Project Votes'}
         </div>
         <div className="space-y-4">
@@ -129,24 +129,24 @@ export function VoteTabContent({
                 id={`vote-project-${project.id}`}
                 className={cn(
                   'ios-glass-inset p-4 transition-shadow',
-                  myVotes > 0 && 'ring-1 ring-[#C9A96E]/20',
-                  highlightProject === project.id && 'ring-2 ring-[#C9A96E]/50',
+                  myVotes > 0 && 'ring-1 ring-[#E0568F]/20',
+                  highlightProject === project.id && 'ring-2 ring-[#E0568F]/50',
                 )}
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
-                    <span className={`text-sm font-semibold block ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>
+                    <span className={`text-sm font-semibold block ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                       {t ? project.nameZh : project.name}
                     </span>
-                    <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#2C2824]/35'}`}>
+                    <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
                       Gauge · {project.gauge}
                     </span>
                   </div>
-                  <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-[#C9A96E]' : 'text-[#6B1A3A]'}`}>
+                  <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
                     {myVotes} veD3
                   </span>
                 </div>
-                <div className={`text-[10px] mb-2 ${isDark ? 'text-white/35' : 'text-[#2C2824]/35'}`}>
+                <div className={`text-[10px] mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
                   {t ? '我的权重分红率' : 'My dividend rate'}:{' '}
                   <span className="text-emerald-500 font-semibold">{weightRate.toFixed(3)}%</span>
                 </div>
@@ -157,9 +157,9 @@ export function VoteTabContent({
                   step={50}
                   value={myVotes}
                   onChange={(e) => setAllocation(project.id, Number(e.target.value))}
-                  className="w-full accent-[#6B1A3A] h-1"
+                  className="w-full accent-[#8A2B57] h-1"
                 />
-                <div className={`flex flex-wrap gap-x-3 mt-2 text-[10px] ${isDark ? 'text-white/40' : 'text-[#2C2824]/40'}`}>
+                <div className={`flex flex-wrap gap-x-3 mt-2 text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                   <span>{t ? '贿赂池' : 'Bribe'}: {project.bribeAmount}</span>
                   <span>{t ? '每票' : 'Per vote'}: {project.perVote}</span>
                   <span>{t ? '总票' : 'Total'}: {project.totalVotes}</span>
@@ -188,7 +188,7 @@ export function VoteTabContent({
 
       {/* Reward estimate */}
       <div className={glassCardClass('default', 'p-5')}>
-        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#2C2824]/40'}`}>
+        <div className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/40'}`}>
           {t ? '本期收益预估（按权重）' : 'Epoch Reward Est. (by weight)'}
         </div>
         <div className="space-y-2">
@@ -199,14 +199,14 @@ export function VoteTabContent({
           ].map((item) => (
             <div key={item.label} className="flex items-start gap-3 py-2 border-b last:border-0 border-white/5">
               <div className="ios-glass-inset w-8 h-8 flex items-center justify-center shrink-0">
-                <item.icon size={14} className="text-[#C9A96E]" />
+                <item.icon size={14} className="text-[#E0568F]" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#2C2824]'}`}>{item.label}</span>
+                  <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-[#160510]'}`}>{item.label}</span>
                   <span className="text-xs font-semibold text-emerald-500">{item.value}</span>
                 </div>
-                <p className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#2C2824]/35'}`}>{item.desc}</p>
+                <p className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{item.desc}</p>
               </div>
             </div>
           ))}

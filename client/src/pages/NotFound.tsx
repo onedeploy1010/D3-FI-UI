@@ -18,8 +18,8 @@ export default function NotFound() {
       <Card
         className={`w-full max-w-lg shadow-lg backdrop-blur-sm ${
           isDark
-            ? "border border-[#C9A96E]/10 bg-dark-modal"
-            : "border border-[#9B5A6E]/10 bg-light-modal"
+            ? "border border-[#E0568F]/10 bg-dark-modal"
+            : "border border-[#B23A6E]/10 bg-light-modal"
         }`}
       >
         <CardContent className="pt-8 pb-8 text-center">
@@ -30,13 +30,13 @@ export default function NotFound() {
             </div>
           </div>
 
-          <h1 className={`text-3xl sm:text-4xl font-bold mb-2 ${isDark ? "text-white" : "text-[#6B1A3A]"}`}>404</h1>
+          <h1 className={`text-3xl sm:text-4xl font-bold mb-2 ${isDark ? "text-white" : "text-[#8A2B57]"}`}>404</h1>
 
-          <h2 className={`text-lg sm:text-xl font-semibold mb-4 ${isDark ? "text-white/80" : "text-[#2C2824]/80"}`}>
+          <h2 className={`text-lg sm:text-xl font-semibold mb-4 ${isDark ? "text-white/80" : "text-[#160510]/80"}`}>
             Page Not Found
           </h2>
 
-          <p className={`mb-8 leading-relaxed text-sm sm:text-base ${isDark ? "text-white/45" : "text-[#7A726C]"}`}>
+          <p className={`mb-8 leading-relaxed text-sm sm:text-base ${isDark ? "text-white/45" : "text-[#5E1A3C]"}`}>
             Sorry, the page you are looking for doesn't exist.
             <br />
             It may have been moved or deleted.
@@ -46,7 +46,7 @@ export default function NotFound() {
             <Button
               onClick={handleGoHome}
               className="text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg w-full sm:w-auto"
-              style={{ background: "linear-gradient(135deg, #6B1A3A, #7B2D8B)" }}
+              style={{ background: "linear-gradient(135deg, #8A2B57, #5E1A3C)" }}
             >
               <Home className="w-4 h-4 mr-2" />
               Go Home

@@ -81,7 +81,7 @@ function FooterLinkSection({
       <h4
         className={`font-medium tracking-wide uppercase mb-2 ${
           compact ? 'text-[9px]' : 'text-[10px]'
-        } ${isDark ? 'text-[#C9A96E]/45' : 'text-[#6B1A3A]/40'}`}
+        } ${isDark ? 'text-[#E0568F]/45' : 'text-[#8A2B57]/40'}`}
       >
         {title}
       </h4>
@@ -96,8 +96,8 @@ function FooterLinkSection({
                   compact ? 'text-[10px]' : 'text-[11px]'
                 } ${
                   isDark
-                    ? 'text-white/35 hover:text-[#C9A96E]/80'
-                    : 'text-[#2C2824]/40 hover:text-[#6B1A3A]/75'
+                    ? 'text-white/35 hover:text-[#E0568F]/80'
+                    : 'text-[#160510]/40 hover:text-[#8A2B57]/75'
                 }`}
               >
                 <Icon size={compact ? 10 : 11} className="shrink-0 opacity-50 group-hover:opacity-80" />
@@ -157,10 +157,10 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
             className="max-w-5xl mx-auto rounded-3xl relative overflow-hidden px-6 py-10 md:px-12 md:py-12"
             style={{
               background: isDark
-                ? 'linear-gradient(135deg, rgba(107,26,58,0.45) 0%, rgba(20,13,24,0.9) 50%, rgba(107,26,58,0.25) 100%)'
-                : 'linear-gradient(135deg, rgba(107,26,58,0.08) 0%, rgba(250,247,244,0.95) 50%, rgba(201,176,138,0.12) 100%)',
-              border: isDark ? '1px solid rgba(201,169,110,0.18)' : '1px solid rgba(155,90,110,0.12)',
-              boxShadow: isDark ? '0 32px 64px rgba(0,0,0,0.35)' : '0 24px 48px rgba(155,90,110,0.08)',
+                ? 'linear-gradient(135deg, rgba(138,43,87,0.45) 0%, rgba(20,13,24,0.9) 50%, rgba(138,43,87,0.25) 100%)'
+                : 'linear-gradient(135deg, rgba(138,43,87,0.08) 0%, rgba(250,247,244,0.95) 50%, rgba(224,86,143,0.12) 100%)',
+              border: isDark ? '1px solid rgba(224,86,143,0.18)' : '1px solid rgba(178,58,110,0.12)',
+              boxShadow: isDark ? '0 32px 64px rgba(0,0,0,0.35)' : '0 24px 48px rgba(178,58,110,0.08)',
             }}
           >
             <div className="absolute -right-16 -top-16 w-56 h-56 opacity-20 pointer-events-none">
@@ -172,15 +172,15 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
 
             <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="max-w-md">
-                <h3 className={`text-xl md:text-2xl font-bold font-heading mb-2 ${isDark ? 'text-white' : 'text-[#6B1A3A]'}`}>
+                <h3 className={`text-xl md:text-2xl font-bold font-heading mb-2 ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>
                   {t.ctaTitle}
                 </h3>
-                <p className={`text-sm leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#2C2824]/50'}`}>{t.ctaSub}</p>
+                <p className={`text-sm leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{t.ctaSub}</p>
               </div>
               <button
                 onClick={() => navigate('/portal')}
                 className="group shrink-0 px-7 py-4 rounded-2xl font-semibold text-white text-sm shadow-xl active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                style={{ background: 'linear-gradient(135deg, #6B1A3A, #7B2D8B)' }}
+                style={{ background: 'linear-gradient(135deg, #8A2B57, #5E1A3C)' }}
               >
                 {t.ctaBtn}
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
@@ -191,7 +191,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
       )}
 
       <div
-        className={`relative border-t ${isDark ? 'border-[#C9A96E]/[0.05]' : 'border-[#6B1A3A]/[0.05]'}`}
+        className={`relative border-t ${isDark ? 'border-[#E0568F]/[0.05]' : 'border-[#8A2B57]/[0.05]'}`}
         style={{
           background: isDark ? 'rgba(13,8,16,0.35)' : 'rgba(250,247,244,0.6)',
         }}
@@ -199,7 +199,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
         {!isCompact && (
           <div
             className="absolute top-0 left-0 right-0 h-px"
-            style={{ background: 'linear-gradient(90deg, transparent 5%, #C9A96E 50%, transparent 95%)' }}
+            style={{ background: 'linear-gradient(90deg, transparent 5%, #E0568F 50%, transparent 95%)' }}
           />
         )}
 
@@ -216,16 +216,16 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
                 size={isCompact ? 28 : 38}
                 showText
                 to="/"
-                textClassName={`${isCompact ? 'text-sm' : 'text-lg'} ${isDark ? 'text-white/90' : 'text-[#6B1A3A]/90'}`}
+                textClassName={`${isCompact ? 'text-sm' : 'text-lg'} ${isDark ? 'text-white/90' : 'text-[#8A2B57]/90'}`}
               />
               {!isCompact && (
                 <>
-                  <p className={`mt-3 text-xs leading-relaxed max-w-xs ${isDark ? 'text-white/30' : 'text-[#2C2824]/35'}`}>
+                  <p className={`mt-3 text-xs leading-relaxed max-w-xs ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
                     {t.tagline}
                   </p>
                   <div
                     className={`inline-flex items-center gap-1.5 mt-3 px-2 py-1 rounded-full text-[9px] font-medium tracking-wide uppercase ${
-                      isDark ? 'text-[#C9A96E]/50' : 'text-[#6B1A3A]/45'
+                      isDark ? 'text-[#E0568F]/50' : 'text-[#8A2B57]/45'
                     }`}
                   >
                     <span className="w-1 h-1 rounded-full bg-emerald-400/80" />
@@ -250,10 +250,10 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
 
           <div
             className={`${isCompact ? 'mt-5 pt-4' : 'mt-8 sm:mt-10 pt-5'} flex flex-col sm:flex-row items-center justify-between gap-3 border-t ${
-              isDark ? 'border-[#C9A96E]/[0.05]' : 'border-[#6B1A3A]/[0.05]'
+              isDark ? 'border-[#E0568F]/[0.05]' : 'border-[#8A2B57]/[0.05]'
             }`}
           >
-            <p className={`text-[10px] ${isDark ? 'text-white/20' : 'text-[#2C2824]/25'}`}>{t.rights}</p>
+            <p className={`text-[10px] ${isDark ? 'text-white/20' : 'text-[#160510]/25'}`}>{t.rights}</p>
             <div className="flex items-center gap-1.5">
               {[
                 { Icon: Twitter, label: 'Twitter' },
@@ -267,8 +267,8 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
                   aria-label={label}
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                     isDark
-                      ? 'text-white/25 hover:text-[#C9A96E]/70'
-                      : 'text-[#2C2824]/30 hover:text-[#6B1A3A]/70'
+                      ? 'text-white/25 hover:text-[#E0568F]/70'
+                      : 'text-[#160510]/30 hover:text-[#8A2B57]/70'
                   }`}
                 >
                   <Icon size={13} />
