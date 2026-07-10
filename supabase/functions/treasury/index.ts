@@ -7,6 +7,10 @@ import {
   isIntentCredited,
   reportDepositTx,
 } from '../_shared/deposit.ts';
+import {
+  isYieldWithdrawDemoRequest,
+  requestPartnerYieldWithdraw,
+} from '../_shared/partnerYieldWithdraw.ts';
 import { runTreasuryPipeline } from '../_shared/sweep.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { isTurnkeyConfigured, treasuryAddressFromEnv, treasuryWalletIdFromEnv, isTurnkeyConsensusError } from '../_shared/turnkey.ts';
@@ -135,6 +139,17 @@ Deno.serve(async (req) => {
 
     const wallet = requireWallet(req);
     const demoMode = isDemoModeRequest(req);
+
+    if (req.method === 'POST' && path === '/partner/yield-withdraw') {
+      const body = await readJson<{ amountUsdt: number }>(req);
+      if (!body.amountUsdt || body.amountUsdt <= 0) {
+        throw new HttpError(400, 'amountUsdt required');
+      }
+      const result = await requestPartnerYieldWithdraw(sb, wallet, body.amountUsdt, {
+        demoMode: isYieldWithdrawDemoRequest(req),
+      });
+      return jsonResponse({ ok: true, ...result });
+    }
 
     if (req.method === 'POST' && path === '/partner/join') {
       const body = await readJson<{ amountUsdt?: number }>(req);

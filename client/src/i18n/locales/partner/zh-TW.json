@@ -92,6 +92,8 @@
   "assets.flashSwapHint": "将可闪兑的静态收益提现至钱包，闪兑后即時到账。",
   "assets.flashSwapAmount": "闪兑金额",
   "assets.confirmFlashSwap": "确认闪兑提现",
+  "assets.flashWithdrawSuccess": "閃兌提現已提交，USDT 將轉入您的錢包",
+  "assets.flashWithdrawFailed": "閃兌提現失敗，請稍後重試",
   "assets.withdrawHist": "收益提现",
   "assets.withdrawn": "已提现",
   "assets.dailyUsdt": "日返息",

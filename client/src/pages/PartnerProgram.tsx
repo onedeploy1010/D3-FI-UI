@@ -63,6 +63,7 @@ export default function PartnerProgram() {
     stakeSd3,
     transferSd3,
     withdrawYield,
+    yieldWithdrawing,
     submitPartnerSubsidy,
     submitMarketSubsidy,
     minCrowdfundUsdt,
@@ -79,6 +80,21 @@ export default function PartnerProgram() {
       setTab('home');
     }
   }, [tab, state.isPartner]);
+
+  const handleWithdrawYield = useCallback(
+    async (amount: number) => {
+      const ok = await withdrawYield(amount);
+      if (ok) {
+        toast.success(p('assets.flashWithdrawSuccess'));
+      } else {
+        toast.error(partnerPaymentErrorTitle(p), {
+          description: p('assets.flashWithdrawFailed'),
+        });
+      }
+      return ok;
+    },
+    [withdrawYield, p],
+  );
 
   const notifyPayError = useCallback(
     (e: unknown) => {
@@ -201,7 +217,8 @@ export default function PartnerProgram() {
                   state={state}
                   onStakeSd3={stakeSd3}
                   onTransferSd3={transferSd3}
-                  onWithdrawYield={withdrawYield}
+                  onWithdrawYield={handleWithdrawYield}
+                  yieldWithdrawing={yieldWithdrawing}
                   onPartnerSubsidy={submitPartnerSubsidy}
                   onMarketSubsidy={submitMarketSubsidy}
                 />

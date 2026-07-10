@@ -92,6 +92,8 @@
   "assets.flashSwapHint": "Withdraw static yield to your wallet. Funds arrive instantly after swap.",
   "assets.flashSwapAmount": "Swap amount",
   "assets.confirmFlashSwap": "Confirm withdrawal",
+  "assets.flashWithdrawSuccess": "Withdrawal submitted — USDT will arrive in your wallet",
+  "assets.flashWithdrawFailed": "Withdrawal failed. Please try again later.",
   "assets.withdrawHist": "Yield withdrawal",
   "assets.withdrawn": "Withdrawn",
   "assets.dailyUsdt": "일일 USDT",

@@ -2,7 +2,14 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { writeAuditLog } from './audit.ts';
 
 type LedgerInput = {
-  ledgerType: 'deposit_credit' | 'sweep_to_settlement' | 'settlement_to_treasury' | 'adjustment' | 'refund';
+  ledgerType:
+    | 'deposit_credit'
+    | 'sweep_to_settlement'
+    | 'settlement_to_treasury'
+    | 'settlement_to_flash_swap'
+    | 'yield_flash_withdraw'
+    | 'adjustment'
+    | 'refund';
   walletAddress?: string | null;
   batchId?: string | null;
   walletId?: string | null;

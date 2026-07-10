@@ -11,11 +11,13 @@ import {
   getErc20Balance,
   parseUsdtAmount,
   sendErc20Transfer,
+  settlementFlashSwapSplitBps,
   settlementToTreasuryMinUsdt,
   walletContextFromDbRow,
 } from './turnkey.ts';
 import {
   ensureInfrastructureWallets,
+  getFlashSwapWallet,
   getGasWallet,
   getTreasuryWallet,
   getWalletById,
@@ -52,7 +54,15 @@ type SweepJob = {
   intent_id: string | null;
   token_contract: string;
   tx_hash?: string | null;
+  reference_id?: string | null;
 };
+
+const SETTLEMENT_OUTFLOW_JOB_TYPES = ['settlement_to_treasury', 'settlement_to_flash_swap'] as const;
+const PARTIAL_SWEEP_JOB_TYPES = [
+  'settlement_to_treasury',
+  'settlement_to_flash_swap',
+  'yield_flash_withdraw',
+] as const;
 
 async function waitForTxConfirmation(txHash: string, maxAttempts = 30): Promise<boolean> {
   const { getBscPublicClient } = await import('./turnkey.ts');
@@ -121,6 +131,67 @@ async function finalizeSweepJob(
       txHash,
       referenceId: job.id,
     });
+  } else if (job.job_type === 'settlement_to_flash_swap') {
+    await postLedgerEntry(sb, {
+      ledgerType: 'settlement_to_flash_swap',
+      walletAddress: null,
+      walletId: job.from_wallet_id,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: formatUsdtAmount(sweepAmount),
+      direction: 'debit',
+      txHash,
+      referenceId: job.id,
+    });
+  } else if (job.job_type === 'yield_flash_withdraw') {
+    await postLedgerEntry(sb, {
+      ledgerType: 'yield_flash_withdraw',
+      walletAddress: job.to_address,
+      walletId: job.from_wallet_id,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: formatUsdtAmount(sweepAmount),
+      direction: 'debit',
+      txHash,
+      referenceId: job.reference_id ?? job.id,
+    });
+
+    if (job.reference_id) {
+      const amountUsdt = Number(formatUsdtAmount(sweepAmount));
+      const now = new Date().toISOString();
+
+      const { data: withdrawal } = await sb
+        .from('partner_yield_withdrawals')
+        .select('wallet_address, amount_usdt, status')
+        .eq('id', job.reference_id)
+        .maybeSingle();
+
+      await sb
+        .from('partner_yield_withdrawals')
+        .update({
+          status: 'confirmed',
+          tx_hash: txHash,
+          updated_at: now,
+        })
+        .eq('id', job.reference_id);
+
+      if (withdrawal && withdrawal.status !== 'confirmed') {
+        const wallet = withdrawal.wallet_address as string;
+        const { data: acct } = await sb
+          .from('partner_accounts')
+          .select('pending_usdt_yield')
+          .eq('wallet_address', wallet)
+          .maybeSingle();
+
+        const pending = Number(acct?.pending_usdt_yield ?? 0);
+        const nextPending = Math.max(0, Math.round((pending - amountUsdt) * 10000) / 10000);
+
+        await sb
+          .from('partner_accounts')
+          .update({ pending_usdt_yield: nextPending, updated_at: now })
+          .eq('wallet_address', wallet);
+      }
+    }
   }
 
   await writeAuditLog(sb, {
@@ -212,7 +283,14 @@ async function executeSweepJob(sb: Sb, job: SweepJob, gasWallet: WalletRow | nul
     throw new Error('No USDT balance to sweep');
   }
 
-  const sweepAmount = onChainBalance;
+  const requestedAmount = parseUsdtAmount(Number(job.amount));
+  const sweepAmount = PARTIAL_SWEEP_JOB_TYPES.includes(job.job_type as typeof PARTIAL_SWEEP_JOB_TYPES[number])
+    ? (requestedAmount > onChainBalance ? onChainBalance : requestedAmount)
+    : onChainBalance;
+
+  if (sweepAmount === 0n) {
+    throw new Error('Sweep amount is zero');
+  }
 
   await sb.from('sweep_jobs').update({ status: 'signing', updated_at: new Date().toISOString() }).eq('id', job.id);
 
@@ -278,18 +356,32 @@ export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: 
         entityId: job.id,
         newValue: { error: message, retry },
       });
+
+      if (job.job_type === 'yield_flash_withdraw' && job.reference_id) {
+        const wStatus = status === 'manual_review' ? 'manual_review' : 'failed';
+        await sb
+          .from('partner_yield_withdrawals')
+          .update({
+            status: wStatus,
+            error_message: message.slice(0, 500),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', job.reference_id);
+      }
     }
   }
 
   return { processed, failed };
 }
 
-export async function enqueueSettlementToTreasury(sb: Sb): Promise<number> {
+export async function enqueueSettlementToTreasury(sb: Sb): Promise<{ treasury: number; flashSwap: number }> {
   const treasury = await getTreasuryWallet(sb);
-  if (!treasury) return 0;
+  if (!treasury) return { treasury: 0, flashSwap: 0 };
 
+  const flashSwap = await getFlashSwapWallet(sb);
   const minUsdt = settlementToTreasuryMinUsdt();
   const minWei = parseUsdtAmount(minUsdt);
+  const flashBps = settlementFlashSwapSplitBps();
 
   const { data: settlements } = await sb
     .from('wallet_accounts')
@@ -297,9 +389,11 @@ export async function enqueueSettlementToTreasury(sb: Sb): Promise<number> {
     .eq('wallet_type', 'settlement')
     .eq('status', 'active');
 
-  if (!settlements?.length) return 0;
+  if (!settlements?.length) return { treasury: 0, flashSwap: 0 };
 
-  let enqueued = 0;
+  let enqueuedTreasury = 0;
+  let enqueuedFlash = 0;
+
   for (const settlement of settlements as WalletRow[]) {
     const balance = await getErc20Balance(BSC_USDT_CONTRACT, settlement.address);
     if (balance < minWei) continue;
@@ -308,28 +402,48 @@ export async function enqueueSettlementToTreasury(sb: Sb): Promise<number> {
       .from('sweep_jobs')
       .select('id')
       .eq('from_wallet_id', settlement.id)
-      .eq('job_type', 'settlement_to_treasury')
+      .in('job_type', [...SETTLEMENT_OUTFLOW_JOB_TYPES])
       .in('status', ['queued', 'signing', 'broadcasted'])
       .maybeSingle();
     if (inflight) continue;
 
-    const amount = formatUsdtAmount(balance);
-    const { error } = await sb.from('sweep_jobs').insert({
-      from_wallet_id: settlement.id,
-      from_address: settlement.address,
-      to_wallet_id: treasury.id,
-      to_address: treasury.address,
-      chain_id: BSC_CHAIN_ID,
-      token_symbol: BSC_USDT_SYMBOL,
-      token_contract: BSC_USDT_CONTRACT,
-      amount,
-      job_type: 'settlement_to_treasury',
-      status: 'queued',
-    });
-    if (!error) enqueued++;
+    const flashAmount = flashSwap && flashBps > 0 ? (balance * BigInt(flashBps)) / 10000n : 0n;
+    const treasuryAmount = balance - flashAmount;
+
+    if (treasuryAmount > 0n) {
+      const { error } = await sb.from('sweep_jobs').insert({
+        from_wallet_id: settlement.id,
+        from_address: settlement.address,
+        to_wallet_id: treasury.id,
+        to_address: treasury.address,
+        chain_id: BSC_CHAIN_ID,
+        token_symbol: BSC_USDT_SYMBOL,
+        token_contract: BSC_USDT_CONTRACT,
+        amount: formatUsdtAmount(treasuryAmount),
+        job_type: 'settlement_to_treasury',
+        status: 'queued',
+      });
+      if (!error) enqueuedTreasury++;
+    }
+
+    if (flashSwap && flashAmount > 0n) {
+      const { error } = await sb.from('sweep_jobs').insert({
+        from_wallet_id: settlement.id,
+        from_address: settlement.address,
+        to_wallet_id: flashSwap.id,
+        to_address: flashSwap.address,
+        chain_id: BSC_CHAIN_ID,
+        token_symbol: BSC_USDT_SYMBOL,
+        token_contract: BSC_USDT_CONTRACT,
+        amount: formatUsdtAmount(flashAmount),
+        job_type: 'settlement_to_flash_swap',
+        status: 'queued',
+      });
+      if (!error) enqueuedFlash++;
+    }
   }
 
-  return enqueued;
+  return { treasury: enqueuedTreasury, flashSwap: enqueuedFlash };
 }
 
 export async function runTreasuryPipeline(
@@ -340,6 +454,7 @@ export async function runTreasuryPipeline(
   processedSweeps: number;
   failedSweeps: number;
   enqueuedTreasury: number;
+  enqueuedFlashSwap: number;
   monitoredCredits: number;
 }> {
   const { scanPendingDeposits, promoteDetectedDeposits } = await import('./monitor.ts');
@@ -352,14 +467,15 @@ export async function runTreasuryPipeline(
     : await scanPendingDeposits(sb, opts.maxMonitor ?? 10);
   const enqueuedDeposits = await enqueueDepositSweeps(sb);
   const sweepResult = await processSweepJobs(sb, opts.maxSweepJobs ?? 5);
-  const enqueuedTreasury = await enqueueSettlementToTreasury(sb);
+  const settlementEnqueue = await enqueueSettlementToTreasury(sb);
   const treasurySweep = await processSweepJobs(sb, opts.maxSweepJobs ?? 3);
 
   return {
     enqueuedDeposits,
     processedSweeps: sweepResult.processed + treasurySweep.processed,
     failedSweeps: sweepResult.failed + treasurySweep.failed,
-    enqueuedTreasury,
+    enqueuedTreasury: settlementEnqueue.treasury,
+    enqueuedFlashSwap: settlementEnqueue.flashSwap,
     monitoredCredits: promotedCredits + monitoredCredits,
     promotedCredits,
   };

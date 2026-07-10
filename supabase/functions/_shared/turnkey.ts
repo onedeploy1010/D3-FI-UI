@@ -605,4 +605,22 @@ export function settlementToTreasuryMinUsdt(): number {
   return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
+/** Basis points (0–10000) of settlement balance routed to the flash-swap wallet. Default 10%. */
+export function settlementFlashSwapSplitBps(): number {
+  const pct = Deno.env.get('SETTLEMENT_TO_FLASH_SWAP_PCT');
+  if (pct) {
+    const n = Number(pct);
+    if (Number.isFinite(n) && n >= 0 && n <= 100) return Math.round(n * 100);
+  }
+  const bps = Deno.env.get('SETTLEMENT_TO_FLASH_SWAP_BPS');
+  const n = bps ? Number(bps) : 1000;
+  return Number.isFinite(n) && n >= 0 && n <= 10000 ? Math.floor(n) : 1000;
+}
+
+export function flashSwapWalletFromEnv(): { address: string; walletId?: string } | null {
+  const address = Deno.env.get('TURNKEY_FLASH_SWAP_WALLET_ADDRESS')?.trim();
+  if (!address) return null;
+  return { address, walletId: Deno.env.get('TURNKEY_FLASH_SWAP_WALLET_ID')?.trim() };
+}
+
 export { BSC_CHAIN_ID, MIN_GAS_BALANCE_WEI, GAS_TOP_UP_WEI };

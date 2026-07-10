@@ -33,13 +33,15 @@ export function PartnerAssetsTab({
   onWithdrawYield,
   onPartnerSubsidy,
   onMarketSubsidy,
+  yieldWithdrawing = false,
 }: {
   lang: AppLang;
   isDark: boolean;
   state: PartnerState;
   onStakeSd3: (amount: number) => void;
   onTransferSd3: (to: string, amount: number) => void;
-  onWithdrawYield: (amount: number) => boolean;
+  onWithdrawYield: (amount: number) => Promise<boolean>;
+  yieldWithdrawing?: boolean;
   onPartnerSubsidy: (amount: number, purpose: string) => boolean;
   onMarketSubsidy: (amount: number, purpose: string) => boolean;
 }) {
@@ -111,11 +113,20 @@ export function PartnerAssetsTab({
     }
   };
 
-  const submitFlashSwap = () => {
+  const [flashSubmitting, setFlashSubmitting] = useState(false);
+
+  const submitFlashSwap = async () => {
     const n = clampAmount(flashAmount, yieldBalances.claimable);
-    if (n > 0 && onWithdrawYield(n)) {
-      setFlashAmount('');
-      setFlashOpen(false);
+    if (n <= 0 || flashSubmitting || yieldWithdrawing) return;
+    setFlashSubmitting(true);
+    try {
+      const ok = await onWithdrawYield(n);
+      if (ok) {
+        setFlashAmount('');
+        setFlashOpen(false);
+      }
+    } finally {
+      setFlashSubmitting(false);
     }
   };
 
@@ -485,8 +496,8 @@ export function PartnerAssetsTab({
         </div>
         <GlassButton
           className="w-full !py-3.5 flex items-center justify-center gap-2"
-          disabled={yieldBalances.claimable <= 0}
-          onClick={submitFlashSwap}
+          disabled={yieldBalances.claimable <= 0 || flashSubmitting || yieldWithdrawing}
+          onClick={() => void submitFlashSwap()}
         >
           <ArrowRightLeft size={14} /> {p('assets.confirmFlashSwap')}
         </GlassButton>

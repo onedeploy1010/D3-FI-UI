@@ -8,6 +8,7 @@ import {
 } from './tokens.ts';
 import {
   createManagedWallet,
+  flashSwapWalletFromEnv,
   gasWalletFromEnv,
   isTurnkeyConsensusError,
   settlementWalletCount,
@@ -36,7 +37,7 @@ async function nextWalletIndex(sb: Sb): Promise<number> {
 async function insertWalletAccount(
   sb: Sb,
   input: {
-    walletType: 'deposit' | 'settlement' | 'treasury' | 'gas';
+    walletType: 'deposit' | 'settlement' | 'treasury' | 'gas' | 'flash_swap';
     label: string;
     status: 'available' | 'active' | 'assigned';
     turnkeyWalletId: string;
@@ -80,7 +81,7 @@ async function insertWalletAccount(
 
 async function createAndRegisterWallet(
   sb: Sb,
-  walletType: 'settlement' | 'gas',
+  walletType: 'settlement' | 'gas' | 'flash_swap',
   label: string,
   status: 'available' | 'active',
 ): Promise<WalletRow> {
@@ -102,7 +103,7 @@ async function createAndRegisterWallet(
 
 async function registerExternalWallet(
   sb: Sb,
-  walletType: 'settlement' | 'gas' | 'treasury',
+  walletType: 'settlement' | 'gas' | 'treasury' | 'flash_swap',
   address: string,
   turnkeyWalletId: string | undefined,
   label: string,
@@ -129,10 +130,11 @@ async function registerExternalWallet(
 const CONSENSUS_HELP =
   'Turnkey Policy blocked automatic wallet creation (CONSENSUS_NEEDED). Create wallets in Turnkey Dashboard, then set secrets: TURNKEY_SETTLEMENT_ADDRESSES, TURNKEY_SETTLEMENT_WALLET_IDS, TURNKEY_GAS_WALLET_ADDRESS, TURNKEY_GAS_WALLET_ID. Or add a Policy allowing your backend API user to create wallets.';
 
-/** Ensure settlement pool, gas wallet, and treasury registry exist. */
+/** Ensure settlement pool, gas wallet, flash-swap wallet, and treasury registry exist. */
 export async function ensureInfrastructureWallets(sb: Sb): Promise<{
   settlementCount: number;
   gasWallet: WalletRow | null;
+  flashSwapWallet: WalletRow | null;
   treasuryWallet: WalletRow | null;
   created: string[];
   warnings: string[];
@@ -209,6 +211,43 @@ export async function ensureInfrastructureWallets(sb: Sb): Promise<{
     }
   }
 
+  let flashSwapWallet: WalletRow | null = null;
+  const { data: flashRows } = await sb
+    .from('wallet_accounts')
+    .select('id, address, wallet_type, status, turnkey_wallet_id, metadata')
+    .eq('wallet_type', 'flash_swap')
+    .in('status', ['active', 'available'])
+    .limit(1);
+
+  if (flashRows && flashRows.length > 0) {
+    flashSwapWallet = flashRows[0] as WalletRow;
+  } else {
+    const envFlash = flashSwapWalletFromEnv();
+    if (envFlash) {
+      flashSwapWallet = await registerExternalWallet(
+        sb,
+        'flash_swap',
+        envFlash.address,
+        envFlash.walletId,
+        'D3-FlashSwap',
+      );
+      created.push(`flash_swap:${flashSwapWallet.address}`);
+    } else {
+      try {
+        flashSwapWallet = await createAndRegisterWallet(sb, 'flash_swap', 'D3-FlashSwap', 'active');
+        created.push(`flash_swap:${flashSwapWallet.address}`);
+      } catch (e) {
+        if (isTurnkeyConsensusError(e)) {
+          warnings.push(
+            `${CONSENSUS_HELP} Or set TURNKEY_FLASH_SWAP_WALLET_ADDRESS / TURNKEY_FLASH_SWAP_WALLET_ID.`,
+          );
+        } else {
+          throw e;
+        }
+      }
+    }
+  }
+
   let treasuryWallet: WalletRow | null = null;
   const treasuryAddress = treasuryAddressFromEnv();
   const treasuryWalletId = treasuryWalletIdFromEnv();
@@ -271,6 +310,7 @@ export async function ensureInfrastructureWallets(sb: Sb): Promise<{
   return {
     settlementCount: settlementRows.length,
     gasWallet,
+    flashSwapWallet,
     treasuryWallet,
     created,
     warnings,
@@ -322,6 +362,17 @@ export async function getGasWallet(sb: Sb): Promise<WalletRow | null> {
   return (data as WalletRow | null) ?? null;
 }
 
+export async function getFlashSwapWallet(sb: Sb): Promise<WalletRow | null> {
+  const { data } = await sb
+    .from('wallet_accounts')
+    .select('id, address, wallet_type, status, turnkey_wallet_id, metadata')
+    .eq('wallet_type', 'flash_swap')
+    .in('status', ['active', 'available'])
+    .limit(1)
+    .maybeSingle();
+  return (data as WalletRow | null) ?? null;
+}
+
 export async function getTreasuryWallet(sb: Sb): Promise<WalletRow | null> {
   const { data } = await sb
     .from('wallet_accounts')
@@ -347,7 +398,7 @@ export async function getInfrastructureSummary(sb: Sb) {
   const { data: wallets } = await sb
     .from('wallet_accounts')
     .select('wallet_type, status')
-    .in('wallet_type', ['deposit', 'deposit_hd', 'settlement', 'treasury', 'gas']);
+    .in('wallet_type', ['deposit', 'deposit_hd', 'settlement', 'treasury', 'gas', 'flash_swap']);
 
   const counts: Record<string, number> = {};
   for (const w of wallets ?? []) {

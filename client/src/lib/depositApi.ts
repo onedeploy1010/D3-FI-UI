@@ -103,6 +103,21 @@ export function demoCreditDeposit(wallet: string, intentId: string) {
   });
 }
 
+export type YieldWithdrawResponse = {
+  ok: boolean;
+  withdrawalId: string;
+  amountUsdt: number;
+  status: string;
+  txHash?: string | null;
+};
+
+export function withdrawPartnerYield(wallet: string, amountUsdt: number) {
+  return treasuryFetch<YieldWithdrawResponse>(wallet, '/partner/yield-withdraw', {
+    method: 'POST',
+    body: JSON.stringify({ amountUsdt }),
+  });
+}
+
 export async function waitForDepositCredited(
   wallet: string,
   intentId: string,

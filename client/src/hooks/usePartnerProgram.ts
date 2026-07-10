@@ -10,7 +10,7 @@ import {
   applyPartnerSubsidy,
   applySd3Stake,
   applySd3Transfer,
-  applyYieldWithdraw,
+  computeYieldBalances,
   DEMO_PARTNER_STATE,
   GUEST_PARTNER_STATE,
   hydratePartnerStateFromApi,
@@ -27,6 +27,7 @@ import {
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
 import { fetchUnionProfile } from '@/lib/unionApi';
+import { withdrawPartnerYield } from '@/lib/depositApi';
 
 const EMPTY_TEAM_STATS: PartnerTeamStats = {
   personalPerformanceUsd: 0,
@@ -151,15 +152,27 @@ export function usePartnerProgram(wallet: string | null) {
     [state, persist, teamNodes],
   );
 
+  const [yieldWithdrawing, setYieldWithdrawing] = useState(false);
+
   const withdrawYield = useCallback(
-    (amount: number) => {
-      if (!state.isPartner || amount <= 0) return false;
-      const next = applyYieldWithdraw(state, amount);
-      if (next === state) return false;
-      persist(next);
-      return true;
+    async (amount: number) => {
+      if (!wallet || !state.isPartner || amount <= 0) return false;
+      const computed = computeYieldBalances(state.stakeOrders);
+      const claimable = state.pendingUsdtYield > 0 ? state.pendingUsdtYield : computed.claimable;
+      if (amount > claimable + 0.0001) return false;
+
+      setYieldWithdrawing(true);
+      try {
+        await withdrawPartnerYield(wallet, amount);
+        await refreshTeamProfile();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setYieldWithdrawing(false);
+      }
     },
-    [state, persist],
+    [wallet, state, refreshTeamProfile],
   );
 
   const submitPartnerSubsidy = useCallback(
@@ -220,6 +233,7 @@ export function usePartnerProgram(wallet: string | null) {
     stakeSd3,
     transferSd3,
     withdrawYield,
+    yieldWithdrawing,
     submitPartnerSubsidy,
     submitMarketSubsidy,
     requestMarketLeader,
