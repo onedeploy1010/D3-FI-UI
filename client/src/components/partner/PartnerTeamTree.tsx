@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, ArrowUp, ChevronRight, Layers, Search, Users } from 'lucide-react';
+import { ArrowRight, ArrowUp, ChevronRight, Layers, Search, Send, Users } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
+import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
 import { partnerTreeLevelKey } from '@/components/partner/partnerData';
 import { partnerTeamDepth, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import type { AppLang } from '@/i18n/types';
@@ -74,15 +75,24 @@ export function PartnerTeamTree({
   isDark,
   nodes,
   loading = false,
+  isPartner = false,
+  transferQuota = 0,
+  onTransferSd3,
 }: {
   lang: AppLang;
   isDark: boolean;
   nodes: Record<string, PartnerTeamNode>;
   loading?: boolean;
+  isPartner?: boolean;
+  transferQuota?: number;
+  onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
   const [focusId, setFocusId] = useState('me');
   const [q, setQ] = useState('');
+  const [transferTarget, setTransferTarget] = useState<PartnerTeamNode | null>(null);
+
+  const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferSd3);
 
   const focus = nodes[focusId] ?? nodes.me;
   const parent = focus?.parentId ? nodes[focus.parentId] : null;
@@ -142,6 +152,14 @@ export function PartnerTeamTree({
             {p('tree.root')}
           </GlassButton>
         </div>
+        {canTransfer && focusId !== 'me' && (
+          <GlassButton
+            className="w-full !py-2.5 !text-xs mt-2 flex items-center justify-center gap-1.5"
+            onClick={() => setTransferTarget(focus)}
+          >
+            <Send size={12} /> {p('tree.transferSd3')}
+          </GlassButton>
+        )}
       </div>
 
       <div className={glassCardClass('default', 'p-4')}>
@@ -175,7 +193,21 @@ export function PartnerTeamTree({
                   <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
                   <AddressBlock value={n.address} isDark={isDark} compact showCopy />
                 </div>
-                <ChevronRight size={14} className="shrink-0 opacity-40" />
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {canTransfer && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTransferTarget(n);
+                      }}
+                      className="text-[10px] font-semibold text-amber-500 flex items-center gap-0.5"
+                    >
+                      <Send size={11} /> {p('tree.transferSd3')}
+                    </button>
+                  )}
+                  <ChevronRight size={14} className="opacity-40" />
+                </div>
               </button>
             ))}
           </div>
@@ -187,28 +219,58 @@ export function PartnerTeamTree({
               </div>
             ) : (
               children.map((n) => (
-                <button
+                <div
                   key={n.id}
-                  type="button"
-                  onClick={() => setFocusId(n.id)}
-                  className="w-full text-left rounded-xl px-3 py-3 ios-glass-inset ios-glass-pressable flex items-start justify-between gap-2"
+                  className="rounded-xl px-3 py-3 ios-glass-inset flex items-start justify-between gap-2"
                 >
-                  <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setFocusId(n.id)}
+                    className="min-w-0 flex-1 text-left ios-glass-pressable"
+                  >
                     <div className={`text-xs font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                       {n.label}
                     </div>
                     <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
                     <AddressBlock value={n.address} isDark={isDark} compact />
+                  </button>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {canTransfer && (
+                      <button
+                        type="button"
+                        onClick={() => setTransferTarget(n)}
+                        className="text-[10px] font-semibold text-amber-500 flex items-center gap-0.5"
+                      >
+                        <Send size={11} /> {p('tree.transferSd3')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setFocusId(n.id)}
+                      className="text-xs font-semibold text-[#E0568F] flex items-center gap-0.5"
+                    >
+                      {p('tree.open')} <ArrowRight size={12} />
+                    </button>
                   </div>
-                  <span className="text-xs font-semibold text-[#E0568F] flex items-center gap-0.5 shrink-0">
-                    {p('tree.open')} <ArrowRight size={12} />
-                  </span>
-                </button>
+                </div>
               ))
             )}
           </div>
         )}
       </div>
+
+      {transferTarget && onTransferSd3 && (
+        <PartnerSd3TransferModal
+          open={Boolean(transferTarget)}
+          onClose={() => setTransferTarget(null)}
+          lang={lang}
+          isDark={isDark}
+          toAddress={transferTarget.address}
+          toLabel={transferTarget.label}
+          transferQuota={transferQuota}
+          onConfirm={(amount) => onTransferSd3(transferTarget.address, amount)}
+        />
+      )}
     </div>
   );
 }

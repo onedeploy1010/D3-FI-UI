@@ -237,6 +237,15 @@ export type PartnerSd3SettlementRow = {
   sd3_amount: number;
 };
 
+export type PartnerSd3TransferRow = {
+  id: string;
+  from_wallet: string;
+  to_wallet: string;
+  amount_sd3: number;
+  status: string;
+  created_at: string;
+};
+
 export type UnionProfileBundle = {
   profile: { wallet_address: string; display_name: string | null; short_address: string | null };
   shareholder: ShareholderRow | null;
@@ -260,4 +269,7 @@ export type UnionProfileBundle = {
   partnerAccount?: PartnerAccountRow | null;
   partnerStakePositions?: PartnerStakePositionRow[];
   partnerSd3Settlements?: PartnerSd3SettlementRow[];
+  partnerSd3Transfers?: PartnerSd3TransferRow[];
+  /** All partner-referral downline wallet addresses (umbrella tree). */
+  partnerDownlineWallets?: string[];
 };

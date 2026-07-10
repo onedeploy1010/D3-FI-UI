@@ -44,7 +44,7 @@ export type PartnerTeamStats = {
 };
 
 
-async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Promise<string[]> {
+export async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Promise<string[]> {
   const out: string[] = [];
   const queue = [wallet];
   const seen = new Set<string>();
@@ -142,6 +142,19 @@ export async function fetchPartnerReferralNodeStats(
 }
 
 const PARTNER_JOIN_STATUSES = ['credited', 'completed', 'sweep_pending'];
+
+/** Whether `candidateWallet` is anywhere under `sponsorWallet` in the partner referral tree. */
+export async function isPartnerDownlineOf(
+  sb: Sb,
+  sponsorWallet: string,
+  candidateWallet: string,
+): Promise<boolean> {
+  const sponsor = sponsorWallet.trim().toLowerCase();
+  const candidate = candidateWallet.trim().toLowerCase();
+  if (!sponsor || !candidate || sponsor === candidate) return false;
+  const downline = await collectPartnerDownlineWallets(sb, sponsorWallet);
+  return downline.some((w) => w.toLowerCase() === candidate);
+}
 
 /** Wallets that completed partner join (入盟). */
 export async function fetchPartnerMemberWallets(sb: Sb, wallets: string[]): Promise<string[]> {

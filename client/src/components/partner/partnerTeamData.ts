@@ -175,6 +175,21 @@ export function findPartnerTeamNodeLabel(
   return hit?.label;
 }
 
+/** True when `address` is in the sponsor's partner downline (tree nodes or server wallet list). */
+export function isPartnerDownlineMember(
+  address: string,
+  downlineWallets: string[],
+  nodes?: Record<string, PartnerTeamNode>,
+): boolean {
+  const needle = address.trim().toLowerCase();
+  if (!needle) return false;
+  if (downlineWallets.some((w) => w.toLowerCase() === needle)) return true;
+  if (!nodes) return false;
+  return Object.values(nodes).some(
+    (n) => n.id !== 'me' && n.address.toLowerCase() === needle,
+  );
+}
+
 /** Build per-wallet team tree from union profile (centered on the connected wallet). */
 export function buildPartnerTeamNodes(
   wallet: string,

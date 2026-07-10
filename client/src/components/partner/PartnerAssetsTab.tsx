@@ -12,6 +12,7 @@ import {
   type PartnerHistoryKind,
   type PartnerState,
 } from '@/components/partner/partnerData';
+import { isPartnerDownlineMember, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
@@ -28,6 +29,8 @@ export function PartnerAssetsTab({
   lang,
   isDark,
   state,
+  teamNodes,
+  downlineWallets,
   onStakeSd3,
   onTransferSd3,
   onWithdrawYield,
@@ -38,8 +41,10 @@ export function PartnerAssetsTab({
   lang: AppLang;
   isDark: boolean;
   state: PartnerState;
+  teamNodes?: Record<string, PartnerTeamNode>;
+  downlineWallets?: string[];
   onStakeSd3: (amount: number) => void;
-  onTransferSd3: (to: string, amount: number) => void;
+  onTransferSd3: (to: string, amount: number) => Promise<boolean>;
   onWithdrawYield: (amount: number) => Promise<boolean>;
   yieldWithdrawing?: boolean;
   onPartnerSubsidy: (amount: number, purpose: string) => boolean;
@@ -57,6 +62,8 @@ export function PartnerAssetsTab({
   const [search, setSearch] = useState('');
   const [flashOpen, setFlashOpen] = useState(false);
   const [flashAmount, setFlashAmount] = useState('');
+  const [transferError, setTransferError] = useState('');
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
 
   const quotas = getSd3Quotas(state);
   const yieldBalances = useMemo(() => {
@@ -105,11 +112,28 @@ export function PartnerAssetsTab({
     }
   };
 
-  const submitTransfer = () => {
+  const submitTransfer = async () => {
+    const trimmed = to.trim();
     const n = clampAmount(transferAmount, quotas.transferQuota);
-    if (to.trim().length >= 10 && n > 0) {
-      onTransferSd3(to.trim(), n);
-      setTransferAmount('');
+    if (trimmed.length < 10 || n <= 0 || transferSubmitting) return;
+
+    if (!isPartnerDownlineMember(trimmed, downlineWallets ?? [], teamNodes)) {
+      setTransferError(p('assets.transferInvalidDownline'));
+      return;
+    }
+
+    setTransferError('');
+    setTransferSubmitting(true);
+    try {
+      const ok = await onTransferSd3(trimmed, n);
+      if (ok) {
+        setTransferAmount('');
+        setTo('');
+      } else {
+        setTransferError(p('assets.transferFailed'));
+      }
+    } finally {
+      setTransferSubmitting(false);
     }
   };
 
@@ -330,10 +354,16 @@ export function PartnerAssetsTab({
                   <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.downline')}</div>
                   <input
                     value={to}
-                    onChange={(e) => setTo(e.target.value)}
+                    onChange={(e) => {
+                      setTo(e.target.value);
+                      setTransferError('');
+                    }}
                     placeholder="0x…"
                     className={`w-full ios-glass-inset px-3 py-2.5 text-xs rounded-xl outline-none font-mono ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/25'}`}
                   />
+                  {transferError && (
+                    <div className="text-[11px] text-red-400 mt-2">{transferError}</div>
+                  )}
                 </div>
                 <div>
                   <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.transferAmount')}</div>
@@ -359,10 +389,10 @@ export function PartnerAssetsTab({
                 </div>
                 <GlassButton
                   className="w-full !py-3.5 flex items-center justify-center gap-2"
-                  disabled={quotas.transferQuota <= 0}
-                  onClick={submitTransfer}
+                  disabled={quotas.transferQuota <= 0 || transferSubmitting}
+                  onClick={() => void submitTransfer()}
                 >
-                  <Send size={14} /> {p('assets.confirmTransfer')}
+                  <Send size={14} /> {transferSubmitting ? p('stake.paying') : p('assets.confirmTransfer')}
                 </GlassButton>
               </div>
             )}

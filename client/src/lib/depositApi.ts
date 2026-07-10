@@ -118,6 +118,23 @@ export function withdrawPartnerYield(wallet: string, amountUsdt: number) {
   });
 }
 
+export type Sd3TransferResponse = {
+  ok: boolean;
+  transferId: string;
+  fromWallet: string;
+  toWallet: string;
+  amountSd3: number;
+  senderBalance: number;
+  recipientBalance: number;
+};
+
+export function transferPartnerSd3(wallet: string, toWallet: string, amountSd3: number) {
+  return treasuryFetch<Sd3TransferResponse>(wallet, '/partner/sd3-transfer', {
+    method: 'POST',
+    body: JSON.stringify({ toWallet, amountSd3 }),
+  });
+}
+
 export async function waitForDepositCredited(
   wallet: string,
   intentId: string,

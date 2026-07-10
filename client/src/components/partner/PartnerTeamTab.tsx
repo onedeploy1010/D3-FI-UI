@@ -12,6 +12,7 @@ import {
   BRIBE_TIERS,
   calcDailySd3,
   getBribeTier,
+  getSd3Quotas,
   type PartnerState,
 } from '@/components/partner/partnerData';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
@@ -31,6 +32,7 @@ export function PartnerTeamTab({
   teamNodes,
   teamStats,
   teamLoading,
+  onTransferSd3,
 }: {
   lang: AppLang;
   isDark: boolean;
@@ -39,10 +41,12 @@ export function PartnerTeamTab({
   teamNodes: Record<string, PartnerTeamNode>;
   teamStats: PartnerTeamStats;
   teamLoading: boolean;
+  onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
   const referralLink = buildReferralLink(wallet);
   const isPartner = state.isPartner;
+  const transferQuota = getSd3Quotas(state).transferQuota;
   const teamPerformanceUsd = teamStats.teamPerformanceUsd;
   const dailyNewPerformanceUsd = teamStats.dailyNewPerformanceUsd;
   const tier = isPartner ? getBribeTier(teamPerformanceUsd) : null;
@@ -158,7 +162,15 @@ export function PartnerTeamTab({
       )}
 
       {sub === 'tree' && (
-        <PartnerTeamTree lang={lang} isDark={isDark} nodes={treeNodes} loading={teamLoading} />
+        <PartnerTeamTree
+          lang={lang}
+          isDark={isDark}
+          nodes={treeNodes}
+          loading={teamLoading}
+          isPartner={isPartner}
+          transferQuota={transferQuota}
+          onTransferSd3={isPartner ? onTransferSd3 : undefined}
+        />
       )}
     </div>
   );

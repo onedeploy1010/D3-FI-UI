@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isDemoWallet } from '@/lib/demoWallet';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
+import { transferPartnerSd3 } from '@/lib/depositApi';
 import {
   aggregateStakeOrders,
   applyCrowdfundStake,
@@ -24,6 +25,7 @@ import {
   buildPartnerTeamNodes,
   emptyPartnerTeamNodes,
   findPartnerTeamNodeLabel,
+  isPartnerDownlineMember,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
 import { fetchUnionProfile } from '@/lib/unionApi';
@@ -68,12 +70,14 @@ export function usePartnerProgram(wallet: string | null) {
 
   const [teamNodes, setTeamNodes] = useState<Record<string, PartnerTeamNode>>({});
   const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
+  const [downlineWallets, setDownlineWallets] = useState<string[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
 
   const refreshTeamProfile = useCallback(async () => {
     if (!wallet) {
       setTeamNodes({});
       setTeamStats(EMPTY_TEAM_STATS);
+      setDownlineWallets([]);
       setTeamLoading(false);
       return;
     }
@@ -82,6 +86,7 @@ export function usePartnerProgram(wallet: string | null) {
       const bundle = await fetchUnionProfile(wallet);
       setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
       setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
+      setDownlineWallets(bundle.partnerDownlineWallets ?? []);
       setState((prev) => {
         const merged = hydratePartnerStateFromApi(prev, bundle);
         if (wallet) saveState(wallet, merged);
@@ -90,6 +95,7 @@ export function usePartnerProgram(wallet: string | null) {
     } catch {
       setTeamNodes(emptyPartnerTeamNodes(wallet));
       setTeamStats(EMPTY_TEAM_STATS);
+      setDownlineWallets([]);
     } finally {
       setTeamLoading(false);
     }
@@ -138,18 +144,33 @@ export function usePartnerProgram(wallet: string | null) {
   );
 
   const transferSd3 = useCallback(
-    (toAddress: string, amount: number) => {
-      if (!state.isPartner || amount <= 0 || amount > state.sd3Balance) return;
-      persist(
-        applySd3Transfer(
-          state,
-          toAddress,
-          amount,
-          findPartnerTeamNodeLabel(teamNodes, toAddress),
-        ),
-      );
+    async (toAddress: string, amount: number) => {
+      if (!state.isPartner || amount <= 0 || amount > state.sd3Balance) return false;
+      const normalized = toAddress.trim();
+      if (!isPartnerDownlineMember(normalized, downlineWallets, teamNodes)) return false;
+
+      if (wallet && isDemoWallet(wallet)) {
+        persist(
+          applySd3Transfer(
+            state,
+            normalized,
+            amount,
+            findPartnerTeamNodeLabel(teamNodes, normalized),
+          ),
+        );
+        return true;
+      }
+
+      if (!wallet) return false;
+      try {
+        await transferPartnerSd3(wallet, normalized, amount);
+        await refreshTeamProfile();
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [state, persist, teamNodes],
+    [state, persist, teamNodes, downlineWallets, wallet, refreshTeamProfile],
   );
 
   const [yieldWithdrawing, setYieldWithdrawing] = useState(false);
@@ -226,6 +247,7 @@ export function usePartnerProgram(wallet: string | null) {
     stats,
     teamNodes,
     teamStats: resolvedTeamStats,
+    downlineWallets,
     teamLoading,
     refreshTeamProfile,
     crowdfundStake,

@@ -337,7 +337,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
-  const [account, positions, sd3History, yieldHistory] = await Promise.all([
+  const [account, positions, sd3History, yieldHistory, sd3Transfers] = await Promise.all([
     sb.from('partner_accounts').select('*').eq('wallet_address', wallet).maybeSingle(),
     sb
       .from('partner_stake_positions')
@@ -357,6 +357,13 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .eq('wallet_address', wallet)
       .order('settlement_date', { ascending: false })
       .limit(30),
+    sb
+      .from('partner_sd3_transfers')
+      .select('*')
+      .eq('from_wallet', wallet)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(50),
   ]);
 
   return {
@@ -364,5 +371,6 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     stakePositions: positions.data ?? [],
     sd3Settlements: sd3History.data ?? [],
     yieldSettlements: yieldHistory.data ?? [],
+    sd3Transfers: sd3Transfers.data ?? [],
   };
 }

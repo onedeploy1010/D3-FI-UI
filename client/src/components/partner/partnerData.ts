@@ -3,6 +3,7 @@
 import type {
   PartnerAccountRow,
   PartnerSd3SettlementRow,
+  PartnerSd3TransferRow,
   PartnerStakePositionRow,
 } from '@/lib/d3fiTypes';
 
@@ -536,6 +537,7 @@ export function hydratePartnerStateFromApi(
     partnerAccount?: PartnerAccountRow | null;
     partnerStakePositions?: PartnerStakePositionRow[];
     partnerSd3Settlements?: PartnerSd3SettlementRow[];
+    partnerSd3Transfers?: PartnerSd3TransferRow[];
   },
 ): PartnerState {
   const account = api.partnerAccount;
@@ -561,6 +563,13 @@ export function hydratePartnerStateFromApi(
 
   const latestSd3 = sd3SettlementHistory[0];
 
+  const serverTransfers: PartnerTransfer[] = (api.partnerSd3Transfers ?? []).map((r) => ({
+    id: r.id,
+    toAddress: r.to_wallet,
+    amountSd3: Number(r.amount_sd3),
+    at: r.created_at.slice(0, 10),
+  }));
+
   return {
     ...local,
     isPartner: account?.is_partner ?? local.isPartner,
@@ -570,6 +579,7 @@ export function hydratePartnerStateFromApi(
     lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
     stakeOrders: mergedStakeOrders,
+    transfers: serverTransfers.length > 0 ? serverTransfers : local.transfers,
     sd3SettlementHistory,
     lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
     dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,

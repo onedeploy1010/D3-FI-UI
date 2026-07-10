@@ -57,6 +57,7 @@ export default function PartnerProgram() {
     teamNodes,
     teamStats,
     teamLoading,
+    downlineWallets,
     refreshTeamProfile,
     crowdfundStake,
     joinPartner,
@@ -134,6 +135,21 @@ export default function PartnerProgram() {
       }
     },
     [hasReferralBound, payForStake, crowdfundStake, notifyPayError, refreshTeamProfile],
+  );
+
+  const handleTransferSd3 = useCallback(
+    async (toAddress: string, amount: number) => {
+      const ok = await transferSd3(toAddress, amount);
+      if (ok) {
+        toast.success(p('assets.transferSuccess'));
+      } else {
+        toast.error(p('assets.transferFailed'), {
+          description: p('assets.transferInvalidDownline'),
+        });
+      }
+      return ok;
+    },
+    [transferSd3, p],
   );
 
   const handleGoPartnerJoin = useCallback(() => {
@@ -215,8 +231,10 @@ export default function PartnerProgram() {
                   lang={lang}
                   isDark={isDark}
                   state={state}
+                  teamNodes={teamNodes}
+                  downlineWallets={downlineWallets}
                   onStakeSd3={stakeSd3}
-                  onTransferSd3={transferSd3}
+                  onTransferSd3={handleTransferSd3}
                   onWithdrawYield={handleWithdrawYield}
                   yieldWithdrawing={yieldWithdrawing}
                   onPartnerSubsidy={submitPartnerSubsidy}
@@ -232,6 +250,7 @@ export default function PartnerProgram() {
                   teamNodes={teamNodes}
                   teamStats={teamStats}
                   teamLoading={teamLoading}
+                  onTransferSd3={handleTransferSd3}
                 />
               )}
             </motion.div>

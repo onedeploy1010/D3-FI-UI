@@ -13,7 +13,7 @@ import {
   isPrivyOnchainEnabled,
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
-import { fetchPartnerTeamStats, fetchPartnerMemberWallets, fetchPartnerReferralNodeStats } from '../_shared/partnerPerformance.ts';
+import { fetchPartnerTeamStats, fetchPartnerMemberWallets, fetchPartnerReferralNodeStats, collectPartnerDownlineWallets } from '../_shared/partnerPerformance.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
   HttpError,
@@ -583,7 +583,9 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     stakePositions: [],
     sd3Settlements: [],
     yieldSettlements: [],
+    sd3Transfers: [],
   }));
+  const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
 
   return {
     profile,
@@ -607,6 +609,8 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     partnerAccount: partnerBundle.account,
     partnerStakePositions: partnerBundle.stakePositions,
     partnerSd3Settlements: partnerBundle.sd3Settlements,
+    partnerSd3Transfers: partnerBundle.sd3Transfers,
+    partnerDownlineWallets,
   };
 }
 

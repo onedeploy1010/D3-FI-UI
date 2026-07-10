@@ -11,6 +11,7 @@ import {
   isYieldWithdrawDemoRequest,
   requestPartnerYieldWithdraw,
 } from '../_shared/partnerYieldWithdraw.ts';
+import { transferPartnerSd3 } from '../_shared/partnerSd3Transfer.ts';
 import { runTreasuryPipeline } from '../_shared/sweep.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { isTurnkeyConfigured, treasuryAddressFromEnv, treasuryWalletIdFromEnv, isTurnkeyConsensusError } from '../_shared/turnkey.ts';
@@ -148,6 +149,16 @@ Deno.serve(async (req) => {
       const result = await requestPartnerYieldWithdraw(sb, wallet, body.amountUsdt, {
         demoMode: isYieldWithdrawDemoRequest(req),
       });
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    if (req.method === 'POST' && path === '/partner/sd3-transfer') {
+      const body = await readJson<{ toWallet: string; amountSd3: number }>(req);
+      if (!body.toWallet?.trim()) throw new HttpError(400, 'toWallet required');
+      if (!body.amountSd3 || body.amountSd3 <= 0) {
+        throw new HttpError(400, 'amountSd3 required');
+      }
+      const result = await transferPartnerSd3(sb, wallet, body.toWallet.trim(), body.amountSd3);
       return jsonResponse({ ok: true, ...result });
     }
 
