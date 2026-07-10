@@ -31,7 +31,10 @@ export function WalletConnectButton({
     disconnect,
   } = useWallet();
   const t = lang === 'zh';
-  const privyBlocked = privyInitFailed || !isPrivyReady;
+
+  const handleConnect = () => {
+    connect();
+  };
 
   const handleDisconnect = () => {
     disconnect();
@@ -44,8 +47,8 @@ export function WalletConnectButton({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => connect()}
-            disabled={isConnecting || privyBlocked}
+            onClick={handleConnect}
+            disabled={isConnecting}
             className="h-8 px-2.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors inline-flex items-center gap-1.5 touch-manipulation disabled:opacity-50"
           >
             <Wallet size={14} />

@@ -164,6 +164,13 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
+
+  /* Keep Privy login modal above app chrome (fixed nav, sheets). */
+  #privy-dialog,
+  #privy-modal-content,
+  [data-privy-root] {
+    z-index: 99999 !important;
+  }
   @media (max-width: 768px) {
     input,
     select,

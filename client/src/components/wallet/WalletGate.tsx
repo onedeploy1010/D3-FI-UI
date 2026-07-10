@@ -49,7 +49,7 @@ export function WalletGate({
           variant="primary"
           className="w-full !py-3.5"
           onClick={() => connect()}
-          disabled={isConnecting || !isPrivyReady}
+          disabled={isConnecting}
         >
           {!isPrivyReady && !privyInitFailed
             ? t

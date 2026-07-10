@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useLogin, usePrivy, useWallets } from '@privy-io/react-auth';
+import { usePrivy, useWallets, useConnectOrCreateWallet, useConnectWallet } from '@privy-io/react-auth';
 import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
@@ -117,11 +117,19 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
   const isPrivyReady = ready;
   const privyInitFailed = privyInitTimedOut && !ready;
 
-  const { login } = useLogin({
-    onComplete: () => setIsConnecting(false),
-    onError: (loginError) => {
+  const { connectOrCreateWallet } = useConnectOrCreateWallet({
+    onSuccess: () => setIsConnecting(false),
+    onError: () => {
       setIsConnecting(false);
-      setError(loginError?.message ?? 'Privy 登录失败');
+      setError('钱包连接失败，请重试');
+    },
+  });
+
+  const { connectWallet } = useConnectWallet({
+    onSuccess: () => setIsConnecting(false),
+    onError: () => {
+      setIsConnecting(false);
+      setError('钱包连接失败，请重试');
     },
   });
 
@@ -187,17 +195,32 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
     void syncProfile(privyWallet);
   }, [privyWallet, demoWallet, syncProfile]);
 
+  useEffect(() => {
+    if (privyWallet) setIsConnecting(false);
+  }, [privyWallet]);
+
   const connect = useCallback(() => {
     setError(null);
     if (!isPrivyReady) {
       setError(privyInitFailed ? privyInitFailedMessage : privyNotReadyMessage);
       return;
     }
-    if (authenticated) return;
+    if (wallet) return;
 
     deactivateDemo();
     setIsConnecting(true);
-    login();
+
+    try {
+      if (authenticated) {
+        connectWallet();
+      } else {
+        connectOrCreateWallet();
+      }
+    } catch (e) {
+      setIsConnecting(false);
+      setError(e instanceof Error ? e.message : '无法打开 Privy 登录窗口');
+      return;
+    }
 
     window.setTimeout(() => {
       setIsConnecting((connecting) => {
@@ -207,7 +230,15 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
         return false;
       });
     }, LOGIN_STUCK_TIMEOUT_MS);
-  }, [isPrivyReady, privyInitFailed, authenticated, deactivateDemo, login]);
+  }, [
+    isPrivyReady,
+    privyInitFailed,
+    wallet,
+    authenticated,
+    deactivateDemo,
+    connectWallet,
+    connectOrCreateWallet,
+  ]);
 
   const connectDemo = useCallback(async () => {
     setIsConnecting(true);

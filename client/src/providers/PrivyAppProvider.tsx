@@ -23,6 +23,7 @@ export function PrivyAppProvider({ children }: { children: ReactNode }) {
         appearance: {
           theme: 'light',
           accentColor: '#8A2B57',
+          walletList: ['metamask', 'coinbase_wallet', 'okx_wallet', 'detected_wallets'],
         },
         loginMethods: ['wallet', 'email'],
         defaultChain: d3DefaultChain,
