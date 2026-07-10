@@ -193,6 +193,9 @@ export type DirectReferral = {
   status: string;
   referral_type: string;
   performance_weight?: number;
+  personal_performance_usd?: number;
+  team_performance_usd?: number;
+  team_count?: number;
 };
 
 export type PartnerTeamStats = {

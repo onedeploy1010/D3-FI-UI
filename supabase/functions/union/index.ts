@@ -13,7 +13,7 @@ import {
   isPrivyOnchainEnabled,
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
-import { fetchPartnerTeamStats, fetchPartnerMemberWallets } from '../_shared/partnerPerformance.ts';
+import { fetchPartnerTeamStats, fetchPartnerMemberWallets, fetchPartnerReferralNodeStats } from '../_shared/partnerPerformance.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
   HttpError,
@@ -547,6 +547,27 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     dailyNewPerformanceUsd: 0,
   }));
 
+  const partnerDirectReferrals = (directReferrals.data ?? []).filter(
+    (r) => r.referral_type === 'partner' && r.status === 'active',
+  );
+  const enrichedDirectReferrals = await Promise.all(
+    partnerDirectReferrals.map(async (ref) => {
+      const nodeStats = await fetchPartnerReferralNodeStats(sb, ref.wallet_address as string).catch(
+        () => ({
+          personalPerformanceUsd: Number(ref.performance_weight ?? 0),
+          teamPerformanceUsd: 0,
+          teamCount: 0,
+        }),
+      );
+      return {
+        ...ref,
+        personal_performance_usd: nodeStats.personalPerformanceUsd,
+        team_performance_usd: nodeStats.teamPerformanceUsd,
+        team_count: nodeStats.teamCount,
+      };
+    }),
+  );
+
   const profileWallets = new Set<string>([pk]);
   for (const row of lineTeamNodes.data ?? []) {
     profileWallets.add(String(row.wallet_address));
@@ -573,7 +594,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     dividends: dividends.data ?? [],
     fiPositions: fiPositions.data ?? [],
     teamNode: teamNode.data,
-    directReferrals: directReferrals.data ?? [],
+    directReferrals: enrichedDirectReferrals,
     unionLine: unionLine.data,
     lineTeamNodes: lineTeamNodes.data ?? [],
     multisigWallets: multisigList,

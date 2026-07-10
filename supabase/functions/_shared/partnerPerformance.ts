@@ -58,7 +58,7 @@ async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Promise<st
     const { data: directs } = await sb
       .from('referrals')
       .select('wallet_address')
-      .eq('sponsor_wallet_address', current)
+      .ilike('sponsor_wallet_address', current)
       .eq('referral_type', 'partner')
       .eq('status', 'active');
 
@@ -119,6 +119,26 @@ export async function fetchPartnerTeamStats(sb: Sb, wallet: string): Promise<Par
   }
 
   return { personalPerformanceUsd, teamPerformanceUsd, dailyNewPerformanceUsd };
+}
+
+/** Per-wallet stats for referral tree nodes (personal stake vs downline team volume). */
+export async function fetchPartnerReferralNodeStats(
+  sb: Sb,
+  wallet: string,
+): Promise<{
+  personalPerformanceUsd: number;
+  teamPerformanceUsd: number;
+  teamCount: number;
+}> {
+  const [stats, downline] = await Promise.all([
+    fetchPartnerTeamStats(sb, wallet),
+    collectPartnerDownlineWallets(sb, wallet),
+  ]);
+  return {
+    personalPerformanceUsd: stats.personalPerformanceUsd,
+    teamPerformanceUsd: stats.teamPerformanceUsd,
+    teamCount: downline.length,
+  };
 }
 
 const PARTNER_JOIN_STATUSES = ['credited', 'completed', 'sweep_pending'];

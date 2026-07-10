@@ -1,4 +1,4 @@
-import type { UnionProfileBundle } from '@/lib/d3fiTypes';
+import type { DirectReferral, UnionProfileBundle } from '@/lib/d3fiTypes';
 import { shortWallet } from '@/lib/wallet';
 
 export type PartnerTeamNode = {
@@ -266,13 +266,18 @@ export function buildPartnerTeamNodes(
     dailyNewUsd: num(partnerStats?.dailyNewPerformanceUsd),
     personalUsd: num(partnerStats?.personalPerformanceUsd ?? tn?.personal_usd),
     directCount: partnerRefs.length,
-    teamCount: tn?.team_count ?? partnerRefs.length,
+    teamCount: partnerRefs.length > 0
+      ? partnerRefs.reduce((s, r) => s + num((r as DirectReferral).team_count), partnerRefs.length)
+      : (tn?.team_count ?? 0),
     isDirect: false,
     isPartner: isPartnerWallet(wallet),
   };
   const map: Record<string, PartnerTeamNode> = { me };
   partnerRefs.forEach((r, i) => {
     const perf = num((r as { performance_weight?: number }).performance_weight);
+    const personalUsd = num((r as DirectReferral).personal_performance_usd ?? perf);
+    const downlineTeamUsd = num((r as DirectReferral).team_performance_usd);
+    const teamCount = num((r as DirectReferral).team_count);
     map[`d-${i}`] = {
       id: `d-${i}`,
       address: r.wallet_address,
@@ -280,11 +285,11 @@ export function buildPartnerTeamNodes(
       label: shortWallet(r.wallet_address),
       parentId: 'me',
       childrenIds: [],
-      teamUsd: perf,
+      teamUsd: downlineTeamUsd + personalUsd,
       dailyNewUsd: 0,
-      personalUsd: perf,
+      personalUsd,
       directCount: 0,
-      teamCount: 0,
+      teamCount,
       isDirect: true,
       isPartner: isPartnerWallet(r.wallet_address),
     };
