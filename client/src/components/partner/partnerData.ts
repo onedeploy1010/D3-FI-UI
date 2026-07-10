@@ -1,7 +1,7 @@
 /** 合伙人计划 — 演示数据与业务常量 */
 
-export const PARTNER_JOIN_USDT = 5000;
-export const MIN_CROWDFUND_STAKE_USDT = 100;
+export const PARTNER_JOIN_USDT = 1;
+export const MIN_CROWDFUND_STAKE_USDT = 0.01;
 export const DAILY_YIELD_PCT = 0.4;
 export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;

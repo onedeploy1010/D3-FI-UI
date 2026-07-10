@@ -19,7 +19,7 @@ import { SitePageHeader } from '@/components/layout/SitePageHeader';
 import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { SiteNotificationBell } from '@/components/layout/SiteNotificationBell';
 import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 import { WalletGate } from '@/components/wallet/WalletGate';

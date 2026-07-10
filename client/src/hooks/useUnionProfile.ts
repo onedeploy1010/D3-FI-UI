@@ -3,7 +3,7 @@ import type { UnionProfileBundle } from '@/lib/d3fiTypes';
 import { buildUnionViewModel, buildEmptyUnionViewModel, type UnionViewModel } from '@/lib/unionViewModel';
 import { ensureUnionProfile, fetchUnionProfile } from '@/lib/unionApi';
 import { isSupabaseClientConfigured } from '@/lib/supabase';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 
 type Lang = 'zh' | 'en';
 

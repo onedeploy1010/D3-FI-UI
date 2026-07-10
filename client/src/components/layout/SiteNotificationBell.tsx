@@ -4,7 +4,7 @@ import { Bell, Check, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { useNotifications } from '@/hooks/useNotifications';
 
 const categoryColors: Record<string, string> = {

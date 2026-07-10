@@ -1,5 +1,5 @@
 import { FlaskConical, LogOut, Wallet } from 'lucide-react';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { DEMO_PROFILE } from '@/lib/demoWallet';
 import { cn } from '@/lib/utils';
 

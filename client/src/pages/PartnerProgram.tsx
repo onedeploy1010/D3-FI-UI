@@ -7,7 +7,7 @@ import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
 import { WalletGate } from '@/components/wallet/WalletGate';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { usePartnerProgram } from '@/hooks/usePartnerProgram';
 import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useDepositPayment } from '@/hooks/useDepositPayment';
@@ -19,7 +19,6 @@ import { PartnerTeamTab } from '@/components/partner/PartnerTeamTab';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
-import type { PartnerPaymentMethod } from '@/lib/partnerDepositPay';
 
 type PartnerTab = 'home' | 'stake' | 'assets' | 'team';
 type StakeSub = 'crowdfund' | 'partner' | 'mine';
@@ -74,12 +73,11 @@ export default function PartnerProgram() {
     }
   }, [tab, state.isPartner]);
 
-  const handleJoinPartner = useCallback(
-    async (method: PartnerPaymentMethod) => {
+  const handleJoinPartner = useCallback(async () => {
       if (!hasReferralBound) return false;
       clearDepositPayError();
       try {
-        await payForJoin(PARTNER_JOIN_USDT, method);
+        await payForJoin(PARTNER_JOIN_USDT);
         return joinPartner(hasReferralBound);
       } catch {
         return false;
@@ -89,11 +87,11 @@ export default function PartnerProgram() {
   );
 
   const handleCrowdfundStake = useCallback(
-    async (amount: number, method: PartnerPaymentMethod) => {
+    async (amount: number) => {
       if (!hasReferralBound) return false;
       clearDepositPayError();
       try {
-        await payForStake(amount, method);
+        await payForStake(amount);
         return crowdfundStake(amount, hasReferralBound);
       } catch {
         return false;

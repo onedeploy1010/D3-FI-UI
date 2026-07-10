@@ -20,9 +20,7 @@ import { shortWallet } from '@/lib/wallet';
 import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
 import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
 import { setDepositAccessTokenGetter } from '@/lib/depositApi';
-import { WalletContext, type WalletContextValue } from './walletCtx';
-
-export { useWallet, type WalletContextValue } from './walletCtx';
+import { WalletContext, type WalletContextValue } from './wallet-context';
 
 /** Detect when Privy `ready` never fires (blocked SDK, wrong origin, ad blocker). */
 const PRIVY_INIT_TIMEOUT_MS = 8000;

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { WalletProvider } from "./contexts/WalletContext";
+import { WalletProvider } from "./contexts/WalletProvider";
 import { PrivyAppProvider } from "./providers/PrivyAppProvider";
 import { ReferralCapture } from "./components/wallet/ReferralCapture";
 import { LanguageProvider } from "@/i18n/LanguageContext";

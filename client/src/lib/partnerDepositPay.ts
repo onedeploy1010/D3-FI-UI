@@ -5,10 +5,6 @@ import { d3DefaultChain } from '@/lib/chains';
 /** BSC USDT (BEP-20) */
 export const BSC_USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955' as const;
 
-export const BSC_CAIP2 = 'eip155:56' as const;
-
-export type PartnerPaymentMethod = 'wallet' | 'fiat' | 'crypto';
-
 const erc20TransferAbi = [
   {
     name: 'transfer',

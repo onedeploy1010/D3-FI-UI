@@ -1,8 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useDepositAddress, useFundWallet, useWallets } from '@privy-io/react-auth';
-import type { Hex } from 'viem';
-import { useWallet } from '@/contexts/WalletContext';
-import { d3DefaultChain } from '@/lib/chains';
+import { useWallets } from '@privy-io/react-auth';
+import { useWallet } from '@/contexts/wallet-context';
 import {
   createPartnerJoinIntent,
   createStakeIntent,
@@ -11,30 +9,17 @@ import {
   waitForDepositCredited,
   type DepositIntent,
 } from '@/lib/depositApi';
-import { BSC_CAIP2, BSC_USDT_ADDRESS, type PartnerPaymentMethod, payToDepositAddress } from '@/lib/partnerDepositPay';
+import { payToDepositAddress } from '@/lib/partnerDepositPay';
 import { resolvePrimaryWallet } from '@/lib/privyWallet';
 
 export type DepositPaymentResult = {
   intent: DepositIntent;
   txHash: string | null;
-  method: PartnerPaymentMethod;
 };
-
-function fiatFundOptions(amountUsdt: number) {
-  return {
-    chain: d3DefaultChain,
-    amount: String(amountUsdt),
-    asset: { erc20: BSC_USDT_ADDRESS as Hex },
-    defaultFundingMethod: 'card' as const,
-    card: { preferredProvider: 'moonpay' as const },
-  };
-}
 
 export function useDepositPayment(wallet: string | null) {
   const { isDemo } = useWallet();
   const { wallets } = useWallets();
-  const { fundWallet } = useFundWallet();
-  const { createDepositAddress } = useDepositAddress();
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastIntent, setLastIntent] = useState<DepositIntent | null>(null);
@@ -44,7 +29,6 @@ export function useDepositPayment(wallet: string | null) {
       w: string,
       createIntent: () => Promise<DepositIntent>,
       amountUsdt: number,
-      method: PartnerPaymentMethod,
     ): Promise<DepositPaymentResult> => {
       setPaying(true);
       setError(null);
@@ -55,38 +39,23 @@ export function useDepositPayment(wallet: string | null) {
         if (isDemo) {
           await demoCreditDeposit(w, intent.intentId);
           await waitForDepositCredited(w, intent.intentId, { maxAttempts: 3, intervalMs: 500 });
-          return { intent, txHash: null, method };
+          return { intent, txHash: null };
         }
 
-        const depositAddress = intent.depositAddress;
-        let txHash: string | null = null;
+        const connected = resolvePrimaryWallet(wallets);
+        const { txHash } = await payToDepositAddress({
+          amountUsdt,
+          depositAddress: intent.depositAddress,
+          isDemo: false,
+          wallet: connected,
+        });
 
-        if (method === 'wallet') {
-          const connected = resolvePrimaryWallet(wallets);
-          const result = await payToDepositAddress({
-            amountUsdt,
-            depositAddress,
-            isDemo: false,
-            wallet: connected,
-          });
-          txHash = result.txHash;
-          if (txHash) {
-            await reportDepositTx(w, intent.intentId, txHash);
-          }
-        } else if (method === 'fiat') {
-          const result = await fundWallet({ address: depositAddress, options: fiatFundOptions(amountUsdt) });
-          if (result.status === 'cancelled') throw new Error('已取消支付');
-          txHash = result.transactionHash ?? null;
-        } else {
-          await createDepositAddress({
-            destinationChain: BSC_CAIP2,
-            destinationCurrency: BSC_USDT_ADDRESS,
-            destinationAddress: depositAddress,
-          });
+        if (txHash) {
+          await reportDepositTx(w, intent.intentId, txHash);
         }
 
         await waitForDepositCredited(w, intent.intentId);
-        return { intent, txHash, method };
+        return { intent, txHash };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
@@ -95,21 +64,21 @@ export function useDepositPayment(wallet: string | null) {
         setPaying(false);
       }
     },
-    [isDemo, wallets, fundWallet, createDepositAddress],
+    [isDemo, wallets],
   );
 
   const payForJoin = useCallback(
-    (amountUsdt: number, method: PartnerPaymentMethod = 'wallet') => {
+    (amountUsdt: number) => {
       if (!wallet) throw new Error('请先连接钱包');
-      return executePayment(wallet, () => createPartnerJoinIntent(wallet, amountUsdt), amountUsdt, method);
+      return executePayment(wallet, () => createPartnerJoinIntent(wallet, amountUsdt), amountUsdt);
     },
     [wallet, executePayment],
   );
 
   const payForStake = useCallback(
-    (amountUsdt: number, method: PartnerPaymentMethod = 'wallet') => {
+    (amountUsdt: number) => {
       if (!wallet) throw new Error('请先连接钱包');
-      return executePayment(wallet, () => createStakeIntent(wallet, amountUsdt), amountUsdt, method);
+      return executePayment(wallet, () => createStakeIntent(wallet, amountUsdt), amountUsdt);
     },
     [wallet, executePayment],
   );
@@ -123,5 +92,3 @@ export function useDepositPayment(wallet: string | null) {
     clearError: () => setError(null),
   };
 }
-
-export type { PartnerPaymentMethod };

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
-import { useWallet } from "@/contexts/WalletContext";
+import { useWallet } from "@/contexts/wallet-context";
 import { Router } from "@ai/Router";
 import { setApiWallet } from "@ai/api-client-react";
 import "@ai/index.css";

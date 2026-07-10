@@ -10,7 +10,7 @@ import { SitePageHeader } from '@/components/layout/SitePageHeader';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassCard, GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
 import { WalletGate } from '@/components/wallet/WalletGate';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { captureReferralFromUrl } from '@/lib/referral';
 import { buildReferralLink } from '@/lib/referral';

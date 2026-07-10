@@ -31,7 +31,7 @@ import { glassCardClass, GlassButton, GlassIconButton, GlassChip } from '@/compo
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { WalletGate } from '@/components/wallet/WalletGate';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { buildReferralLink } from '@/lib/referral';
 import { cn } from '@/lib/utils';

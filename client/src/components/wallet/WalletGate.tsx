@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { FlaskConical, Wallet } from 'lucide-react';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { DEMO_PROFILE } from '@/lib/demoWallet';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';

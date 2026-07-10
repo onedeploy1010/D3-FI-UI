@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useWallet } from '@/contexts/WalletContext';
+import { useWallet } from '@/contexts/wallet-context';
 import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
