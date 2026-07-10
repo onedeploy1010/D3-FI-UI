@@ -192,6 +192,14 @@ export type DirectReferral = {
   referred_at: string;
   status: string;
   referral_type: string;
+  performance_weight?: number;
+};
+
+export type PartnerTeamStats = {
+  personalPerformanceUsd: number;
+  /** 伞下累计业绩（用于受贿金等级） */
+  teamPerformanceUsd: number;
+  dailyNewPerformanceUsd: number;
 };
 
 export type UnionProfileBundle = {
@@ -211,4 +219,5 @@ export type UnionProfileBundle = {
   multisigProposals: MultisigProposalRow[];
   multisigSignatures: MultisigSignatureRow[];
   pocScore: PocScoreRow | null;
+  partnerTeamStats?: PartnerTeamStats;
 };

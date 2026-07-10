@@ -34,6 +34,8 @@ export type BribeTier = {
   labelEn: string;
 };
 
+export const BRIBE_TIER_MIN_USD = 100;
+
 export const BRIBE_TIERS: BribeTier[] = [
   { min: 100, max: 100_000, rate: 1, ratePct: 100, labelZh: '职业受贿人', labelEn: 'Pro Bribe Officer' },
   { min: 100_000, max: 200_000, rate: 0.8, ratePct: 80, labelZh: '大受贿人', labelEn: 'Senior Bribe Officer' },
@@ -41,22 +43,37 @@ export const BRIBE_TIERS: BribeTier[] = [
   { min: 500_000, max: 1_000_000, rate: 0.5, ratePct: 50, labelZh: '首席', labelEn: 'Chief' },
 ];
 
-export function getBribeTier(teamPerformanceUsd: number): BribeTier {
+/** 伞下业绩达到对应区间时返回受贿金等级；不足 100U 无等级。 */
+export function getBribeTier(teamPerformanceUsd: number): BribeTier | null {
+  if (teamPerformanceUsd < BRIBE_TIER_MIN_USD) return null;
   for (const tier of BRIBE_TIERS) {
     if (teamPerformanceUsd >= tier.min && teamPerformanceUsd < tier.max) return tier;
   }
   if (teamPerformanceUsd >= 1_000_000) return BRIBE_TIERS[BRIBE_TIERS.length - 1];
-  return BRIBE_TIERS[0];
+  return null;
 }
 
-export function calcDailySd3(teamPerformanceUsd: number, dailyNewPerformanceUsd: number): number {
-  if (dailyNewPerformanceUsd <= 0) return 0;
+/** 受贿金（sD3）仅合伙人上线获得：当日伞下新增业绩 × 等级比例。 */
+export function calcDailySd3(
+  teamPerformanceUsd: number,
+  dailyNewPerformanceUsd: number,
+  isPartner: boolean,
+): number {
+  if (!isPartner || dailyNewPerformanceUsd <= 0) return 0;
   const tier = getBribeTier(teamPerformanceUsd);
+  if (!tier) return 0;
   return Math.round(dailyNewPerformanceUsd * tier.rate * 100) / 100;
 }
 
 export function calcDailyUsdtYield(stakedUsdt: number): number {
-  return Math.round(stakedUsdt * DAILY_YIELD_RATE * 100) / 100;
+  return stakedUsdt * DAILY_YIELD_RATE;
+}
+
+/** 展示用：小额日息保留更多小数位。 */
+export function formatDailyYieldUsdt(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '0.00';
+  if (amount < 0.01) return amount.toFixed(4);
+  return amount.toFixed(2);
 }
 
 export type StakeOrderKind = 'crowdfund' | 'partner_join' | 'sd3';
@@ -424,7 +441,11 @@ export function migratePartnerState(raw: unknown): PartnerState {
   if (Array.isArray(s.stakeOrders)) {
     return {
       ...base,
-      stakeOrders: s.stakeOrders,
+      stakeOrders: s.stakeOrders.map((o) => ({
+        ...o,
+        dailyYieldUsdt:
+          o.dailyYieldUsdt > 0 ? o.dailyYieldUsdt : calcDailyUsdtYield(o.principalUsdt),
+      })),
       totalNewPerformanceUsd: s.totalNewPerformanceUsd ?? s.teamPerformanceUsd ?? 0,
       marketLeaderStatus: s.marketLeaderStatus ?? 'none',
       partnerSubsidyApplications: s.partnerSubsidyApplications ?? [],

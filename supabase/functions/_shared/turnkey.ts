@@ -22,11 +22,13 @@ import {
 const transferEvent = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 );
+const TRANSFER_TOPIC =
+  '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const erc20Abi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
 const erc20BalanceAbi = parseAbi(['function balanceOf(address account) view returns (uint256)']);
 
-const MIN_GAS_BALANCE_WEI = 80_000_000_000_000n; // 0.00008 BNB
-const GAS_TOP_UP_WEI = 250_000_000_000_000n; // 0.00025 BNB
+const MIN_GAS_BALANCE_WEI = 500_000_000_000_000n; // 0.0005 BNB — enough for one BSC ERC20 transfer
+const GAS_TOP_UP_WEI = 500_000_000_000_000n; // 0.0005 BNB per top-up
 
 export function isTurnkeyConfigured(): boolean {
   return Boolean(
@@ -331,6 +333,11 @@ function signingContextFromRow(row: {
   };
 }
 
+function normalizeHex(value: string): Hex {
+  const trimmed = value.trim();
+  return (trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`) as Hex;
+}
+
 async function signWithTurnkey(address: string, unsignedTransaction: Hex): Promise<Hex> {
   const orgId = Deno.env.get('TURNKEY_ORGANIZATION_ID')!;
   const body = {
@@ -352,7 +359,7 @@ async function signWithTurnkey(address: string, unsignedTransaction: Hex): Promi
     console.warn('[turnkey] sign_transaction response:', JSON.stringify(json).slice(0, 500));
     throw new Error('Turnkey sign_transaction returned no signedTransaction');
   }
-  return signed as Hex;
+  return normalizeHex(signed);
 }
 
 async function buildAndSignTx(
@@ -375,7 +382,7 @@ async function buildAndSignTx(
     signed = await signWithTurnkey(ctx.address, unsigned);
   }
 
-  return client.sendRawTransaction({ serializedTransaction: signed });
+  return client.sendRawTransaction({ serializedTransaction: normalizeHex(signed) });
 }
 
 export async function getNativeBalance(address: string): Promise<bigint> {
@@ -472,22 +479,34 @@ export async function verifyUsdtTransfer(opts: {
   const confirmations = Number(block - receipt.blockNumber + 1n);
 
   let transferred = 0n;
+  const expectedTo = opts.expectedTo.toLowerCase();
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== BSC_USDT_CONTRACT.toLowerCase()) continue;
+
+    let amount = 0n;
+    let toAddr = '';
+
     try {
       const decoded = client.decodeEventLog({
         abi: [transferEvent],
         data: log.data,
         topics: log.topics,
       });
-      if (
-        decoded.eventName === 'Transfer' &&
-        (decoded.args.to as string).toLowerCase() === opts.expectedTo.toLowerCase()
-      ) {
-        transferred += decoded.args.value as bigint;
+      if (decoded.eventName === 'Transfer') {
+        toAddr = (decoded.args.to as string).toLowerCase();
+        amount = decoded.args.value as bigint;
       }
     } catch {
-      // skip non-transfer logs
+      // Fallback: parse indexed Transfer log manually (Edge viem decode can fail).
+    }
+
+    if (amount === 0n && log.topics[0]?.toLowerCase() === TRANSFER_TOPIC && log.topics.length >= 3) {
+      toAddr = (`0x${log.topics[2]!.slice(-40)}`).toLowerCase();
+      amount = BigInt(log.data);
+    }
+
+    if (toAddr === expectedTo) {
+      transferred += amount;
     }
   }
 

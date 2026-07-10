@@ -14,6 +14,7 @@ import {
   parseUsdtAmount,
   verifyUsdtTransfer,
 } from './turnkey.ts';
+import { rollupPartnerPerformance } from './partnerPerformance.ts';
 import {
   claimDepositWalletFromPool,
   createOnDemandDepositWallet,
@@ -208,6 +209,10 @@ export async function creditDepositDemo(sb: Sb, walletAddress: string, intentId:
     .update({ status: 'completed', updated_at: now })
     .eq('id', intentId);
 
+  await rollupPartnerPerformance(sb, walletAddress, Number(intent.amount_usdt)).catch((e) => {
+    console.error('[deposit] demo partner performance rollup:', e instanceof Error ? e.message : e);
+  });
+
   await postLedgerEntry(sb, {
     ledgerType: 'deposit_credit',
     walletAddress,
@@ -297,6 +302,10 @@ export async function reportDepositTx(
     .eq('intent_id', intentId);
 
   await sb.from('stake_intents').update({ status: 'credited', updated_at: now }).eq('id', intentId);
+
+  await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
+    console.error('[deposit] partner performance rollup:', e instanceof Error ? e.message : e);
+  });
 
   await postLedgerEntry(sb, {
     ledgerType: 'deposit_credit',

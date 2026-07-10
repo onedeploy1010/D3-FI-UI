@@ -13,6 +13,7 @@ import {
   isPrivyOnchainEnabled,
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
+import { fetchPartnerTeamStats } from '../_shared/partnerPerformance.ts';
 import {
   HttpError,
   isEthAddress,
@@ -485,7 +486,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
       .then(({ data }) => ({ data: data?.[0] ?? null })),
     sb
       .from('referrals')
-      .select('wallet_address, referred_at, status, referral_type')
+      .select('wallet_address, referred_at, status, referral_type, performance_weight')
       .eq('sponsor_wallet_address', pk)
       .eq('status', 'active'),
     sb.from('poc_scores').select('*').eq('wallet_address', pk).maybeSingle(),
@@ -539,6 +540,12 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     ? await sb.from('multisig_signatures').select('*').in('proposal_id', proposalIds)
     : { data: [] };
 
+  const partnerTeamStats = await fetchPartnerTeamStats(sb, pk).catch(() => ({
+    personalPerformanceUsd: 0,
+    teamPerformanceUsd: 0,
+    dailyNewPerformanceUsd: 0,
+  }));
+
   return {
     profile,
     shareholder: shareholder.data,
@@ -556,6 +563,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     multisigProposals: multisigProposals.data ?? [],
     multisigSignatures: multisigSignatures ?? [],
     pocScore: pocScore.data,
+    partnerTeamStats,
   };
 }
 

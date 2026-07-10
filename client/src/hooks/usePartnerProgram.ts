@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isDemoWallet } from '@/lib/demoWallet';
+import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import {
   aggregateStakeOrders,
   applyCrowdfundStake,
@@ -25,6 +26,12 @@ import {
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
 import { fetchUnionProfile } from '@/lib/unionApi';
+
+const EMPTY_TEAM_STATS: PartnerTeamStats = {
+  personalPerformanceUsd: 0,
+  teamPerformanceUsd: 0,
+  dailyNewPerformanceUsd: 0,
+};
 
 function loadState(wallet: string | null): PartnerState | null {
   if (!wallet || typeof localStorage === 'undefined') return null;
@@ -58,31 +65,32 @@ export function usePartnerProgram(wallet: string | null) {
   }, [wallet]);
 
   const [teamNodes, setTeamNodes] = useState<Record<string, PartnerTeamNode>>({});
+  const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
   const [teamLoading, setTeamLoading] = useState(false);
 
-  useEffect(() => {
+  const refreshTeamProfile = useCallback(async () => {
     if (!wallet) {
       setTeamNodes({});
+      setTeamStats(EMPTY_TEAM_STATS);
       setTeamLoading(false);
       return;
     }
-    let cancelled = false;
     setTeamLoading(true);
-    (async () => {
-      try {
-        const bundle = await fetchUnionProfile(wallet);
-        if (cancelled) return;
-        setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
-      } catch {
-        if (!cancelled) setTeamNodes(emptyPartnerTeamNodes(wallet));
-      } finally {
-        if (!cancelled) setTeamLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const bundle = await fetchUnionProfile(wallet);
+      setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
+      setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
+    } catch {
+      setTeamNodes(emptyPartnerTeamNodes(wallet));
+      setTeamStats(EMPTY_TEAM_STATS);
+    } finally {
+      setTeamLoading(false);
+    }
   }, [wallet]);
+
+  useEffect(() => {
+    void refreshTeamProfile();
+  }, [refreshTeamProfile]);
 
   const persist = useCallback(
     (next: PartnerState) => {
@@ -98,18 +106,20 @@ export function usePartnerProgram(wallet: string | null) {
     (amountUsdt: number, hasReferralBound: boolean) => {
       if (!hasReferralBound || amountUsdt < MIN_CROWDFUND_STAKE_USDT) return false;
       persist(applyCrowdfundStake(state, amountUsdt));
+      void refreshTeamProfile();
       return true;
     },
-    [state, persist],
+    [state, persist, refreshTeamProfile],
   );
 
   const joinPartner = useCallback(
     (hasReferralBound: boolean) => {
       if (!wallet || state.isPartner || !hasReferralBound) return false;
       persist(applyPartnerJoin(state));
+      void refreshTeamProfile();
       return true;
     },
-    [wallet, state, persist],
+    [wallet, state, persist, refreshTeamProfile],
   );
 
   const stakeSd3 = useCallback(
@@ -181,11 +191,24 @@ export function usePartnerProgram(wallet: string | null) {
 
   const hasStake = stats.orderCount > 0;
 
+  const resolvedTeamStats = useMemo((): PartnerTeamStats => {
+    if (isDemoWallet(wallet ?? '')) {
+      return {
+        personalPerformanceUsd: state.stakeOrders.reduce((s, o) => s + o.principalUsdt, 0),
+        teamPerformanceUsd: state.teamPerformanceUsd,
+        dailyNewPerformanceUsd: state.dailyNewPerformanceUsd,
+      };
+    }
+    return teamStats;
+  }, [wallet, state, teamStats]);
+
   return {
     state,
     stats,
     teamNodes,
+    teamStats: resolvedTeamStats,
     teamLoading,
+    refreshTeamProfile,
     crowdfundStake,
     joinPartner,
     stakeSd3,

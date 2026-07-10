@@ -175,6 +175,7 @@ export function buildPartnerTeamNodes(
     bundle.profile?.display_name?.trim() ||
     bundle.profile?.short_address ||
     shortWallet(wallet);
+  const partnerStats = bundle.partnerTeamStats;
   const rows = bundle.lineTeamNodes ?? [];
   const walletLower = wallet.toLowerCase();
 
@@ -246,15 +247,16 @@ export function buildPartnerTeamNodes(
     label: meDisplay,
     parentId: null,
     childrenIds: partnerRefs.map((_, i) => `d-${i}`),
-    teamUsd: num(tn?.team_usd),
-    dailyNewUsd: 0,
-    personalUsd: num(tn?.personal_usd),
+    teamUsd: num(partnerStats?.teamPerformanceUsd ?? tn?.team_usd),
+    dailyNewUsd: num(partnerStats?.dailyNewPerformanceUsd),
+    personalUsd: num(partnerStats?.personalPerformanceUsd ?? tn?.personal_usd),
     directCount: partnerRefs.length,
     teamCount: tn?.team_count ?? partnerRefs.length,
     isDirect: false,
   };
   const map: Record<string, PartnerTeamNode> = { me };
   partnerRefs.forEach((r, i) => {
+    const perf = num((r as { performance_weight?: number }).performance_weight);
     map[`d-${i}`] = {
       id: `d-${i}`,
       address: r.wallet_address,
@@ -262,9 +264,9 @@ export function buildPartnerTeamNodes(
       label: shortWallet(r.wallet_address),
       parentId: 'me',
       childrenIds: [],
-      teamUsd: 0,
+      teamUsd: perf,
       dailyNewUsd: 0,
-      personalUsd: 0,
+      personalUsd: perf,
       directCount: 0,
       teamCount: 0,
       isDirect: true,

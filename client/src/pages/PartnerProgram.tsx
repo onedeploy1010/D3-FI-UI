@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
+import { toast } from 'sonner';
 import { ArrowLeft, Home, Landmark, Users, Wallet } from 'lucide-react';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
@@ -19,6 +20,11 @@ import { PartnerTeamTab } from '@/components/partner/PartnerTeamTab';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
+import {
+  formatPartnerPaymentError,
+  partnerPaymentErrorTitle,
+  toPartnerPaymentError,
+} from '@/lib/partnerPaymentErrors';
 
 type PartnerTab = 'home' | 'stake' | 'assets' | 'team';
 type StakeSub = 'crowdfund' | 'partner' | 'mine';
@@ -44,13 +50,14 @@ export default function PartnerProgram() {
   const isDark = theme === 'dark';
 
   const { hasReferralBound } = useReferralStatus(wallet);
-  const { payForJoin, payForStake, paying: depositPaying, error: depositPayError, clearError: clearDepositPayError, lastIntent } =
-    useDepositPayment(wallet);
+  const { payForJoin, payForStake, paying: depositPaying, lastIntent } = useDepositPayment(wallet);
 
   const {
     state,
     teamNodes,
+    teamStats,
     teamLoading,
+    refreshTeamProfile,
     crowdfundStake,
     joinPartner,
     stakeSd3,
@@ -63,41 +70,54 @@ export default function PartnerProgram() {
   } = usePartnerProgram(wallet);
 
   const visibleTabs = useMemo(
-    () => TAB_IDS.filter((id) => id === 'home' || id === 'stake' || state.isPartner),
+    () => TAB_IDS.filter((id) => id !== 'assets' || state.isPartner),
     [state.isPartner],
   );
 
   useEffect(() => {
-    if ((tab === 'assets' || tab === 'team') && !state.isPartner) {
+    if (tab === 'assets' && !state.isPartner) {
       setTab('home');
     }
   }, [tab, state.isPartner]);
 
+  const notifyPayError = useCallback(
+    (e: unknown) => {
+      toast.error(partnerPaymentErrorTitle(p), {
+        description: formatPartnerPaymentError(p, toPartnerPaymentError(e)),
+      });
+    },
+    [p],
+  );
+
   const handleJoinPartner = useCallback(async () => {
       if (!hasReferralBound) return false;
-      clearDepositPayError();
       try {
         await payForJoin(PARTNER_JOIN_USDT);
-        return joinPartner(hasReferralBound);
-      } catch {
+        const ok = joinPartner(hasReferralBound);
+        void refreshTeamProfile();
+        return ok;
+      } catch (e) {
+        notifyPayError(e);
         return false;
       }
     },
-    [hasReferralBound, clearDepositPayError, payForJoin, joinPartner],
+    [hasReferralBound, payForJoin, joinPartner, notifyPayError, refreshTeamProfile],
   );
 
   const handleCrowdfundStake = useCallback(
     async (amount: number) => {
       if (!hasReferralBound) return false;
-      clearDepositPayError();
       try {
         await payForStake(amount);
-        return crowdfundStake(amount, hasReferralBound);
-      } catch {
+        const ok = crowdfundStake(amount, hasReferralBound);
+        void refreshTeamProfile();
+        return ok;
+      } catch (e) {
+        notifyPayError(e);
         return false;
       }
     },
-    [hasReferralBound, clearDepositPayError, payForStake, crowdfundStake],
+    [hasReferralBound, payForStake, crowdfundStake, notifyPayError, refreshTeamProfile],
   );
 
   const handleGoPartnerJoin = useCallback(() => {
@@ -169,7 +189,6 @@ export default function PartnerProgram() {
                   minCrowdfundUsdt={minCrowdfundUsdt}
                   initialSub={stakeSub}
                   paying={depositPaying}
-                  payError={depositPayError}
                   lastDepositIntent={lastIntent}
                   onCrowdfundStake={handleCrowdfundStake}
                   onJoinPartner={handleJoinPartner}
@@ -187,13 +206,14 @@ export default function PartnerProgram() {
                   onMarketSubsidy={submitMarketSubsidy}
                 />
               )}
-              {tab === 'team' && state.isPartner && (
+              {tab === 'team' && (
                 <PartnerTeamTab
                   lang={lang}
                   isDark={isDark}
                   state={state}
                   wallet={wallet}
                   teamNodes={teamNodes}
+                  teamStats={teamStats}
                   teamLoading={teamLoading}
                 />
               )}

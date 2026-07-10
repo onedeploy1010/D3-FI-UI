@@ -4,6 +4,7 @@ import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import {
+  formatDailyYieldUsdt,
   aggregateStakeOrders,
   PARTNER_JOIN_USDT,
   stakeOrderDaysLeft,
@@ -77,7 +78,6 @@ export function PartnerStakeTab({
   minCrowdfundUsdt,
   initialSub,
   paying,
-  payError,
   lastDepositIntent,
   onCrowdfundStake,
   onJoinPartner,
@@ -89,7 +89,6 @@ export function PartnerStakeTab({
   minCrowdfundUsdt: number;
   initialSub?: StakeSub;
   paying: boolean;
-  payError: string | null;
   lastDepositIntent?: DepositIntent | null;
   onCrowdfundStake: (amount: number) => Promise<boolean>;
   onJoinPartner: () => Promise<boolean>;
@@ -149,7 +148,6 @@ export function PartnerStakeTab({
 
   const payActions = (onCancel: () => void, onConfirm: () => void) => (
   <>
-    {payError && <p className="text-xs text-red-500 mb-3 leading-relaxed">{payError}</p>}
     <div className="flex flex-col-reverse sm:flex-row gap-3">
       <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={onCancel}>
         {p('stake.cancel')}
@@ -252,7 +250,7 @@ export function PartnerStakeTab({
                 </div>
                 <div className="partner-depth-inset p-3 rounded-xl">
                   <div className="site-stat-label">{p('stake.daily')}</div>
-                  <div className="site-stat-value-md text-emerald-500">${stats.dailyUsdtYield.toFixed(2)}</div>
+                  <div className="site-stat-value-md text-emerald-500">${formatDailyYieldUsdt(stats.dailyUsdtYield)}</div>
                 </div>
               </div>
             </div>
@@ -273,7 +271,7 @@ export function PartnerStakeTab({
                     <span className={`font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                       ${order.principalUsdt.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-emerald-500">${order.dailyYieldUsdt.toFixed(2)}/{p('stake.perDay')}</span>
+                    <span className="text-[10px] text-emerald-500">${formatDailyYieldUsdt(order.dailyYieldUsdt)}/{p('stake.perDay')}</span>
                   </div>
                   <div className={`h-1 rounded-full overflow-hidden mb-1 partner-depth-inset`}>
                     <div className="h-full rounded-full" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />

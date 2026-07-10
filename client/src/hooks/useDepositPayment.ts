@@ -10,7 +10,8 @@ import {
   type DepositIntent,
 } from '@/lib/depositApi';
 import { payToDepositAddress } from '@/lib/partnerDepositPay';
-import { resolvePrimaryWallet } from '@/lib/privyWallet';
+import { PartnerPaymentError } from '@/lib/partnerPaymentErrors';
+import { resolveWalletForAddress } from '@/lib/privyWallet';
 
 export type DepositPaymentResult = {
   intent: DepositIntent;
@@ -21,7 +22,6 @@ export function useDepositPayment(wallet: string | null) {
   const { isDemo } = useWallet();
   const { wallets } = useWallets();
   const [paying, setPaying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [lastIntent, setLastIntent] = useState<DepositIntent | null>(null);
 
   const executePayment = useCallback(
@@ -31,7 +31,6 @@ export function useDepositPayment(wallet: string | null) {
       amountUsdt: number,
     ): Promise<DepositPaymentResult> => {
       setPaying(true);
-      setError(null);
       try {
         const intent = await createIntent();
         setLastIntent(intent);
@@ -42,7 +41,10 @@ export function useDepositPayment(wallet: string | null) {
           return { intent, txHash: null };
         }
 
-        const connected = resolvePrimaryWallet(wallets);
+        const connected = resolveWalletForAddress(wallets, w);
+        if (!connected) {
+          throw new PartnerPaymentError({ code: 'no_wallet' });
+        }
         const { txHash } = await payToDepositAddress({
           amountUsdt,
           depositAddress: intent.depositAddress,
@@ -56,10 +58,6 @@ export function useDepositPayment(wallet: string | null) {
 
         await waitForDepositCredited(w, intent.intentId);
         return { intent, txHash };
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-        throw e;
       } finally {
         setPaying(false);
       }
@@ -69,7 +67,7 @@ export function useDepositPayment(wallet: string | null) {
 
   const payForJoin = useCallback(
     (amountUsdt: number) => {
-      if (!wallet) throw new Error('请先连接钱包');
+      if (!wallet) throw new PartnerPaymentError({ code: 'wallet_required' });
       return executePayment(wallet, () => createPartnerJoinIntent(wallet, amountUsdt), amountUsdt);
     },
     [wallet, executePayment],
@@ -77,7 +75,7 @@ export function useDepositPayment(wallet: string | null) {
 
   const payForStake = useCallback(
     (amountUsdt: number) => {
-      if (!wallet) throw new Error('请先连接钱包');
+      if (!wallet) throw new PartnerPaymentError({ code: 'wallet_required' });
       return executePayment(wallet, () => createStakeIntent(wallet, amountUsdt), amountUsdt);
     },
     [wallet, executePayment],
@@ -87,8 +85,6 @@ export function useDepositPayment(wallet: string | null) {
     payForJoin,
     payForStake,
     paying,
-    error,
     lastIntent,
-    clearError: () => setError(null),
   };
 }

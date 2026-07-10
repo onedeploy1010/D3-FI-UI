@@ -7,7 +7,14 @@ import {
   emptyPartnerTeamNodes,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
-import { BRIBE_TIERS, calcDailySd3, getBribeTier, type PartnerState } from '@/components/partner/partnerData';
+import {
+  BRIBE_TIER_MIN_USD,
+  BRIBE_TIERS,
+  calcDailySd3,
+  getBribeTier,
+  type PartnerState,
+} from '@/components/partner/partnerData';
+import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import { buildReferralLink } from '@/lib/referral';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
@@ -22,6 +29,7 @@ export function PartnerTeamTab({
   state,
   wallet,
   teamNodes,
+  teamStats,
   teamLoading,
 }: {
   lang: AppLang;
@@ -29,14 +37,18 @@ export function PartnerTeamTab({
   state: PartnerState;
   wallet: string | null;
   teamNodes: Record<string, PartnerTeamNode>;
+  teamStats: PartnerTeamStats;
   teamLoading: boolean;
 }) {
   const p = usePartnerTranslation(lang);
   const referralLink = buildReferralLink(wallet);
-  const tier = getBribeTier(state.teamPerformanceUsd);
-  const tierIdx = BRIBE_TIERS.indexOf(tier);
-  const expectedSd3 = calcDailySd3(state.teamPerformanceUsd, state.dailyNewPerformanceUsd);
-  const [sub, setSub] = useState<TeamSub>('overview');
+  const isPartner = state.isPartner;
+  const teamPerformanceUsd = teamStats.teamPerformanceUsd;
+  const dailyNewPerformanceUsd = teamStats.dailyNewPerformanceUsd;
+  const tier = isPartner ? getBribeTier(teamPerformanceUsd) : null;
+  const tierIdx = tier ? BRIBE_TIERS.indexOf(tier) : -1;
+  const expectedSd3 = calcDailySd3(teamPerformanceUsd, dailyNewPerformanceUsd, isPartner);
+  const [sub, setSub] = useState<TeamSub>(isPartner ? 'overview' : 'tree');
 
   const treeNodes = useMemo(() => {
     if (teamNodes.me) return teamNodes;
@@ -45,14 +57,7 @@ export function PartnerTeamTab({
   }, [teamNodes, wallet]);
 
   const history = state.sd3SettlementHistory ?? [];
-
-  if (!state.isPartner) {
-    return (
-      <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-        {p('team.partnersOnly')}
-      </div>
-    );
-  }
+  const displaySd3Earned = history.length > 0 ? state.dailySd3Earned : expectedSd3;
 
   const subs = [
     { id: 'overview', label: p('team.performance') },
@@ -70,6 +75,12 @@ export function PartnerTeamTab({
         <AddressBlock value={referralLink} isDark={isDark} />
       </div>
 
+      {!isPartner && (
+        <div className={`text-center text-xs py-3 px-4 rounded-xl ${isDark ? 'bg-white/5 text-white/45' : 'bg-black/[0.03] text-[#160510]/50'}`}>
+          {p('team.sd3PartnerOnly')}
+        </div>
+      )}
+
       <SectionTabBar tabs={subs} active={sub} onChange={(id) => setSub(id as TeamSub)} isDark={isDark} />
 
       {sub === 'overview' && (
@@ -79,51 +90,70 @@ export function PartnerTeamTab({
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div className="ios-glass-inset p-3">
                 <div className="site-stat-label">{p('team.teamTotal')}</div>
-                <div className="site-stat-value-lg site-stat-value-accent">${state.teamPerformanceUsd.toLocaleString()}</div>
+                <div className="site-stat-value-lg site-stat-value-accent">${teamPerformanceUsd.toLocaleString()}</div>
               </div>
               <div className="ios-glass-inset p-3">
                 <div className="site-stat-label">{p('team.todayNew')}</div>
-                <div className="site-stat-value-lg text-emerald-500">${state.dailyNewPerformanceUsd.toLocaleString()}</div>
+                <div className="site-stat-value-lg text-emerald-500">${dailyNewPerformanceUsd.toLocaleString()}</div>
               </div>
             </div>
-            <div className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-              {tier.ratePct}% · {p(TIER_KEYS[tierIdx])} · ≈ {expectedSd3.toLocaleString()} sD3
-            </div>
-          </div>
-
-          <div className={glassCardClass('default', 'p-5 text-center')}>
-            <div className="site-stat-label">{p('team.yesterdaySd3')}</div>
-            <div className="text-3xl font-black text-[#E0568F] my-1">{state.dailySd3Earned.toLocaleString()}</div>
-            <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>{state.lastSettlementDate}</div>
-          </div>
-
-          <div className={glassCardClass('default', 'p-5')}>
-            <div className="site-section-title mb-3">{p('team.sd3History')}</div>
-            {history.length === 0 ? (
-              <div className={`text-center text-sm py-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-                {p('team.sd3HistoryEmpty')}
+            {isPartner && tier && tierIdx >= 0 && (
+              <div className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                {p('team.bribeTierLine', {
+                  rate: tier.ratePct,
+                  tier: p(TIER_KEYS[tierIdx]),
+                  sd3: expectedSd3.toLocaleString(),
+                })}
               </div>
-            ) : (
-              <div className="space-y-2">
-                {history.map((row) => (
-                  <div key={row.id} className="ios-glass-inset p-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{row.settledAt}</div>
-                      <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-                        {row.tierRatePct}% · {p('team.sd3HistoryNewPerf', { amount: row.dailyNewPerformanceUsd.toLocaleString() })}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-[#E0568F]">+{row.sd3Amount.toLocaleString()} sD3</div>
-                      <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                        ${row.teamPerformanceUsd.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            )}
+            {isPartner && !tier && (
+              <div className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                {p('team.bribeBelowMin', { min: BRIBE_TIER_MIN_USD })}
               </div>
             )}
           </div>
+
+          {isPartner && (
+            <>
+              <div className={glassCardClass('default', 'p-5 text-center')}>
+                <div className="site-stat-label">
+                  {history.length > 0 ? p('team.yesterdaySd3') : p('team.estimatedSd3')}
+                </div>
+                <div className="text-3xl font-black text-[#E0568F] my-1">{displaySd3Earned.toLocaleString()}</div>
+                <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                  {history.length > 0 ? state.lastSettlementDate : p('team.estimatedSd3Hint')}
+                </div>
+              </div>
+
+              <div className={glassCardClass('default', 'p-5')}>
+                <div className="site-section-title mb-3">{p('team.sd3History')}</div>
+                {history.length === 0 ? (
+                  <div className={`text-center text-sm py-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                    {p('team.sd3HistoryEmpty')}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {history.map((row) => (
+                      <div key={row.id} className="ios-glass-inset p-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{row.settledAt}</div>
+                          <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                            {row.tierRatePct}% · {p('team.sd3HistoryNewPerf', { amount: row.dailyNewPerformanceUsd.toLocaleString() })}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-bold text-[#E0568F]">+{row.sd3Amount.toLocaleString()} sD3</div>
+                          <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                            ${row.teamPerformanceUsd.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
 

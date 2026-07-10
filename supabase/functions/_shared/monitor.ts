@@ -7,6 +7,7 @@ import {
   parseUsdtAmount,
   verifyUsdtTransfer,
 } from './turnkey.ts';
+import { rollupPartnerPerformance } from './partnerPerformance.ts';
 import type { Hash } from 'npm:viem@2';
 
 type Sb = SupabaseClient;
@@ -91,6 +92,10 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
       .update({ status: 'credited', updated_at: now })
       .eq('id', intent.id);
 
+    await rollupPartnerPerformance(sb, dep.wallet_address as string, Number(received)).catch((e) => {
+      console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
+    });
+
     await postLedgerEntry(sb, {
       ledgerType: 'deposit_credit',
       walletAddress: dep.wallet_address as string,
@@ -101,6 +106,92 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
       amount: received,
       direction: 'credit',
       txHash: found.txHash,
+      referenceId: dep.intent_id as string,
+    });
+
+    credited++;
+  }
+
+  return credited;
+}
+
+/** Re-verify detected deposits (tx reported but confirmations were low) and credit when ready. */
+export async function promoteDetectedDeposits(sb: Sb, limit = 20): Promise<number> {
+  const { data: deposits, error } = await sb
+    .from('deposit_records')
+    .select('*')
+    .eq('status', 'detected')
+    .not('tx_hash', 'is', null)
+    .order('detected_at', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!deposits?.length) return 0;
+
+  let credited = 0;
+
+  for (const dep of deposits) {
+    if (!dep.intent_id || !dep.deposit_address || !dep.tx_hash) continue;
+
+    const minWei = parseUsdtAmount(Number(dep.expected_amount ?? 0));
+    const verification = await verifyUsdtTransfer({
+      txHash: dep.tx_hash as Hash,
+      expectedTo: dep.deposit_address as string,
+      minAmountWei: minWei,
+    });
+
+    if (!verification.ok) {
+      const received = formatUsdtAmount(verification.amount);
+      if (verification.amount > 0n || verification.confirmations > (dep.confirmations ?? 0)) {
+        await sb
+          .from('deposit_records')
+          .update({
+            received_amount: received,
+            confirmations: verification.confirmations,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', dep.id);
+      }
+      continue;
+    }
+
+    const now = new Date().toISOString();
+    const received = formatUsdtAmount(verification.amount);
+    const walletAddress = dep.wallet_address as string;
+
+    await sb
+      .from('deposit_records')
+      .update({
+        received_amount: received,
+        confirmations: verification.confirmations,
+        status: 'credited',
+        confirmed_at: now,
+        credited_at: now,
+        updated_at: now,
+      })
+      .eq('id', dep.id);
+
+    await sb
+      .from('stake_intents')
+      .update({ status: 'credited', updated_at: now })
+      .eq('id', dep.intent_id);
+
+    if (walletAddress) {
+      await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
+        console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
+      });
+    }
+
+    await postLedgerEntry(sb, {
+      ledgerType: 'deposit_credit',
+      walletAddress: walletAddress || null,
+      batchId: dep.intent_id as string,
+      walletId: dep.deposit_wallet_id as string,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: received,
+      direction: 'credit',
+      txHash: dep.tx_hash as string,
       referenceId: dep.intent_id as string,
     });
 

@@ -51,18 +51,85 @@ type SweepJob = {
   deposit_record_id: string | null;
   intent_id: string | null;
   token_contract: string;
+  tx_hash?: string | null;
 };
 
-async function waitForTxConfirmation(txHash: string, maxAttempts = 20): Promise<boolean> {
+async function waitForTxConfirmation(txHash: string, maxAttempts = 30): Promise<boolean> {
   const { getBscPublicClient } = await import('./turnkey.ts');
   const client = getBscPublicClient();
   for (let i = 0; i < maxAttempts; i++) {
-    const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
-    if (receipt?.status === 'success') return true;
-    if (receipt?.status === 'reverted') return false;
+    try {
+      const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
+      if (receipt?.status === 'success') return true;
+      if (receipt?.status === 'reverted') return false;
+    } catch {
+      // Receipt not indexed yet — keep polling.
+    }
     await new Promise((r) => setTimeout(r, 3000));
   }
   return false;
+}
+
+async function finalizeSweepJob(
+  sb: Sb,
+  job: SweepJob,
+  txHash: string,
+  sweepAmount: bigint,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await sb
+    .from('sweep_jobs')
+    .update({ status: 'confirmed', tx_hash: txHash, updated_at: now })
+    .eq('id', job.id);
+
+  if (job.job_type === 'deposit_to_settlement') {
+    await sb
+      .from('deposit_records')
+      .update({ status: 'swept', updated_at: now })
+      .eq('id', job.deposit_record_id!);
+
+    if (job.intent_id) {
+      await sb.from('stake_intents').update({ status: 'completed', updated_at: now }).eq('id', job.intent_id);
+    }
+
+    await sb
+      .from('wallet_accounts')
+      .update({ status: 'settled', updated_at: now })
+      .eq('id', job.from_wallet_id);
+
+    await postLedgerEntry(sb, {
+      ledgerType: 'sweep_to_settlement',
+      walletAddress: null,
+      batchId: job.intent_id,
+      walletId: job.from_wallet_id,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: formatUsdtAmount(sweepAmount),
+      direction: 'debit',
+      txHash,
+      referenceId: job.deposit_record_id,
+    });
+  } else if (job.job_type === 'settlement_to_treasury') {
+    await postLedgerEntry(sb, {
+      ledgerType: 'settlement_to_treasury',
+      walletAddress: null,
+      walletId: job.from_wallet_id,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: formatUsdtAmount(sweepAmount),
+      direction: 'debit',
+      txHash,
+      referenceId: job.id,
+    });
+  }
+
+  await writeAuditLog(sb, {
+    actorType: 'system',
+    action: 'sweep_confirmed',
+    entityType: 'sweep_jobs',
+    entityId: job.id,
+    newValue: { txHash, jobType: job.job_type, amount: formatUsdtAmount(sweepAmount) },
+  });
 }
 
 export async function enqueueDepositSweeps(sb: Sb, limit = 20): Promise<number> {
@@ -123,6 +190,17 @@ export async function enqueueDepositSweeps(sb: Sb, limit = 20): Promise<number> 
 }
 
 async function executeSweepJob(sb: Sb, job: SweepJob, gasWallet: WalletRow | null): Promise<void> {
+  const recordedAmount = parseUsdtAmount(Number(job.amount));
+
+  if (job.tx_hash) {
+    const confirmed = await waitForTxConfirmation(job.tx_hash);
+    if (confirmed) {
+      await finalizeSweepJob(sb, job, job.tx_hash, recordedAmount);
+      return;
+    }
+    throw new Error(`Sweep tx not confirmed: ${job.tx_hash}`);
+  }
+
   const fromWallet = await getWalletById(sb, job.from_wallet_id);
   if (!fromWallet) throw new Error('Source wallet not found');
 
@@ -154,60 +232,7 @@ async function executeSweepJob(sb: Sb, job: SweepJob, gasWallet: WalletRow | nul
   const confirmed = await waitForTxConfirmation(txHash);
   if (!confirmed) throw new Error(`Sweep tx not confirmed: ${txHash}`);
 
-  const now = new Date().toISOString();
-  await sb
-    .from('sweep_jobs')
-    .update({ status: 'confirmed', updated_at: now })
-    .eq('id', job.id);
-
-  if (job.job_type === 'deposit_to_settlement') {
-    await sb
-      .from('deposit_records')
-      .update({ status: 'swept', updated_at: now })
-      .eq('id', job.deposit_record_id!);
-
-    if (job.intent_id) {
-      await sb.from('stake_intents').update({ status: 'completed', updated_at: now }).eq('id', job.intent_id);
-    }
-
-    await sb
-      .from('wallet_accounts')
-      .update({ status: 'settled', updated_at: now })
-      .eq('id', job.from_wallet_id);
-
-    await postLedgerEntry(sb, {
-      ledgerType: 'sweep_to_settlement',
-      walletAddress: null,
-      batchId: job.intent_id,
-      walletId: job.from_wallet_id,
-      chainId: BSC_CHAIN_ID,
-      tokenSymbol: BSC_USDT_SYMBOL,
-      amount: formatUsdtAmount(sweepAmount),
-      direction: 'debit',
-      txHash,
-      referenceId: job.deposit_record_id,
-    });
-  } else if (job.job_type === 'settlement_to_treasury') {
-    await postLedgerEntry(sb, {
-      ledgerType: 'settlement_to_treasury',
-      walletAddress: null,
-      walletId: job.from_wallet_id,
-      chainId: BSC_CHAIN_ID,
-      tokenSymbol: BSC_USDT_SYMBOL,
-      amount: formatUsdtAmount(sweepAmount),
-      direction: 'debit',
-      txHash,
-      referenceId: job.id,
-    });
-  }
-
-  await writeAuditLog(sb, {
-    actorType: 'system',
-    action: 'sweep_confirmed',
-    entityType: 'sweep_jobs',
-    entityId: job.id,
-    newValue: { txHash, jobType: job.job_type, amount: formatUsdtAmount(sweepAmount) },
-  });
+  await finalizeSweepJob(sb, job, txHash, sweepAmount);
 }
 
 export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: number; failed: number }> {
@@ -216,7 +241,7 @@ export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: 
   const { data: jobs, error } = await sb
     .from('sweep_jobs')
     .select('*')
-    .eq('status', 'queued')
+    .in('status', ['queued', 'broadcasted'])
     .order('created_at', { ascending: true })
     .limit(limit);
 
@@ -317,11 +342,14 @@ export async function runTreasuryPipeline(
   enqueuedTreasury: number;
   monitoredCredits: number;
 }> {
-  const { scanPendingDeposits } = await import('./monitor.ts');
+  const { scanPendingDeposits, promoteDetectedDeposits } = await import('./monitor.ts');
 
   await ensureInfrastructureWallets(sb);
 
-  const monitoredCredits = await scanPendingDeposits(sb, opts.maxMonitor ?? 10);
+  const promotedCredits = await promoteDetectedDeposits(sb, opts.maxMonitor ?? 20);
+  const monitoredCredits = opts.maxMonitor === 0
+    ? 0
+    : await scanPendingDeposits(sb, opts.maxMonitor ?? 10);
   const enqueuedDeposits = await enqueueDepositSweeps(sb);
   const sweepResult = await processSweepJobs(sb, opts.maxSweepJobs ?? 5);
   const enqueuedTreasury = await enqueueSettlementToTreasury(sb);
@@ -332,6 +360,7 @@ export async function runTreasuryPipeline(
     processedSweeps: sweepResult.processed + treasurySweep.processed,
     failedSweeps: sweepResult.failed + treasurySweep.failed,
     enqueuedTreasury,
-    monitoredCredits,
+    monitoredCredits: promotedCredits + monitoredCredits,
+    promotedCredits,
   };
 }

@@ -1,10 +1,28 @@
 import type { ConnectedWallet } from '@privy-io/react-auth';
-import { formatWalletAddress } from './wallet';
+import { formatWalletAddress, walletEquals } from './wallet';
 
-/** Prefer Privy embedded wallet, then most recently connected wallet. */
+/** Prefer external wallet (MetaMask / TokenPocket) over empty Privy embedded wallet. */
 export function resolvePrimaryWallet(wallets: ConnectedWallet[]): ConnectedWallet | null {
   try {
+    const external = wallets.find((w) => w.walletClientType !== 'privy');
+    if (external) return external;
     return wallets.find((w) => w.walletClientType === 'privy') ?? wallets[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve the wallet used for signing — must match the connected address when possible. */
+export function resolveWalletForAddress(
+  wallets: ConnectedWallet[],
+  address: string | null,
+): ConnectedWallet | null {
+  try {
+    if (address) {
+      const match = wallets.find((w) => walletEquals(w.address, address));
+      if (match) return match;
+    }
+    return resolvePrimaryWallet(wallets);
   } catch {
     return null;
   }
