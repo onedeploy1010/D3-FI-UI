@@ -159,6 +159,18 @@
 }
 
 @layer base {
+  html {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  @media (max-width: 768px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
   * {
     @apply border-border outline-ring/50;
   }
