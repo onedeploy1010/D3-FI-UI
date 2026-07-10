@@ -1,5 +1,5 @@
 /**
- * Configure TREASURY_CRON_SECRET + pg_cron job (every 5 min).
+ * Configure TREASURY_CRON_SECRET + pg_cron job (every 1 min).
  *
  * Usage:
  *   npm run treasury:setup-cron
@@ -88,7 +88,7 @@ END $do$;
 
 SELECT cron.schedule(
   'd3-treasury-pipeline',
-  '*/5 * * * *',
+  '*/1 * * * *',
   $cron$
   SELECT net.http_post(
     url := '${SUPABASE_URL}/functions/v1/treasury/internal/run',
@@ -96,7 +96,7 @@ SELECT cron.schedule(
       'Content-Type', 'application/json',
       'X-Treasury-Cron-Secret', '${cronSecret}'
     ),
-    body := '{}'::jsonb
+    body := '{"maxMonitor":0}'::jsonb
   ) AS request_id;
   $cron$
 );
@@ -109,7 +109,7 @@ async function invokeTreasury(path: string) {
       'Content-Type': 'application/json',
       'X-Treasury-Cron-Secret': cronSecret!,
     },
-    body: '{}',
+    body: '{"maxMonitor":0}',
   });
   const json = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, json };
@@ -125,7 +125,7 @@ async function main() {
   console.log('2/4 Writing TREASURY_CRON_SECRET to .env...');
   upsertEnv('TREASURY_CRON_SECRET', cronSecret);
 
-  console.log('3/4 Scheduling pg_cron job (every 5 minutes)...');
+  console.log('3/4 Scheduling pg_cron job (every 1 minute)...');
   await runSql(cronSql);
 
   console.log('4/4 Running bootstrap + test pipeline...');
@@ -137,7 +137,7 @@ async function main() {
   console.log('');
   console.log('Treasury cron configured.');
   console.log(`  Job name:  d3-treasury-pipeline`);
-  console.log(`  Schedule:  every 5 minutes (UTC)`);
+  console.log(`  Schedule:  every 1 minute (UTC)`);
   console.log(`  Endpoint:  ${SUPABASE_URL}/functions/v1/treasury/internal/run`);
   console.log(`  Secret:    saved to .env as TREASURY_CRON_SECRET`);
   console.log('');
