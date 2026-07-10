@@ -34,16 +34,16 @@ export type BribeTier = {
   labelEn: string;
 };
 
-export const BRIBE_TIER_MIN_USD = 100;
+export const BRIBE_TIER_MIN_USD = 1;
 
 export const BRIBE_TIERS: BribeTier[] = [
-  { min: 100, max: 100_000, rate: 1, ratePct: 100, labelZh: '职业受贿人', labelEn: 'Pro Bribe Officer' },
+  { min: 1, max: 100_000, rate: 1, ratePct: 100, labelZh: '职业受贿人', labelEn: 'Pro Bribe Officer' },
   { min: 100_000, max: 200_000, rate: 0.8, ratePct: 80, labelZh: '大受贿人', labelEn: 'Senior Bribe Officer' },
   { min: 200_000, max: 500_000, rate: 0.6, ratePct: 60, labelZh: '受贿总监', labelEn: 'Bribe Director' },
   { min: 500_000, max: 1_000_000, rate: 0.5, ratePct: 50, labelZh: '首席', labelEn: 'Chief' },
 ];
 
-/** 伞下业绩达到对应区间时返回受贿金等级；不足 100U 无等级。 */
+/** 伞下业绩达到对应区间时返回受贿金等级；不足 1U 无等级。 */
 export function getBribeTier(teamPerformanceUsd: number): BribeTier | null {
   if (teamPerformanceUsd < BRIBE_TIER_MIN_USD) return null;
   for (const tier of BRIBE_TIERS) {
