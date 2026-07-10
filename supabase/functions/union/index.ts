@@ -13,7 +13,7 @@ import {
   isPrivyOnchainEnabled,
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
-import { fetchPartnerTeamStats } from '../_shared/partnerPerformance.ts';
+import { fetchPartnerTeamStats, fetchPartnerMemberWallets } from '../_shared/partnerPerformance.ts';
 import {
   HttpError,
   isEthAddress,
@@ -546,6 +546,17 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     dailyNewPerformanceUsd: 0,
   }));
 
+  const profileWallets = new Set<string>([pk]);
+  for (const row of lineTeamNodes.data ?? []) {
+    profileWallets.add(String(row.wallet_address));
+  }
+  for (const ref of directReferrals.data ?? []) {
+    profileWallets.add(String(ref.wallet_address));
+  }
+  const partnerMemberWallets = await fetchPartnerMemberWallets(sb, [...profileWallets]).catch(
+    () => [] as string[],
+  );
+
   return {
     profile,
     shareholder: shareholder.data,
@@ -564,6 +575,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     multisigSignatures: multisigSignatures ?? [],
     pocScore: pocScore.data,
     partnerTeamStats,
+    partnerMemberWallets,
   };
 }
 

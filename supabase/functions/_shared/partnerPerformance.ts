@@ -124,3 +124,25 @@ export async function fetchPartnerTeamStats(sb: Sb, wallet: string): Promise<Par
 
   return { personalPerformanceUsd, teamPerformanceUsd, dailyNewPerformanceUsd };
 }
+
+const PARTNER_JOIN_STATUSES = ['credited', 'completed', 'sweep_pending'];
+
+/** Wallets that completed partner join (入盟). */
+export async function fetchPartnerMemberWallets(sb: Sb, wallets: string[]): Promise<string[]> {
+  const unique = [...new Set(wallets.map((w) => w.trim()).filter(Boolean))];
+  if (!unique.length) return [];
+
+  const { data, error } = await sb
+    .from('stake_intents')
+    .select('wallet_address')
+    .eq('intent_type', 'partner_join')
+    .in('status', PARTNER_JOIN_STATUSES)
+    .in('wallet_address', unique);
+
+  if (error) {
+    console.error('[partnerPerformance] partner member lookup:', error.message);
+    return [];
+  }
+
+  return [...new Set((data ?? []).map((row) => String(row.wallet_address).toLowerCase()))];
+}

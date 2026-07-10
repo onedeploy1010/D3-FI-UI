@@ -174,6 +174,11 @@
   "tree.open": "进入",
   "tree.layer": "第 {depth} 层",
   "tree.layerMe": "第 {depth} 层 · 我",
-  "tree.loading": "加载团队中…",
-  "subsidy.purposePlaceholderMarket": "场地 / 餐补 / 会议及明细"
+  "tree.loading": "載入團隊中…",
+  "tree.personalStake": "個人質押",
+  "tree.teamCount": "團隊人數",
+  "tree.partnerLevel": "合伙人等級",
+  "tree.memberRegular": "普通會員",
+  "tree.memberPartner": "合伙人",
+  "subsidy.purposePlaceholderMarket": "場地 / 餐補 / 會議及明細"
 }

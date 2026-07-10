@@ -53,6 +53,19 @@ export function getBribeTier(teamPerformanceUsd: number): BribeTier | null {
   return null;
 }
 
+/** 推荐树节点展示的合伙人等级文案键。 */
+export function partnerTreeLevelKey(
+  isPartner: boolean,
+  teamPerformanceUsd: number,
+): 'tree.memberRegular' | 'tree.memberPartner' | 'tier.proBribe' | 'tier.seniorBribe' | 'tier.director' | 'tier.chief' {
+  if (!isPartner) return 'tree.memberRegular';
+  const tier = getBribeTier(teamPerformanceUsd);
+  if (!tier) return 'tree.memberPartner';
+  const idx = BRIBE_TIERS.indexOf(tier);
+  const keys = ['tier.proBribe', 'tier.seniorBribe', 'tier.director', 'tier.chief'] as const;
+  return keys[idx >= 0 ? idx : 0];
+}
+
 /** 受贿金（sD3）仅合伙人上线获得：当日伞下新增业绩 × 等级比例。 */
 export function calcDailySd3(
   teamPerformanceUsd: number,

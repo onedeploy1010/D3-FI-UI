@@ -14,6 +14,7 @@ export type PartnerTeamNode = {
   directCount: number;
   teamCount: number;
   isDirect: boolean;
+  isPartner: boolean;
 };
 
 function num(v: unknown): number {
@@ -35,6 +36,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 3,
     teamCount: 12,
     isDirect: false,
+    isPartner: true,
   },
   d1: {
     id: 'd1',
@@ -49,6 +51,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 1,
     teamCount: 5,
     isDirect: true,
+    isPartner: true,
   },
   d2: {
     id: 'd2',
@@ -63,6 +66,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 0,
     teamCount: 4,
     isDirect: true,
+    isPartner: true,
   },
   d3: {
     id: 'd3',
@@ -77,6 +81,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 2,
     teamCount: 3,
     isDirect: true,
+    isPartner: false,
   },
   d1a: {
     id: 'd1a',
@@ -91,6 +96,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 0,
     teamCount: 2,
     isDirect: false,
+    isPartner: false,
   },
   d3a: {
     id: 'd3a',
@@ -105,6 +111,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 0,
     teamCount: 1,
     isDirect: false,
+    isPartner: true,
   },
   d3b: {
     id: 'd3b',
@@ -119,6 +126,7 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     directCount: 0,
     teamCount: 1,
     isDirect: false,
+    isPartner: true,
   },
 };
 
@@ -152,6 +160,7 @@ export function emptyPartnerTeamNodes(
       directCount: 0,
       teamCount: 0,
       isDirect: false,
+      isPartner: false,
     },
   };
 }
@@ -178,6 +187,10 @@ export function buildPartnerTeamNodes(
   const partnerStats = bundle.partnerTeamStats;
   const rows = bundle.lineTeamNodes ?? [];
   const walletLower = wallet.toLowerCase();
+  const partnerSet = new Set(
+    (bundle.partnerMemberWallets ?? []).map((w) => w.toLowerCase()),
+  );
+  const isPartnerWallet = (addr: string) => partnerSet.has(addr.toLowerCase());
 
   if (rows.length > 0) {
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -209,6 +222,7 @@ export function buildPartnerTeamNodes(
         directCount: row.direct_count ?? 0,
         teamCount: row.team_count ?? 0,
         isDirect: row.is_direct ?? false,
+        isPartner: isPartnerWallet(row.wallet_address),
       };
     }
 
@@ -229,6 +243,7 @@ export function buildPartnerTeamNodes(
         directCount: row.direct_count ?? 0,
         teamCount: row.team_count ?? 0,
         isDirect: row.is_direct ?? false,
+        isPartner: isPartnerWallet(row.wallet_address),
       };
     }
 
@@ -253,6 +268,7 @@ export function buildPartnerTeamNodes(
     directCount: partnerRefs.length,
     teamCount: tn?.team_count ?? partnerRefs.length,
     isDirect: false,
+    isPartner: isPartnerWallet(wallet),
   };
   const map: Record<string, PartnerTeamNode> = { me };
   partnerRefs.forEach((r, i) => {
@@ -270,6 +286,7 @@ export function buildPartnerTeamNodes(
       directCount: 0,
       teamCount: 0,
       isDirect: true,
+      isPartner: isPartnerWallet(r.wallet_address),
     };
   });
   return map;

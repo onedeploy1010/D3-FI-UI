@@ -171,5 +171,10 @@
   "tree.layer": "ชั้น {depth}",
   "tree.layerMe": "ชั้น {depth} · ฉัน",
   "tree.loading": "กำลังโหลดทีม…",
+  "tree.personalStake": "สเตคส่วนตัว",
+  "tree.teamCount": "จำนวนทีม",
+  "tree.partnerLevel": "ระดับพาร์ทเนอร์",
+  "tree.memberRegular": "สมาชิกทั่วไป",
+  "tree.memberPartner": "พาร์ทเนอร์",
   "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details"
 }

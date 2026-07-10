@@ -220,4 +220,6 @@ export type UnionProfileBundle = {
   multisigSignatures: MultisigSignatureRow[];
   pocScore: PocScoreRow | null;
   partnerTeamStats?: PartnerTeamStats;
+  /** Wallets with completed partner join (入盟). */
+  partnerMemberWallets?: string[];
 };

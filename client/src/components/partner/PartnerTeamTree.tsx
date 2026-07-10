@@ -2,9 +2,72 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, ArrowUp, ChevronRight, Layers, Search, Users } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
+import { partnerTreeLevelKey } from '@/components/partner/partnerData';
 import { partnerTeamDepth, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
+
+function TreeNodeStats({
+  node,
+  nodes,
+  isDark,
+  p,
+}: {
+  node: PartnerTeamNode;
+  nodes: Record<string, PartnerTeamNode>;
+  isDark: boolean;
+  p: ReturnType<typeof usePartnerTranslation>;
+}) {
+  const depth = partnerTeamDepth(nodes, node.id);
+  const levelKey = partnerTreeLevelKey(node.isPartner, node.teamUsd);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        <GlassChip className="!py-0.5 !px-2 text-[9px] font-bold" style={{ color: '#E0568F' }}>
+          {p('tree.layer', { depth })}
+        </GlassChip>
+        {node.isDirect && (
+          <span className="text-[9px] font-semibold text-[#E0568F]">{p('tree.direct')}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] mb-2">
+        <div>
+          <span className={`site-stat-label ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+            {p('tree.personalStake')}
+          </span>
+          <div className={`font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            ${node.personalUsd.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <span className={`site-stat-label ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+            {p('tree.teamCount')}
+          </span>
+          <div className={`font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            {node.teamCount.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <span className={`site-stat-label ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+            {p('tree.teamPerf')}
+          </span>
+          <div className={`font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            ${node.teamUsd.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <span className={`site-stat-label ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+            {p('tree.partnerLevel')}
+          </span>
+          <div className={`font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            {p(levelKey)}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export function PartnerTeamTree({
   lang,
@@ -63,15 +126,8 @@ export function PartnerTeamTree({
           {layerLabel}
         </GlassChip>
         <AddressBlock label={focus.label} value={focus.address} isDark={isDark} compact />
-        <div className="grid grid-cols-2 gap-2 text-xs mt-3">
-          <div className="ios-glass-inset p-2.5">
-            <div className="site-stat-label">{p('tree.teamPerf')}</div>
-            <div className="font-bold">${focus.teamUsd.toLocaleString()}</div>
-          </div>
-          <div className="ios-glass-inset p-2.5">
-            <div className="site-stat-label">{p('team.todayNew')}</div>
-            <div className="font-bold text-emerald-500">${focus.dailyNewUsd.toLocaleString()}</div>
-          </div>
+        <div className="mt-3">
+          <TreeNodeStats node={focus} nodes={nodes} isDark={isDark} p={p} />
         </div>
         <div className="flex gap-2 mt-3">
           <GlassButton
@@ -113,7 +169,10 @@ export function PartnerTeamTree({
                 className="w-full text-left ios-glass-pressable rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-semibold mb-1">{n.label} · ${n.teamUsd.toLocaleString()}</div>
+                  <div className={`text-xs font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                    {n.label}
+                  </div>
+                  <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
                   <AddressBlock value={n.address} isDark={isDark} compact showCopy />
                 </div>
                 <ChevronRight size={14} className="shrink-0 opacity-40" />
@@ -135,14 +194,10 @@ export function PartnerTeamTree({
                   className="w-full text-left rounded-xl px-3 py-3 ios-glass-inset ios-glass-pressable flex items-start justify-between gap-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-semibold mb-1 flex flex-wrap gap-2">
-                      <span>{n.label}</span>
-                      <span className="text-emerald-500">+${n.dailyNewUsd.toLocaleString()}</span>
-                      {n.isDirect && <span className="text-[#E0568F]">{p('tree.direct')}</span>}
+                    <div className={`text-xs font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                      {n.label}
                     </div>
-                    <div className={`text-xs mb-1 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-                      {p('tree.team')} ${n.teamUsd.toLocaleString()}
-                    </div>
+                    <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
                     <AddressBlock value={n.address} isDark={isDark} compact />
                   </div>
                   <span className="text-xs font-semibold text-[#E0568F] flex items-center gap-0.5 shrink-0">

@@ -177,5 +177,10 @@
   "tree.layer": "第 {depth} 层",
   "tree.layerMe": "第 {depth} 层 · 我",
   "tree.loading": "加载团队中…",
+  "tree.personalStake": "个人质押",
+  "tree.teamCount": "团队人数",
+  "tree.partnerLevel": "合伙人等级",
+  "tree.memberRegular": "普通会员",
+  "tree.memberPartner": "合伙人",
   "subsidy.purposePlaceholderMarket": "场地 / 餐补 / 会议及明细"
 }

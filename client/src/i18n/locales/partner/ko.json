@@ -171,5 +171,10 @@
   "tree.layer": "{depth}층",
   "tree.layerMe": "{depth}층 · 나",
   "tree.loading": "팀 로딩 중…",
+  "tree.personalStake": "개인 스테이킹",
+  "tree.teamCount": "팀 인원",
+  "tree.partnerLevel": "파트너 등급",
+  "tree.memberRegular": "일반 회원",
+  "tree.memberPartner": "파트너",
   "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details"
 }

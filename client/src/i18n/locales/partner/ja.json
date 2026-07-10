@@ -171,5 +171,10 @@
   "tree.layer": "第 {depth} 層",
   "tree.layerMe": "第 {depth} 層 · 自分",
   "tree.loading": "チーム読み込み中…",
+  "tree.personalStake": "個人ステーク",
+  "tree.teamCount": "チーム人数",
+  "tree.partnerLevel": "パートナー等級",
+  "tree.memberRegular": "一般会員",
+  "tree.memberPartner": "パートナー",
   "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details"
 }

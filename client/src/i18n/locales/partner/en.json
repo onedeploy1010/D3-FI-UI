@@ -177,5 +177,10 @@
   "tree.layer": "Layer {depth}",
   "tree.layerMe": "Layer {depth} · You",
   "tree.loading": "Loading team…",
+  "tree.personalStake": "Personal stake",
+  "tree.teamCount": "Team size",
+  "tree.partnerLevel": "Partner tier",
+  "tree.memberRegular": "Regular member",
+  "tree.memberPartner": "Partner",
   "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details"
 }
