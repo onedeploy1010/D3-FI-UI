@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, ArrowUp, ChevronRight, Layers, Search, Send, Users } from 'lucide-react';
+import { ArrowRight, ArrowUp, Layers, Search, Users } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
@@ -94,6 +94,46 @@ export function PartnerTeamTree({
 
   const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferSd3);
 
+  const transferProps = (node: PartnerTeamNode) =>
+    canTransfer && node.id !== 'me'
+      ? {
+          onTransfer: () => setTransferTarget(node),
+          transferAriaLabel: p('tree.transferSd3'),
+          transferLabel: p('tree.sd3Label'),
+        }
+      : {};
+
+  function TreeNodeCard({
+    node,
+    onOpen,
+  }: {
+    node: PartnerTeamNode;
+    onOpen: () => void;
+  }) {
+    return (
+      <div className="rounded-xl px-3 py-3 ios-glass-inset space-y-2">
+        <button type="button" onClick={onOpen} className="w-full text-left ios-glass-pressable">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div className={`text-xs font-semibold min-w-0 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              {node.label}
+            </div>
+            <span className="text-[10px] font-semibold text-[#E0568F] flex items-center gap-0.5 shrink-0 pt-0.5">
+              {p('tree.open')} <ArrowRight size={12} />
+            </span>
+          </div>
+          <TreeNodeStats node={node} nodes={nodes} isDark={isDark} p={p} />
+        </button>
+        <AddressBlock
+          value={node.address}
+          isDark={isDark}
+          compact
+          showCopy
+          {...transferProps(node)}
+        />
+      </div>
+    );
+  }
+
   const focus = nodes[focusId] ?? nodes.me;
   const parent = focus?.parentId ? nodes[focus.parentId] : null;
   const children = focus?.childrenIds.map((id) => nodes[id]).filter(Boolean) ?? [];
@@ -135,7 +175,13 @@ export function PartnerTeamTree({
           <Layers size={11} />
           {layerLabel}
         </GlassChip>
-        <AddressBlock label={focus.label} value={focus.address} isDark={isDark} compact />
+        <AddressBlock
+          label={focus.label}
+          value={focus.address}
+          isDark={isDark}
+          compact
+          {...transferProps(focus)}
+        />
         <div className="mt-3">
           <TreeNodeStats node={focus} nodes={nodes} isDark={isDark} p={p} />
         </div>
@@ -152,14 +198,6 @@ export function PartnerTeamTree({
             {p('tree.root')}
           </GlassButton>
         </div>
-        {canTransfer && focusId !== 'me' && (
-          <GlassButton
-            className="w-full !py-2.5 !text-xs mt-2 flex items-center justify-center gap-1.5"
-            onClick={() => setTransferTarget(focus)}
-          >
-            <Send size={12} /> {p('tree.transferSd3')}
-          </GlassButton>
-        )}
       </div>
 
       <div className={glassCardClass('default', 'p-4')}>
@@ -180,35 +218,11 @@ export function PartnerTeamTree({
               </div>
             )}
             {searchHits.map((n) => (
-              <button
+              <TreeNodeCard
                 key={n.id}
-                type="button"
-                onClick={() => { setFocusId(n.id); setQ(''); }}
-                className="w-full text-left ios-glass-pressable rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className={`text-xs font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                    {n.label}
-                  </div>
-                  <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
-                  <AddressBlock value={n.address} isDark={isDark} compact showCopy />
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {canTransfer && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTransferTarget(n);
-                      }}
-                      className="text-[10px] font-semibold text-amber-500 flex items-center gap-0.5"
-                    >
-                      <Send size={11} /> {p('tree.transferSd3')}
-                    </button>
-                  )}
-                  <ChevronRight size={14} className="opacity-40" />
-                </div>
-              </button>
+                node={n}
+                onOpen={() => { setFocusId(n.id); setQ(''); }}
+              />
             ))}
           </div>
         ) : (
@@ -219,40 +233,7 @@ export function PartnerTeamTree({
               </div>
             ) : (
               children.map((n) => (
-                <div
-                  key={n.id}
-                  className="rounded-xl px-3 py-3 ios-glass-inset flex items-start justify-between gap-2"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setFocusId(n.id)}
-                    className="min-w-0 flex-1 text-left ios-glass-pressable"
-                  >
-                    <div className={`text-xs font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                      {n.label}
-                    </div>
-                    <TreeNodeStats node={n} nodes={nodes} isDark={isDark} p={p} />
-                    <AddressBlock value={n.address} isDark={isDark} compact />
-                  </button>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {canTransfer && (
-                      <button
-                        type="button"
-                        onClick={() => setTransferTarget(n)}
-                        className="text-[10px] font-semibold text-amber-500 flex items-center gap-0.5"
-                      >
-                        <Send size={11} /> {p('tree.transferSd3')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setFocusId(n.id)}
-                      className="text-xs font-semibold text-[#E0568F] flex items-center gap-0.5"
-                    >
-                      {p('tree.open')} <ArrowRight size={12} />
-                    </button>
-                  </div>
-                </div>
+                <TreeNodeCard key={n.id} node={n} onOpen={() => setFocusId(n.id)} />
               ))
             )}
           </div>

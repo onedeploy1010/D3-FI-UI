@@ -586,13 +586,17 @@ export function hydratePartnerStateFromApi(
   };
 }
 
+export const SD3_QUOTA_RATE_PCT = 100;
+
 export function getSd3Quotas(state: PartnerState) {
   const available = state.sd3Balance;
+  const quota = available;
   return {
     available,
     staked: state.sd3StakedFromRewards,
-    stakeQuota: available,
-    transferQuota: available,
+    quotaRatePct: SD3_QUOTA_RATE_PCT,
+    stakeQuota: quota,
+    transferQuota: quota,
   };
 }
 
