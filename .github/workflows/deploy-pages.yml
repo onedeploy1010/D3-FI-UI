@@ -38,6 +38,10 @@ jobs:
       - name: Build (GitHub Pages base path)
         env:
           GITHUB_PAGES: "true"
+          VITE_PRIVY_APP_ID: ${{ secrets.VITE_PRIVY_APP_ID }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_DEMO_WALLET_ADDRESS: ${{ secrets.VITE_DEMO_WALLET_ADDRESS }}
         run: pnpm run build
 
       - name: Upload artifact

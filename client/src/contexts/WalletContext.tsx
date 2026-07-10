@@ -1,7 +1,6 @@
+// @refresh reset
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -21,25 +20,9 @@ import { shortWallet } from '@/lib/wallet';
 import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
 import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
 import { setDepositAccessTokenGetter } from '@/lib/depositApi';
+import { WalletContext, type WalletContextValue } from './walletCtx';
 
-type WalletContextValue = {
-  wallet: string | null;
-  shortAddress: string | null;
-  privyUserId: string | null;
-  isConnected: boolean;
-  isDemo: boolean;
-  /** Privy SDK finished initializing (`usePrivy().ready`). */
-  isPrivyReady: boolean;
-  /** Privy failed to initialize within the timeout window. */
-  privyInitFailed: boolean;
-  /** Safe to load wallet-bound APIs (Privy ready or demo session). */
-  isReady: boolean;
-  isConnecting: boolean;
-  error: string | null;
-  connect: () => void;
-  connectDemo: () => Promise<void>;
-  disconnect: () => void;
-};
+export { useWallet, type WalletContextValue } from './walletCtx';
 
 /** Detect when Privy `ready` never fires (blocked SDK, wrong origin, ad blocker). */
 const PRIVY_INIT_TIMEOUT_MS = 8000;
@@ -49,8 +32,6 @@ const LOGIN_STUCK_TIMEOUT_MS = 90_000;
 const privyInitFailedMessage =
   'Privy 初始化失败：请在 Privy Dashboard 将本站域名加入 Allowed origins，关闭广告拦截后刷新页面。';
 const privyNotReadyMessage = 'Privy 正在初始化，请稍候…';
-
-const WalletContext = createContext<WalletContextValue | null>(null);
 
 const privyConfigured = Boolean(import.meta.env.VITE_PRIVY_APP_ID);
 const privyMissingError = '请在 .env 配置 VITE_PRIVY_APP_ID';
@@ -88,7 +69,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   if (!privyConfigured) {
     return <WalletProviderUnconfigured>{children}</WalletProviderUnconfigured>;
   }
-  return <WalletProviderInner>{children}</WalletProviderInner>;
+  return <WalletProviderPrivy>{children}</WalletProviderPrivy>;
 }
 
 function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
@@ -128,7 +109,7 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }
 
-function WalletProviderInner({ children }: { children: ReactNode }) {
+function WalletProviderPrivy({ children }: { children: ReactNode }) {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { demoWallet, isDemo, activateDemo, deactivateDemo } = useDemoWalletState();
@@ -284,10 +265,4 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
-}
-
-export function useWallet() {
-  const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error('useWallet must be used within WalletProvider');
-  return ctx;
 }

@@ -9,6 +9,7 @@ if (!appId && import.meta.env.DEV) {
   console.error('[Privy] Missing VITE_PRIVY_APP_ID in .env');
 }
 
+/** Privy SDK only — wrap with WalletProvider outside (see main.tsx). */
 export function PrivyAppProvider({ children }: { children: ReactNode }) {
   if (!appId) {
     return <>{children}</>;

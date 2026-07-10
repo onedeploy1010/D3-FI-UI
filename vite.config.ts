@@ -9,7 +9,7 @@ import { config as loadEnv } from "dotenv";
 import express from "express";
 import { createApiRouter } from "./server/api/router";
 
-loadEnv({ path: path.resolve(import.meta.dirname, ".env") });
+loadEnv({ path: path.resolve(import.meta.dirname, ".env"), override: true });
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin

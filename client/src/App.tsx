@@ -4,7 +4,6 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { WalletProvider } from "./contexts/WalletContext";
 import Landing from "./pages/Landing";
 import Portal from "./pages/Portal";
 import D3Fi from "./pages/D3Fi";
@@ -44,16 +43,14 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <WalletProvider>
-        <ThemeProvider defaultTheme="light" switchable={false}>
-          <TooltipProvider>
-            <Toaster />
-            <ReferralBindGate>
-              <Router />
-            </ReferralBindGate>
-          </TooltipProvider>
-        </ThemeProvider>
-      </WalletProvider>
+      <ThemeProvider defaultTheme="light" switchable={false}>
+        <TooltipProvider>
+          <Toaster />
+          <ReferralBindGate>
+            <Router />
+          </ReferralBindGate>
+        </TooltipProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
