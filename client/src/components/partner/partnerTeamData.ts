@@ -285,7 +285,7 @@ export function buildPartnerTeamNodes(
       label: shortWallet(r.wallet_address),
       parentId: 'me',
       childrenIds: [],
-      teamUsd: downlineTeamUsd + personalUsd,
+      teamUsd: downlineTeamUsd,
       dailyNewUsd: 0,
       personalUsd,
       directCount: 0,

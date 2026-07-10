@@ -130,7 +130,7 @@ async function sumDownlineNewPerformanceSgt(
     const { data: directs } = await sb
       .from('referrals')
       .select('wallet_address')
-      .eq('sponsor_wallet_address', current)
+      .ilike('sponsor_wallet_address', current)
       .eq('referral_type', 'partner')
       .eq('status', 'active');
 
@@ -328,6 +328,15 @@ export async function runDailyPartnerSettlement(
 }
 
 export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
+  const { data: creditedIntents } = await sb
+    .from('stake_intents')
+    .select('id')
+    .eq('wallet_address', wallet)
+    .in('status', CREDITED_STATUSES);
+  for (const row of creditedIntents ?? []) {
+    await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
+  }
+
   const [account, positions, sd3History, yieldHistory] = await Promise.all([
     sb.from('partner_accounts').select('*').eq('wallet_address', wallet).maybeSingle(),
     sb

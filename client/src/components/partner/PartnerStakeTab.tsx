@@ -10,6 +10,7 @@ import {
   stakeOrderDaysLeft,
   stakeOrderProgress,
   STAKE_LOCK_DAYS,
+  isPrincipalStakeKind,
   type PartnerState,
   type StakeOrderKind,
 } from '@/components/partner/partnerData';
@@ -95,7 +96,7 @@ export function PartnerStakeTab({
 }) {
   const p = usePartnerTranslation(lang);
   const crowdfundOrders = useMemo(
-    () => state.stakeOrders.filter((o) => o.kind === 'crowdfund' || o.kind === 'partner_join'),
+    () => state.stakeOrders.filter((o) => isPrincipalStakeKind(o.kind)),
     [state.stakeOrders],
   );
   const stats = aggregateStakeOrders(crowdfundOrders);

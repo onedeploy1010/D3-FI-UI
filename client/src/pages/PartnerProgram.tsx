@@ -109,9 +109,9 @@ export default function PartnerProgram() {
       if (!hasReferralBound) return false;
       try {
         await payForJoin(PARTNER_JOIN_USDT);
-        const ok = joinPartner(hasReferralBound);
-        void refreshTeamProfile();
-        return ok;
+        joinPartner(hasReferralBound);
+        await refreshTeamProfile();
+        return true;
       } catch (e) {
         notifyPayError(e);
         return false;
@@ -125,9 +125,9 @@ export default function PartnerProgram() {
       if (!hasReferralBound) return false;
       try {
         await payForStake(amount);
-        const ok = crowdfundStake(amount, hasReferralBound);
-        void refreshTeamProfile();
-        return ok;
+        crowdfundStake(amount, hasReferralBound);
+        await refreshTeamProfile();
+        return true;
       } catch (e) {
         notifyPayError(e);
         return false;

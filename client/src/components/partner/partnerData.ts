@@ -97,6 +97,35 @@ export function formatDailyYieldUsdt(amount: number): string {
 
 export type StakeOrderKind = 'crowdfund' | 'partner_join' | 'sd3';
 
+/** Map API / DB stake position kind to UI order kind. */
+export function normalizeStakeOrderKind(kind: string): StakeOrderKind {
+  if (kind === 'partner_join') return 'partner_join';
+  if (kind === 'crowdfund_stake' || kind === 'crowdfund') return 'crowdfund';
+  if (kind === 'sd3') return 'sd3';
+  return 'crowdfund';
+}
+
+export function isPrincipalStakeKind(kind: StakeOrderKind | string): boolean {
+  const k = normalizeStakeOrderKind(kind);
+  return k === 'crowdfund' || k === 'partner_join';
+}
+
+function toDateLabel(iso: string): string {
+  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+}
+
+export function mapStakePositionToOrder(p: PartnerStakePositionRow): PartnerStakeOrder {
+  return {
+    id: p.id,
+    kind: normalizeStakeOrderKind(p.kind),
+    principalUsdt: Number(p.principal_usdt),
+    startedAt: toDateLabel(p.started_at),
+    unlockAt: toDateLabel(p.unlock_at),
+    dailyYieldUsdt: Number(p.daily_yield_usdt),
+    claimedYieldUsdt: Number(p.claimed_yield_usdt),
+  };
+}
+
 export type PartnerStakeOrder = {
   id: string;
   kind: StakeOrderKind;
@@ -466,6 +495,7 @@ export function migratePartnerState(raw: unknown): PartnerState {
       ...base,
       stakeOrders: s.stakeOrders.map((o) => ({
         ...o,
+        kind: normalizeStakeOrderKind(o.kind as string),
         dailyYieldUsdt:
           o.dailyYieldUsdt > 0 ? o.dailyYieldUsdt : calcDailyUsdtYield(o.principalUsdt),
       })),
@@ -513,15 +543,12 @@ export function hydratePartnerStateFromApi(
   const hasServer = Boolean(account || positions.length > 0 || (api.partnerSd3Settlements?.length ?? 0) > 0);
   if (!hasServer) return local;
 
-  const stakeOrders: PartnerStakeOrder[] = positions.map((p) => ({
-    id: p.id,
-    kind: p.kind,
-    principalUsdt: Number(p.principal_usdt),
-    startedAt: p.started_at,
-    unlockAt: p.unlock_at,
-    dailyYieldUsdt: Number(p.daily_yield_usdt),
-    claimedYieldUsdt: Number(p.claimed_yield_usdt),
-  }));
+  const stakeOrders: PartnerStakeOrder[] = positions.map(mapStakePositionToOrder);
+
+  const serverIds = new Set(stakeOrders.map((o) => o.id));
+  const localExtras = local.stakeOrders.filter((o) => !serverIds.has(o.id));
+  const mergedStakeOrders =
+    stakeOrders.length > 0 ? [...stakeOrders, ...localExtras] : local.stakeOrders;
 
   const sd3SettlementHistory: Sd3SettlementRecord[] = (api.partnerSd3Settlements ?? []).map((r) => ({
     id: r.id,
@@ -542,7 +569,7 @@ export function hydratePartnerStateFromApi(
     lifetimeSd3Earned: account ? Number(account.lifetime_sd3_earned) : local.lifetimeSd3Earned,
     lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
-    stakeOrders: stakeOrders.length > 0 ? stakeOrders : local.stakeOrders,
+    stakeOrders: mergedStakeOrders,
     sd3SettlementHistory,
     lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
     dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,
