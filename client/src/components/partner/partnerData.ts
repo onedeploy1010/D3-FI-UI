@@ -5,10 +5,13 @@ import type {
   PartnerSd3SettlementRow,
   PartnerSd3TransferRow,
   PartnerStakePositionRow,
+  PartnerYieldSettlementRow,
 } from '@/lib/d3fiTypes';
 
 export const PARTNER_JOIN_USDT = 1;
 export const MIN_CROWDFUND_STAKE_USDT = 0.01;
+/** Minimum USDT yield flash-withdraw (1 USDT @ 0.4%/day = 0.004). */
+export const MIN_YIELD_WITHDRAW_USDT = 0.001;
 export const DAILY_YIELD_PCT = 0.4;
 export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;
@@ -89,12 +92,18 @@ export function calcDailyUsdtYield(stakedUsdt: number): number {
   return stakedUsdt * DAILY_YIELD_RATE;
 }
 
-/** 展示用：小额日息保留更多小数位。 */
+/** 展示用：日返息固定 4 位小数。 */
 export function formatDailyYieldUsdt(amount: number): string {
-  if (!Number.isFinite(amount) || amount <= 0) return '0.00';
-  if (amount < 0.01) return amount.toFixed(4);
-  return amount.toFixed(2);
+  if (!Number.isFinite(amount) || amount < 0) return '0.0000';
+  return amount.toFixed(4);
 }
+
+export type YieldReleaseRecord = {
+  id: string;
+  date: string;
+  yieldUsdt: number;
+  source: 'settled' | 'accrued';
+};
 
 export type StakeOrderKind = 'crowdfund' | 'partner_join' | 'sd3';
 
@@ -197,7 +206,66 @@ export type PartnerState = {
   sd3SettlementHistory: Sd3SettlementRecord[];
   /** Server-settled USDT yield available to withdraw. */
   pendingUsdtYield: number;
+  /** Daily USDT yield release rows keyed by stake position id. */
+  yieldSettlementsByPosition: Record<string, YieldReleaseRecord[]>;
 };
+
+export function buildStakeOrderYieldHistory(
+  order: PartnerStakeOrder,
+  settlements: PartnerYieldSettlementRow[] = [],
+): YieldReleaseRecord[] {
+  const rows = settlements
+    .filter((r) => r.position_id === order.id)
+    .map((r) => ({
+      id: r.id,
+      date: r.settlement_date,
+      yieldUsdt: Number(r.yield_usdt),
+      source: 'settled' as const,
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (rows.length > 0) return rows;
+
+  const start = new Date(`${order.startedAt}T00:00:00`);
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const unlock = new Date(`${order.unlockAt}T23:59:59`);
+  if (Number.isNaN(start.getTime()) || order.dailyYieldUsdt <= 0) return [];
+
+  const accrued: YieldReleaseRecord[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end && cursor <= unlock) {
+    const date = cursor.toISOString().slice(0, 10);
+    accrued.push({
+      id: `accrued-${order.id}-${date}`,
+      date,
+      yieldUsdt: order.dailyYieldUsdt,
+      source: 'accrued',
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return accrued.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function mapYieldSettlementsByPosition(
+  settlements: PartnerYieldSettlementRow[],
+): Record<string, YieldReleaseRecord[]> {
+  const map: Record<string, YieldReleaseRecord[]> = {};
+  for (const r of settlements) {
+    const positionId = r.position_id;
+    if (!map[positionId]) map[positionId] = [];
+    map[positionId].push({
+      id: r.id,
+      date: r.settlement_date,
+      yieldUsdt: Number(r.yield_usdt),
+      source: 'settled',
+    });
+  }
+  for (const key of Object.keys(map)) {
+    map[key].sort((a, b) => b.date.localeCompare(a.date));
+  }
+  return map;
+}
 
 export function stakeOrderDaysLeft(order: PartnerStakeOrder, now = Date.now()): number {
   return Math.max(0, Math.ceil((new Date(order.unlockAt).getTime() - now) / 86400000));
@@ -240,6 +308,20 @@ export function computeYieldBalances(orders: PartnerStakeOrder[], now = Date.now
     claimedYieldUsdt,
     accruedTotal: Math.round(accruedTotal * 100) / 100,
     claimable: Math.round(claimable * 100) / 100,
+  };
+}
+
+/** Flash-withdraw balances: server pending yield is source of truth when settled. */
+export function resolveFlashYieldBalances(state: PartnerState, now = Date.now()) {
+  const computed = computeYieldBalances(state.stakeOrders, now);
+  const serverPending = Number(state.pendingUsdtYield ?? 0);
+  const claimable = serverPending > 0 ? serverPending : computed.claimable;
+  return {
+    ...computed,
+    claimable,
+    accruedTotal: Math.max(computed.accruedTotal, Number(state.lifetimeUsdtYield ?? 0)),
+    minWithdrawUsdt: MIN_YIELD_WITHDRAW_USDT,
+    canWithdraw: claimable >= MIN_YIELD_WITHDRAW_USDT,
   };
 }
 
@@ -457,6 +539,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     { id: 'sd3-6', settledAt: '2026-07-03', teamPerformanceUsd: 74_000, dailyNewPerformanceUsd: 1600, tierRatePct: 100, sd3Amount: 1600 },
   ],
   pendingUsdtYield: 0,
+  yieldSettlementsByPosition: {},
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
@@ -481,6 +564,7 @@ export const GUEST_PARTNER_STATE: PartnerState = {
   marketSubsidyPerformanceUsed: 0,
   sd3SettlementHistory: [],
   pendingUsdtYield: 0,
+  yieldSettlementsByPosition: {},
 };
 
 type LegacyPartnerState = PartnerState & {
@@ -508,6 +592,7 @@ export function migratePartnerState(raw: unknown): PartnerState {
       sd3SettlementHistory: s.sd3SettlementHistory ?? [],
       yieldWithdrawals: s.yieldWithdrawals ?? [],
       pendingUsdtYield: s.pendingUsdtYield ?? 0,
+      yieldSettlementsByPosition: s.yieldSettlementsByPosition ?? {},
     } as PartnerState;
   }
   if (s.stake) {
@@ -538,6 +623,7 @@ export function hydratePartnerStateFromApi(
     partnerStakePositions?: PartnerStakePositionRow[];
     partnerSd3Settlements?: PartnerSd3SettlementRow[];
     partnerSd3Transfers?: PartnerSd3TransferRow[];
+    partnerYieldSettlements?: PartnerYieldSettlementRow[];
   },
 ): PartnerState {
   const account = api.partnerAccount;
@@ -570,6 +656,8 @@ export function hydratePartnerStateFromApi(
     at: r.created_at.slice(0, 10),
   }));
 
+  const yieldSettlementsByPosition = mapYieldSettlementsByPosition(api.partnerYieldSettlements ?? []);
+
   return {
     ...local,
     isPartner: account?.is_partner ?? local.isPartner,
@@ -580,6 +668,7 @@ export function hydratePartnerStateFromApi(
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
     stakeOrders: mergedStakeOrders,
     transfers: serverTransfers.length > 0 ? serverTransfers : local.transfers,
+    yieldSettlementsByPosition,
     sd3SettlementHistory,
     lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
     dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,

@@ -12,7 +12,7 @@ import { ensureInfrastructureWallets, getFlashSwapWallet } from './wallets.ts';
 
 type Sb = SupabaseClient;
 
-const MIN_WITHDRAW_USDT = 0.01;
+const MIN_WITHDRAW_USDT = 0.001;
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;

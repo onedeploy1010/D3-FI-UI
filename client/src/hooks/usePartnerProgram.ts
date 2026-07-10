@@ -11,7 +11,8 @@ import {
   applyPartnerSubsidy,
   applySd3Stake,
   applySd3Transfer,
-  computeYieldBalances,
+  resolveFlashYieldBalances,
+  MIN_YIELD_WITHDRAW_USDT,
   DEMO_PARTNER_STATE,
   GUEST_PARTNER_STATE,
   hydratePartnerStateFromApi,
@@ -177,9 +178,8 @@ export function usePartnerProgram(wallet: string | null) {
 
   const withdrawYield = useCallback(
     async (amount: number) => {
-      if (!wallet || !state.isPartner || amount <= 0) return false;
-      const computed = computeYieldBalances(state.stakeOrders);
-      const claimable = state.pendingUsdtYield > 0 ? state.pendingUsdtYield : computed.claimable;
+      if (!wallet || !state.isPartner || amount < MIN_YIELD_WITHDRAW_USDT) return false;
+      const { claimable } = resolveFlashYieldBalances(state);
       if (amount > claimable + 0.0001) return false;
 
       setYieldWithdrawing(true);

@@ -7,8 +7,9 @@ import { AddressBlock } from '@/components/ui/AddressBlock';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import {
   buildHistoryRecords,
-  computeYieldBalances,
   getSd3Quotas,
+  MIN_YIELD_WITHDRAW_USDT,
+  resolveFlashYieldBalances,
   type PartnerHistoryKind,
   type PartnerState,
 } from '@/components/partner/partnerData';
@@ -66,17 +67,7 @@ export function PartnerAssetsTab({
   const [transferSubmitting, setTransferSubmitting] = useState(false);
 
   const quotas = getSd3Quotas(state);
-  const yieldBalances = useMemo(() => {
-    const computed = computeYieldBalances(state.stakeOrders);
-    if (state.pendingUsdtYield > 0) {
-      return {
-        ...computed,
-        claimable: state.pendingUsdtYield,
-        accruedTotal: Math.max(computed.accruedTotal, state.lifetimeUsdtYield),
-      };
-    }
-    return computed;
-  }, [state.stakeOrders, state.pendingUsdtYield, state.lifetimeUsdtYield]);
+  const yieldBalances = useMemo(() => resolveFlashYieldBalances(state), [state]);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
 
   const assetsHistory = useMemo(
@@ -141,7 +132,7 @@ export function PartnerAssetsTab({
 
   const submitFlashSwap = async () => {
     const n = clampAmount(flashAmount, yieldBalances.claimable);
-    if (n <= 0 || flashSubmitting || yieldWithdrawing) return;
+    if (n < MIN_YIELD_WITHDRAW_USDT || flashSubmitting || yieldWithdrawing) return;
     setFlashSubmitting(true);
     try {
       const ok = await onWithdrawYield(n);
@@ -235,11 +226,18 @@ export function PartnerAssetsTab({
                 <div className="text-2xl font-black text-emerald-500 mt-1">
                   ${yieldBalances.claimable.toLocaleString()}
                 </div>
-                <div className={`text-[10px] mt-1 ${muted}`}>{p('assets.flashYieldAvailable')}</div>
+                <div className={`text-[10px] mt-1 ${muted}`}>
+                  {p('assets.flashYieldAvailable')}
+                  {!yieldBalances.canWithdraw && yieldBalances.claimable > 0 && (
+                    <span className="block text-amber-500/90 mt-0.5">
+                      {p('assets.flashYieldMin', { min: MIN_YIELD_WITHDRAW_USDT })}
+                    </span>
+                  )}
+                </div>
               </div>
               <GlassButton
                 className="!py-2.5 !px-4 flex items-center gap-1.5 shrink-0"
-                disabled={yieldBalances.claimable <= 0}
+                disabled={!yieldBalances.canWithdraw}
                 onClick={() => setFlashOpen(true)}
               >
                 <Zap size={14} />
@@ -486,6 +484,9 @@ export function PartnerAssetsTab({
         isDark={isDark}
       >
         <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>{p('assets.flashSwapHint')}</p>
+        <div className={`text-[10px] mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+          {p('assets.flashYieldMin', { min: MIN_YIELD_WITHDRAW_USDT })}
+        </div>
         <div className="ios-glass-inset p-3 flex justify-between items-center text-xs mb-4">
           <span className={muted}>{p('assets.flashYield')}</span>
           <span className="font-bold text-emerald-500">${yieldBalances.claimable.toLocaleString()}</span>
@@ -526,7 +527,7 @@ export function PartnerAssetsTab({
         </div>
         <GlassButton
           className="w-full !py-3.5 flex items-center justify-center gap-2"
-          disabled={yieldBalances.claimable <= 0 || flashSubmitting || yieldWithdrawing}
+          disabled={!yieldBalances.canWithdraw || flashSubmitting || yieldWithdrawing}
           onClick={() => void submitFlashSwap()}
         >
           <ArrowRightLeft size={14} /> {p('assets.confirmFlashSwap')}

@@ -610,6 +610,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     partnerStakePositions: partnerBundle.stakePositions,
     partnerSd3Settlements: partnerBundle.sd3Settlements,
     partnerSd3Transfers: partnerBundle.sd3Transfers,
+    partnerYieldSettlements: partnerBundle.yieldSettlements,
     partnerDownlineWallets,
   };
 }
