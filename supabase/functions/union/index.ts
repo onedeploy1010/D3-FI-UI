@@ -14,6 +14,7 @@ import {
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { fetchPartnerTeamStats, fetchPartnerMemberWallets } from '../_shared/partnerPerformance.ts';
+import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
   HttpError,
   isEthAddress,
@@ -556,6 +557,12 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
   const partnerMemberWallets = await fetchPartnerMemberWallets(sb, [...profileWallets]).catch(
     () => [] as string[],
   );
+  const partnerBundle = await fetchPartnerAccountBundle(sb, pk).catch(() => ({
+    account: null,
+    stakePositions: [],
+    sd3Settlements: [],
+    yieldSettlements: [],
+  }));
 
   return {
     profile,
@@ -576,6 +583,9 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     pocScore: pocScore.data,
     partnerTeamStats,
     partnerMemberWallets,
+    partnerAccount: partnerBundle.account,
+    partnerStakePositions: partnerBundle.stakePositions,
+    partnerSd3Settlements: partnerBundle.sd3Settlements,
   };
 }
 

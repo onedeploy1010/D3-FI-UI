@@ -69,6 +69,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (req.method === 'POST' && path === '/internal/partner-settlement/run') {
+      requireCronSecret(req);
+      const body = await readJson<{ settlementDate?: string }>(req).catch(
+        () => ({} as { settlementDate?: string }),
+      );
+      const { runDailyPartnerSettlement } = await import('../_shared/partnerSettlement.ts');
+      const result = await runDailyPartnerSettlement(sb, body.settlementDate);
+      return jsonResponse({ ok: true, ...result });
+    }
+
     if (req.method === 'POST' && path === '/internal/run') {
       requireCronSecret(req);
       const body = await readJson<{ maxSweepJobs?: number; maxMonitor?: number }>(req).catch(

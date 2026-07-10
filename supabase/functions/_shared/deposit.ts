@@ -15,6 +15,7 @@ import {
   verifyUsdtTransfer,
 } from './turnkey.ts';
 import { rollupPartnerPerformance } from './partnerPerformance.ts';
+import { syncStakePositionOnCredit } from './partnerSettlement.ts';
 import {
   claimDepositWalletFromPool,
   createOnDemandDepositWallet,
@@ -213,6 +214,10 @@ export async function creditDepositDemo(sb: Sb, walletAddress: string, intentId:
     console.error('[deposit] demo partner performance rollup:', e instanceof Error ? e.message : e);
   });
 
+  await syncStakePositionOnCredit(sb, intentId).catch((e) => {
+    console.error('[deposit] demo stake position sync:', e instanceof Error ? e.message : e);
+  });
+
   await postLedgerEntry(sb, {
     ledgerType: 'deposit_credit',
     walletAddress,
@@ -305,6 +310,10 @@ export async function reportDepositTx(
 
   await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
     console.error('[deposit] partner performance rollup:', e instanceof Error ? e.message : e);
+  });
+
+  await syncStakePositionOnCredit(sb, intentId).catch((e) => {
+    console.error('[deposit] stake position sync:', e instanceof Error ? e.message : e);
   });
 
   await postLedgerEntry(sb, {

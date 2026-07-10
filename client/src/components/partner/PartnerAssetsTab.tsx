@@ -57,7 +57,17 @@ export function PartnerAssetsTab({
   const [flashAmount, setFlashAmount] = useState('');
 
   const quotas = getSd3Quotas(state);
-  const yieldBalances = computeYieldBalances(state.stakeOrders);
+  const yieldBalances = useMemo(() => {
+    const computed = computeYieldBalances(state.stakeOrders);
+    if (state.pendingUsdtYield > 0) {
+      return {
+        ...computed,
+        claimable: state.pendingUsdtYield,
+        accruedTotal: Math.max(computed.accruedTotal, state.lifetimeUsdtYield),
+      };
+    }
+    return computed;
+  }, [state.stakeOrders, state.pendingUsdtYield, state.lifetimeUsdtYield]);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
 
   const assetsHistory = useMemo(

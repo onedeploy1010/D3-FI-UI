@@ -202,6 +202,38 @@ export type PartnerTeamStats = {
   dailyNewPerformanceUsd: number;
 };
 
+export type PartnerAccountRow = {
+  wallet_address: string;
+  is_partner: boolean;
+  sd3_balance: number;
+  pending_usdt_yield: number;
+  lifetime_sd3_earned: number;
+  lifetime_usdt_yield: number;
+  joined_at: string | null;
+};
+
+export type PartnerStakePositionRow = {
+  id: string;
+  intent_id: string;
+  kind: 'partner_join' | 'crowdfund_stake';
+  principal_usdt: number;
+  daily_yield_usdt: number;
+  accrued_yield_usdt: number;
+  claimed_yield_usdt: number;
+  started_at: string;
+  unlock_at: string;
+  status: string;
+};
+
+export type PartnerSd3SettlementRow = {
+  id: string;
+  settlement_date: string;
+  team_performance_usd: number;
+  daily_new_performance_usd: number;
+  tier_rate_pct: number;
+  sd3_amount: number;
+};
+
 export type UnionProfileBundle = {
   profile: { wallet_address: string; display_name: string | null; short_address: string | null };
   shareholder: ShareholderRow | null;
@@ -222,4 +254,7 @@ export type UnionProfileBundle = {
   partnerTeamStats?: PartnerTeamStats;
   /** Wallets with completed partner join (入盟). */
   partnerMemberWallets?: string[];
+  partnerAccount?: PartnerAccountRow | null;
+  partnerStakePositions?: PartnerStakePositionRow[];
+  partnerSd3Settlements?: PartnerSd3SettlementRow[];
 };

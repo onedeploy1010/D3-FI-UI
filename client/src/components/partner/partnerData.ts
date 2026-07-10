@@ -1,5 +1,11 @@
 /** 合伙人计划 — 演示数据与业务常量 */
 
+import type {
+  PartnerAccountRow,
+  PartnerSd3SettlementRow,
+  PartnerStakePositionRow,
+} from '@/lib/d3fiTypes';
+
 export const PARTNER_JOIN_USDT = 1;
 export const MIN_CROWDFUND_STAKE_USDT = 0.01;
 export const DAILY_YIELD_PCT = 0.4;
@@ -159,6 +165,8 @@ export type PartnerState = {
   marketSubsidyApplications: SubsidyApplication[];
   marketSubsidyPerformanceUsed: number;
   sd3SettlementHistory: Sd3SettlementRecord[];
+  /** Server-settled USDT yield available to withdraw. */
+  pendingUsdtYield: number;
 };
 
 export function stakeOrderDaysLeft(order: PartnerStakeOrder, now = Date.now()): number {
@@ -418,6 +426,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     { id: 'sd3-5', settledAt: '2026-07-04', teamPerformanceUsd: 75_900, dailyNewPerformanceUsd: 1900, tierRatePct: 100, sd3Amount: 1900 },
     { id: 'sd3-6', settledAt: '2026-07-03', teamPerformanceUsd: 74_000, dailyNewPerformanceUsd: 1600, tierRatePct: 100, sd3Amount: 1600 },
   ],
+  pendingUsdtYield: 0,
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
@@ -441,6 +450,7 @@ export const GUEST_PARTNER_STATE: PartnerState = {
   marketSubsidyApplications: [],
   marketSubsidyPerformanceUsed: 0,
   sd3SettlementHistory: [],
+  pendingUsdtYield: 0,
 };
 
 type LegacyPartnerState = PartnerState & {
@@ -466,6 +476,7 @@ export function migratePartnerState(raw: unknown): PartnerState {
       marketSubsidyPerformanceUsed: s.marketSubsidyPerformanceUsed ?? 0,
       sd3SettlementHistory: s.sd3SettlementHistory ?? [],
       yieldWithdrawals: s.yieldWithdrawals ?? [],
+      pendingUsdtYield: s.pendingUsdtYield ?? 0,
     } as PartnerState;
   }
   if (s.stake) {
@@ -486,6 +497,56 @@ export function migratePartnerState(raw: unknown): PartnerState {
     });
   }
   return migratePartnerState({ ...s, stakeOrders: s.stakeOrders ?? [] });
+}
+
+/** Merge server partner account + settlements into local UI state. */
+export function hydratePartnerStateFromApi(
+  local: PartnerState,
+  api: {
+    partnerAccount?: PartnerAccountRow | null;
+    partnerStakePositions?: PartnerStakePositionRow[];
+    partnerSd3Settlements?: PartnerSd3SettlementRow[];
+  },
+): PartnerState {
+  const account = api.partnerAccount;
+  const positions = api.partnerStakePositions ?? [];
+  const hasServer = Boolean(account || positions.length > 0 || (api.partnerSd3Settlements?.length ?? 0) > 0);
+  if (!hasServer) return local;
+
+  const stakeOrders: PartnerStakeOrder[] = positions.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    principalUsdt: Number(p.principal_usdt),
+    startedAt: p.started_at,
+    unlockAt: p.unlock_at,
+    dailyYieldUsdt: Number(p.daily_yield_usdt),
+    claimedYieldUsdt: Number(p.claimed_yield_usdt),
+  }));
+
+  const sd3SettlementHistory: Sd3SettlementRecord[] = (api.partnerSd3Settlements ?? []).map((r) => ({
+    id: r.id,
+    settledAt: r.settlement_date,
+    teamPerformanceUsd: Number(r.team_performance_usd),
+    dailyNewPerformanceUsd: Number(r.daily_new_performance_usd),
+    tierRatePct: Number(r.tier_rate_pct),
+    sd3Amount: Number(r.sd3_amount),
+  }));
+
+  const latestSd3 = sd3SettlementHistory[0];
+
+  return {
+    ...local,
+    isPartner: account?.is_partner ?? local.isPartner,
+    joinedAt: account?.joined_at ?? local.joinedAt,
+    sd3Balance: account ? Number(account.sd3_balance) : local.sd3Balance,
+    lifetimeSd3Earned: account ? Number(account.lifetime_sd3_earned) : local.lifetimeSd3Earned,
+    lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
+    pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
+    stakeOrders: stakeOrders.length > 0 ? stakeOrders : local.stakeOrders,
+    sd3SettlementHistory,
+    lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
+    dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,
+  };
 }
 
 export function getSd3Quotas(state: PartnerState) {

@@ -8,6 +8,7 @@ import {
   verifyUsdtTransfer,
 } from './turnkey.ts';
 import { rollupPartnerPerformance } from './partnerPerformance.ts';
+import { syncStakePositionOnCredit } from './partnerSettlement.ts';
 import type { Hash } from 'npm:viem@2';
 
 type Sb = SupabaseClient;
@@ -96,6 +97,12 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
       console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
     });
 
+    if (dep.intent_id) {
+      await syncStakePositionOnCredit(sb, dep.intent_id as string).catch((e) => {
+        console.error('[monitor] stake position sync:', e instanceof Error ? e.message : e);
+      });
+    }
+
     await postLedgerEntry(sb, {
       ledgerType: 'deposit_credit',
       walletAddress: dep.wallet_address as string,
@@ -179,6 +186,9 @@ export async function promoteDetectedDeposits(sb: Sb, limit = 20): Promise<numbe
     if (walletAddress) {
       await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
         console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
+      });
+      await syncStakePositionOnCredit(sb, dep.intent_id as string).catch((e) => {
+        console.error('[monitor] stake position sync:', e instanceof Error ? e.message : e);
       });
     }
 

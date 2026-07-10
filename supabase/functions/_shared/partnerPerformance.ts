@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { startOfSgtDayIso } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
 
@@ -42,11 +43,6 @@ export type PartnerTeamStats = {
   dailyNewPerformanceUsd: number;
 };
 
-function startOfUtcDayIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
 
 async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Promise<string[]> {
   const out: string[] = [];
@@ -91,7 +87,7 @@ async function sumReferralTreePerformance(sb: Sb, wallet: string): Promise<numbe
 
 /** Aggregate partner team stats for a sponsor wallet from referrals + stake_intents. */
 export async function fetchPartnerTeamStats(sb: Sb, wallet: string): Promise<PartnerTeamStats> {
-  const dayStart = startOfUtcDayIso();
+  const dayStart = startOfSgtDayIso();
 
   const [downlineVolume, { data: ownIntents }, downlineWallets] = await Promise.all([
     sumReferralTreePerformance(sb, wallet),

@@ -13,6 +13,7 @@ import {
   applyYieldWithdraw,
   DEMO_PARTNER_STATE,
   GUEST_PARTNER_STATE,
+  hydratePartnerStateFromApi,
   migratePartnerState,
   MIN_CROWDFUND_STAKE_USDT,
   PARTNER_JOIN_USDT,
@@ -80,6 +81,11 @@ export function usePartnerProgram(wallet: string | null) {
       const bundle = await fetchUnionProfile(wallet);
       setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
       setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
+      setState((prev) => {
+        const merged = hydratePartnerStateFromApi(prev, bundle);
+        if (wallet) saveState(wallet, merged);
+        return merged;
+      });
     } catch {
       setTeamNodes(emptyPartnerTeamNodes(wallet));
       setTeamStats(EMPTY_TEAM_STATS);
