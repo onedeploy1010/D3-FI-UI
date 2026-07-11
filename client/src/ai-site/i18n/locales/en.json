@@ -19,7 +19,17 @@
     "more": "More"
   },
   "aiSite": {
-    "backToPortal": "Back to Portal"
+    "backToPortal": "Back to Portal",
+    "trial": {
+      "welcomeTitle": "AI agent trial",
+      "welcomeBody": "{{days}}-day trial available. Activate partner status for full AI agent access.",
+      "startButton": "Start trial",
+      "daysLeft": "{{days}} day(s) left in trial",
+      "bannerHint": "Unlimited access after becoming a partner",
+      "expiredTitle": "Trial ended",
+      "expiredBody": "Your trial has expired. Activate partner status to continue using AI agents.",
+      "activatePartner": "Become a partner"
+    }
   },
   "lang": {
     "en": "English",

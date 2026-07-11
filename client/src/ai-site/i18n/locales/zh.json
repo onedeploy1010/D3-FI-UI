@@ -19,7 +19,17 @@
     "more": "更多"
   },
   "aiSite": {
-    "backToPortal": "返回协议门户"
+    "backToPortal": "返回协议门户",
+    "trial": {
+      "welcomeTitle": "AI 智能体试用",
+      "welcomeBody": "开放试用 {{days}} 天。请激活合伙人资格以长期使用 AI 智能体功能。",
+      "startButton": "开始试用",
+      "daysLeft": "试用剩余 {{days}} 天",
+      "bannerHint": "激活合伙人后可无限使用",
+      "expiredTitle": "试用已结束",
+      "expiredBody": "已过试用天数，请激活合伙人资格后继续使用 AI 智能体功能。",
+      "activatePartner": "前往激活合伙人"
+    }
   },
   "lang": {
     "en": "English",

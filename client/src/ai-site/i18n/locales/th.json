@@ -19,7 +19,17 @@
     "more": "更多"
   },
   "aiSite": {
-    "backToPortal": "กลับไปพอร์ทัล"
+    "backToPortal": "กลับไปพอร์ทัล",
+    "trial": {
+      "welcomeTitle": "ทดลองใช้ AI Agent",
+      "welcomeBody": "เปิดทดลองใช้ {{days}} วัน กรุณาเปิดใช้สถานะพาร์ทเนอร์เพื่อใช้ AI Agent ต่อเนื่อง",
+      "startButton": "เริ่มทดลองใช้",
+      "daysLeft": "เหลือทดลองใช้ {{days}} วัน",
+      "bannerHint": "ใช้ได้ไม่จำกัดหลังเป็นพาร์ทเนอร์",
+      "expiredTitle": "หมดระยะทดลองใช้",
+      "expiredBody": "หมดระยะทดลองใช้แล้ว กรุณาเปิดใช้สถานะพาร์ทเนอร์",
+      "activatePartner": "ไปเปิดใช้พาร์ทเนอร์"
+    }
   },
   "lang": {
     "en": "English",

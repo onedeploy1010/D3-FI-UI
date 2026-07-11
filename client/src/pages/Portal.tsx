@@ -49,10 +49,19 @@ export default function Portal() {
     level: '身份等级',
     status: '已连接',
     ai: { title: 'D³-AI 分析站', desc: 'AI 驱动的链上数据分析与智能决策辅助', badge: '已上线', cta: '进入分析站' },
-    fi: { title: 'D³-Fi 贿赂金融', desc: '资产管理 · 投票治理 · 贿赂市场 · 分红收益', badge: '核心应用', cta: '进入应用' },
+    fi: {
+      title: 'D³-Fi 贿赂金融',
+      desc: '资产管理 · 投票治理 · 贿赂市场 · 分红收益',
+      bribeMarket: '贿赂市场',
+      badgeLive: '已上线',
+      badgeOffline: '未上线',
+      badgeDemo: 'Demo数据',
+      cta: '进入应用',
+    },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · USD3 / D3', badge: '节点站点', cta: '进入联盟' },
-    partner: { title: '合伙人计划', desc: '推荐绑定 · 众筹质押 · 受贿 sD3', badge: '新', cta: '进入' },
+    partner: { title: '合伙人计划', desc: '推荐绑定 · 众筹质押 · 受贿 sD3', badge: '已上线', cta: '进入' },
     announcements: '协议公告',
+    protocolPublic: '协议公共',
     epoch: '当前 Epoch',
     bribePool: '贿赂池新增',
     emission: '预计月排放',
@@ -67,10 +76,19 @@ export default function Portal() {
     level: 'Level',
     status: 'Connected',
     ai: { title: 'D³-AI Analytics', desc: 'AI-powered on-chain data analysis and smart decision support', badge: 'Live', cta: 'Enter Analytics' },
-    fi: { title: 'D³-Fi Protocol', desc: 'Assets · Governance · Bribe Market · Dividends', badge: 'Core App', cta: 'Enter App' },
+    fi: {
+      title: 'D³-Fi Protocol',
+      desc: 'Assets · Governance · Bribe Market · Dividends',
+      bribeMarket: 'Bribe Market',
+      badgeLive: 'Live',
+      badgeOffline: 'Not live',
+      badgeDemo: 'Demo data',
+      cta: 'Enter App',
+    },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · USD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
-    partner: { title: 'Partner Program', desc: 'Referral · Crowdfund · sD3', badge: 'New', cta: 'Enter' },
+    partner: { title: 'Partner Program', desc: 'Referral · Crowdfund · sD3', badge: 'Live', cta: 'Enter' },
     announcements: 'Protocol Updates',
+    protocolPublic: 'Protocol Public',
     epoch: 'Current Epoch',
     bribePool: 'Bribe Pool Added',
     emission: 'Monthly Emission',
@@ -168,7 +186,7 @@ export default function Portal() {
                   <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
                     <Handshake size={18} className="text-[#E0568F]" />
                   </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-violet-400 !bg-violet-500/10 !border-violet-500/15">
+                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
                     {t.partner.badge}
                   </GlassChip>
                 </div>
@@ -189,12 +207,20 @@ export default function Portal() {
                   <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
                     <Globe size={18} className={isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'} />
                   </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold" style={{ color: '#B23A6E' }}>
-                    {t.fi.badge}
-                  </GlassChip>
+                  <div className="flex flex-col items-end gap-1">
+                    <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
+                      {t.fi.badgeOffline}
+                    </GlassChip>
+                    <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
+                      {t.fi.badgeDemo}
+                    </GlassChip>
+                  </div>
                 </div>
                 <h3 className="site-card-title mb-1">{t.fi.title}</h3>
-                <p className={`text-xs mb-4 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.fi.desc}</p>
+                <p className={`text-xs mb-1 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.fi.desc}</p>
+                <p className={`text-[10px] mb-4 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
+                  {t.fi.bribeMarket} · {t.fi.badgeOffline} · {t.fi.badgeDemo}
+                </p>
                 <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
                   {t.fi.cta} <ArrowRight size={12} />
                 </span>
@@ -205,7 +231,20 @@ export default function Portal() {
 
         <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.4 }}>
           <GlassCard className="p-5">
-            <h3 className="site-section-title mb-4">{t.announcements}</h3>
+            <div className="flex items-start justify-between gap-2 mb-4">
+              <div>
+                <h3 className="site-section-title">{t.announcements}</h3>
+                <p className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>{t.protocolPublic}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
+                  {t.fi.badgeOffline}
+                </GlassChip>
+                <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
+                  {t.fi.badgeDemo}
+                </GlassChip>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {[
                 { label: t.epoch, value: protocolLoading ? '…' : (protocolEpoch?.label ?? '—') },

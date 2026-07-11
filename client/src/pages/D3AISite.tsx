@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useWallet } from "@/contexts/wallet-context";
 import { Router } from "@ai/Router";
 import { setApiWallet } from "@ai/api-client-react";
+import { AiTrialGate } from '@/components/ai/AiTrialGate';
 import "@ai/index.css";
 import "@ai/i18n";
 
@@ -27,10 +28,12 @@ export default function D3AISite() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WalletSync />
-        <div className="ai-site-root min-h-[100dvh]">
-          <Router />
-          <Toaster />
-        </div>
+        <AiTrialGate>
+          <div className="ai-site-root min-h-[100dvh]">
+            <Router />
+            <Toaster />
+          </div>
+        </AiTrialGate>
       </TooltipProvider>
     </QueryClientProvider>
   );

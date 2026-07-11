@@ -5,8 +5,22 @@ import { FlowDot } from './FlowDot';
 type Lang = 'zh' | 'en';
 
 const copy = {
-  zh: { ai: 'AI 分析', fi: '贿赂金融', hub: '协议枢纽', partner: '合伙人计划' },
-  en: { ai: 'AI Analytics', fi: 'Bribe-Fi', hub: 'Protocol Hub', partner: 'Partner Program' },
+  zh: {
+    ai: 'AI 分析',
+    fi: '贿赂金融',
+    hub: '协议枢纽',
+    partner: '合伙人计划',
+    live: '已上线',
+    offline: '未上线',
+  },
+  en: {
+    ai: 'AI Analytics',
+    fi: 'Bribe-Fi',
+    hub: 'Protocol Hub',
+    partner: 'Partner Program',
+    live: 'Live',
+    offline: 'Not live',
+  },
 } as const;
 
 const CX = 100;
@@ -76,6 +90,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       w: 88,
       h: 34,
       label: t.ai,
+      status: t.live,
+      statusLive: true,
       fill: isDark ? 'rgba(224,86,143,0.14)' : 'rgba(224,86,143,0.12)',
       stroke: gold,
       strokeOpacity: 0.55,
@@ -90,6 +106,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       w: 90,
       h: 34,
       label: t.partner,
+      status: t.live,
+      statusLive: true,
       fill: isDark ? 'rgba(224,86,143,0.18)' : 'rgba(224,86,143,0.1)',
       stroke: gold,
       strokeOpacity: 0.7,
@@ -104,6 +122,8 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
       w: 90,
       h: 34,
       label: t.fi,
+      status: t.offline,
+      statusLive: false,
       fill: isDark ? 'rgba(138,43,87,0.35)' : 'rgba(138,43,87,0.09)',
       stroke: fiStroke,
       strokeOpacity: 1,
@@ -341,13 +361,23 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
             )}
             <text
               x={nodeCx(node)}
-              y={node.y + 21}
+              y={node.y + 20}
               textAnchor="middle"
               fill={node.text}
               fontSize={lang === 'en' && node.label.length > 12 ? 7.5 : node.label.length > 5 ? 8.5 : 9.5}
               fontWeight="700"
             >
               {node.label}
+            </text>
+            <text
+              x={nodeCx(node)}
+              y={node.y + 30}
+              textAnchor="middle"
+              fill={node.statusLive ? (isDark ? '#34d399' : '#059669') : (isDark ? '#fbbf24' : '#d97706')}
+              fontSize="6.5"
+              fontWeight="600"
+            >
+              {node.status}
             </text>
           </motion.g>
         ))}

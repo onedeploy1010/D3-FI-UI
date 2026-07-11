@@ -19,7 +19,17 @@
     "more": "更多"
   },
   "aiSite": {
-    "backToPortal": "포털로 돌아가기"
+    "backToPortal": "포털로 돌아가기",
+    "trial": {
+      "welcomeTitle": "AI 에이전트 체험",
+      "welcomeBody": "{{days}}일 체험이 제공됩니다. AI 에이전트를 계속 사용하려면 파트너 자격을 활성화하세요.",
+      "startButton": "체험 시작",
+      "daysLeft": "체험 {{days}}일 남음",
+      "bannerHint": "파트너 활성화 후 무제한 이용",
+      "expiredTitle": "체험 종료",
+      "expiredBody": "체험 기간이 만료되었습니다. 파트너 자격을 활성화해 주세요.",
+      "activatePartner": "파트너 자격 활성화"
+    }
   },
   "lang": {
     "en": "English",

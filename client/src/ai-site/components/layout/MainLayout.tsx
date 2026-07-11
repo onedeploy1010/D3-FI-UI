@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { AiTrialBanner } from "@/components/ai/AiTrialGate";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { MobileBottomNav } from "./MobileBottomNav";
@@ -30,6 +31,7 @@ function LayoutInner({ children }: { children: ReactNode }) {
               : undefined,
           }}
         >
+          <AiTrialBanner />
           {children}
         </main>
       </div>

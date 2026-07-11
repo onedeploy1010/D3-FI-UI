@@ -19,7 +19,17 @@
     "more": "更多"
   },
   "aiSite": {
-    "backToPortal": "ポータルに戻る"
+    "backToPortal": "ポータルに戻る",
+    "trial": {
+      "welcomeTitle": "AI エージェント試用",
+      "welcomeBody": "{{days}} 日間の試用が利用できます。パートナー資格を有効化すると AI エージェントを継続利用できます。",
+      "startButton": "試用を開始",
+      "daysLeft": "試用残り {{days}} 日",
+      "bannerHint": "パートナー有効化後は無制限",
+      "expiredTitle": "試用期間終了",
+      "expiredBody": "試用期間が終了しました。パートナー資格を有効化してください。",
+      "activatePartner": "パートナー資格を有効化"
+    }
   },
   "lang": {
     "en": "English",
