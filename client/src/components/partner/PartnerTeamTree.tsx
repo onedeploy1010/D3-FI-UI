@@ -223,13 +223,6 @@ export function PartnerTeamTree({
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="flex flex-wrap items-center gap-1.5">
           <PartnerLevelBadge label={p(levelKey)} />
-          <PartnerTeamNodeRemarkChip
-            alias={alias}
-            isDark={isDark}
-            editable={canEditRemark}
-            p={p}
-            onSave={(next) => saveAlias(node.address, next)}
-          />
           <span
             className={cn(
               'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',
@@ -238,6 +231,13 @@ export function PartnerTeamTree({
           >
             {node.isDirect ? p('tree.direct') : layerDepthLabel(nodeDepth, p)}
           </span>
+          <PartnerTeamNodeRemarkChip
+            alias={alias}
+            isDark={isDark}
+            editable={canEditRemark}
+            p={p}
+            onSave={(next) => saveAlias(node.address, next)}
+          />
         </div>
         <AddressBlock value={node.address} isDark={isDark} compact showCopy />
         <NodeStatGrid node={node} isDark={isDark} p={p} />
@@ -286,13 +286,6 @@ export function PartnerTeamTree({
           <PartnerLevelBadge label={p(focusLevelKey)} />
           {focusId !== 'me' && (
             <>
-              <PartnerTeamNodeRemarkChip
-                alias={focusAlias}
-                isDark={isDark}
-                editable={Boolean(wallet)}
-                p={p}
-                onSave={(next) => saveAlias(focus.address, next)}
-              />
               <span
                 className={cn(
                   'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',
@@ -301,6 +294,13 @@ export function PartnerTeamTree({
               >
                 {focus.isDirect ? p('tree.direct') : layerDepthLabel(focusDepth, p)}
               </span>
+              <PartnerTeamNodeRemarkChip
+                alias={focusAlias}
+                isDark={isDark}
+                editable={Boolean(wallet)}
+                p={p}
+                onSave={(next) => saveAlias(focus.address, next)}
+              />
             </>
           )}
         </div>
