@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Sparkles, Zap } from 'lucide-react';
-import { toast } from 'sonner';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerPaymentConfirmSection } from '@/components/partner/PartnerPaymentConfirmSection';
@@ -52,6 +51,7 @@ export function PartnerHomeTab({
   const [amount, setAmount] = useState(String(DEFAULT_HOME_STAKE_USDT));
   const [becomePartner, setBecomePartner] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sd3GateOpen, setSd3GateOpen] = useState(false);
 
   const numAmount = Number(amount);
   const isRegularMode = !state.isPartner && !becomePartner;
@@ -268,7 +268,7 @@ export function PartnerHomeTab({
               </div>
               <button
                 type="button"
-                onClick={() => toast.info(p('home.sd3QuotaToast'))}
+                onClick={() => setSd3GateOpen(true)}
                 className={`w-full partner-depth-inset rounded-xl px-3 py-2.5 flex items-start gap-2.5 text-left ios-glass-pressable ${
                   isDark ? 'text-white/75' : 'text-[#160510]/75'
                 }`}
@@ -276,7 +276,9 @@ export function PartnerHomeTab({
                 <input
                   type="checkbox"
                   readOnly
-                  checked
+                  checked={false}
+                  tabIndex={-1}
+                  aria-hidden
                   className="mt-0.5 accent-[#E0568F] shrink-0 scale-110 pointer-events-none"
                 />
                 <span className="text-[11px] leading-relaxed">
@@ -324,6 +326,20 @@ export function PartnerHomeTab({
             {paying ? (isDemo ? p('stake.demoPaying') : p('stake.paying')) : isDemo ? p('stake.demoConfirm') : p('stake.confirm')}
           </GlassButton>
         </div>
+      </PartnerModal>
+
+      <PartnerModal
+        open={sd3GateOpen}
+        onClose={() => setSd3GateOpen(false)}
+        title={p('home.sd3LaunchGateTitle')}
+        isDark={isDark}
+      >
+        <p className={`text-sm leading-relaxed mb-5 ${isDark ? 'text-white/70' : 'text-[#160510]/65'}`}>
+          {p('home.sd3LaunchGateBody')}
+        </p>
+        <GlassButton className="w-full !py-3" onClick={() => setSd3GateOpen(false)}>
+          {p('guide.done')}
+        </GlassButton>
       </PartnerModal>
     </div>
   );

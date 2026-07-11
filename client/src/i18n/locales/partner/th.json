@@ -34,6 +34,8 @@
   "home.sd3QuotaLabel": "โควต้า sD3",
   "home.sd3QuotaHint": "ใช้ได้หลังเปิดตัว ตอนนี้แสดงเพียงโดยประมาณ",
   "home.sd3QuotaToast": "โควต้า sD3 จะใช้ได้หลังเปิดตัว",
+  "home.sd3LaunchGateTitle": "sD3 ยังไม่เปิดใช้งาน",
+  "home.sd3LaunchGateBody": "การโอนและสเตค sD3 จะเปิดหลังเปิดตัวอย่างเป็นทางการ ยอดที่แสดงเป็นการประมาณการเท่านั้น",
   "benefit.globalTree": "สายทั่วโลก",
   "benefit.price": "ราคา 5U",
   "benefit.static": "0.4% คงที่",

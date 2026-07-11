@@ -34,6 +34,8 @@
   "home.sd3QuotaLabel": "sD3 額度",
   "home.sd3QuotaHint": "上線後可使用，目前僅展示預估額度",
   "home.sd3QuotaToast": "sD3 額度功能上線後可使用",
+  "home.sd3LaunchGateTitle": "sD3 尚未上線",
+  "home.sd3LaunchGateBody": "sD3 轉讓與質押功能將在項目正式上線後開放，目前僅展示預估額度。",
   "benefit.globalTree": "全网排线",
   "benefit.price": "5U 众筹价",
   "benefit.static": "0.4% 静态收益",

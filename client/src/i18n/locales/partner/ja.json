@@ -34,6 +34,8 @@
   "home.sd3QuotaLabel": "sD3 枠",
   "home.sd3QuotaHint": "ローンチ後に利用可能。現在は推定表示のみ",
   "home.sd3QuotaToast": "sD3 枠はローンチ後に利用できます",
+  "home.sd3LaunchGateTitle": "sD3 は未ローンチ",
+  "home.sd3LaunchGateBody": "sD3 の送金・ステークは正式ローンチ後に利用できます。表示額は推定値です。",
   "benefit.globalTree": "全网配置",
   "benefit.price": "5U価格",
   "benefit.static": "0.4%静的",

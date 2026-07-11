@@ -34,6 +34,8 @@
   "home.sd3QuotaLabel": "sD3 한도",
   "home.sd3QuotaHint": "출시 후 사용 가능, 현재는 예상 한도만 표시",
   "home.sd3QuotaToast": "sD3 한도는 출시 후 사용할 수 있습니다",
+  "home.sd3LaunchGateTitle": "sD3 미출시",
+  "home.sd3LaunchGateBody": "sD3 송금·스테이킹은 정식 출시 후 이용 가능합니다. 표시 금액은 예상치입니다.",
   "benefit.globalTree": "전망 배치",
   "benefit.price": "5U 가격",
   "benefit.static": "0.4% 정적",
