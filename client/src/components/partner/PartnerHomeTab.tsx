@@ -4,6 +4,7 @@ import { CheckCircle2, Sparkles, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerPaymentConfirmSection } from '@/components/partner/PartnerPaymentConfirmSection';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerTagChip } from '@/components/partner/partnerUiKit';
 import {
@@ -12,7 +13,7 @@ import {
   DAILY_YIELD_PCT,
   formatDailyYieldUsdt,
   isValidRegularStakeAmount,
-  PARTNER_JOIN_USDT,
+  PARTNER_ENTRY_USDT,
   REGULAR_STAKE_MIN_USDT,
   REGULAR_STAKE_STEP_USDT,
   STAKE_LOCK_DAYS,
@@ -24,29 +25,6 @@ import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 import type { DepositIntent } from '@/lib/depositApi';
 
-function DepositHint({
-  intent,
-  isDark,
-  label,
-}: {
-  intent: DepositIntent | null | undefined;
-  isDark: boolean;
-  label: (key: string) => string;
-}) {
-  if (!intent) return null;
-  return (
-    <div className={`partner-depth-inset rounded-xl p-3 mb-4 text-left ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-      <div className="text-[10px] uppercase tracking-widest mb-1">{label('stake.depositAddress')}</div>
-      <div className={`text-xs font-mono break-all ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
-        {intent.depositAddress}
-      </div>
-      <div className="text-[10px] mt-2">
-        {label('stake.depositHint')} · BSC USDT · {intent.expectedAmount} USDT
-      </div>
-    </div>
-  );
-}
-
 export function PartnerHomeTab({
   lang,
   isDark,
@@ -54,6 +32,7 @@ export function PartnerHomeTab({
   hasReferralBound,
   referralLoading,
   minCrowdfundUsdt,
+  isDemo = false,
   paying,
   lastDepositIntent,
   onHomeStake,
@@ -64,6 +43,7 @@ export function PartnerHomeTab({
   hasReferralBound: boolean;
   referralLoading?: boolean;
   minCrowdfundUsdt: number;
+  isDemo?: boolean;
   paying: boolean;
   lastDepositIntent?: DepositIntent | null;
   onHomeStake: (amount: number, withPartnerJoin: boolean) => Promise<boolean>;
@@ -76,19 +56,21 @@ export function PartnerHomeTab({
   const numAmount = Number(amount);
   const isRegularMode = !state.isPartner && !becomePartner;
   const withPartnerJoin = !state.isPartner && becomePartner;
+  const stakeAmount = withPartnerJoin ? PARTNER_ENTRY_USDT : numAmount;
 
   const isValidAmount = useMemo(() => {
+    if (withPartnerJoin) return true;
     if (!Number.isFinite(numAmount)) return false;
     if (isRegularMode) return isValidRegularStakeAmount(numAmount);
     return numAmount >= minCrowdfundUsdt;
-  }, [numAmount, isRegularMode, minCrowdfundUsdt]);
+  }, [numAmount, isRegularMode, minCrowdfundUsdt, withPartnerJoin]);
 
   const quickIncrements = [100, 500, 1000, 5000];
-  const totalPay = withPartnerJoin ? numAmount + PARTNER_JOIN_USDT : numAmount;
-  const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(numAmount) : 0;
+  const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(stakeAmount) : 0;
   const sd3Balance = getSd3Available(state);
 
   const addAmount = (delta: number) => {
+    if (withPartnerJoin) return;
     const base = Number.isFinite(numAmount) ? numAmount : 0;
     let next = base + delta;
     if (isRegularMode) {
@@ -102,7 +84,7 @@ export function PartnerHomeTab({
   const handleTogglePartner = (checked: boolean) => {
     setBecomePartner(checked);
     if (checked) {
-      setAmount(String(DEFAULT_HOME_STAKE_USDT));
+      setAmount(String(PARTNER_ENTRY_USDT));
     } else {
       const n = Number.isFinite(numAmount) ? numAmount : DEFAULT_HOME_STAKE_USDT;
       const rounded = Math.max(REGULAR_STAKE_MIN_USDT, Math.floor(n / REGULAR_STAKE_STEP_USDT) * REGULAR_STAKE_STEP_USDT);
@@ -112,7 +94,7 @@ export function PartnerHomeTab({
 
   const confirmStake = async () => {
     if (!isValidAmount) return;
-    const ok = await onHomeStake(numAmount, withPartnerJoin);
+    const ok = await onHomeStake(stakeAmount, withPartnerJoin);
     if (ok) {
       setConfirmOpen(false);
       setAmount(String(DEFAULT_HOME_STAKE_USDT));
@@ -200,19 +182,24 @@ export function PartnerHomeTab({
               type="number"
               min={isRegularMode ? REGULAR_STAKE_MIN_USDT : minCrowdfundUsdt}
               step={isRegularMode ? REGULAR_STAKE_STEP_USDT : 'any'}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={withPartnerJoin ? String(PARTNER_ENTRY_USDT) : amount}
+              readOnly={withPartnerJoin}
+              onChange={(e) => {
+                if (withPartnerJoin) return;
+                setAmount(e.target.value);
+              }}
               placeholder={
                 isRegularMode
                   ? p('home.stakeRegularPlaceholder', { min: REGULAR_STAKE_MIN_USDT, step: REGULAR_STAKE_STEP_USDT })
-                  : p('home.stakePartnerPlaceholder', { default: DEFAULT_HOME_STAKE_USDT })
+                  : p('home.stakePartnerPlaceholder', { default: PARTNER_ENTRY_USDT })
               }
               className={`w-full partner-depth-inset px-4 py-4 text-3xl font-bold text-center rounded-2xl outline-none tracking-tight ${
                 isDark ? 'text-white bg-transparent' : 'text-[#160510]'
-              }`}
+              } ${withPartnerJoin ? 'opacity-80 cursor-not-allowed' : ''}`}
             />
           </div>
 
+          {!withPartnerJoin && (
           <div className="flex flex-wrap justify-center gap-2 mb-5">
             {quickIncrements.map((v, i) => (
               <motion.button
@@ -228,6 +215,8 @@ export function PartnerHomeTab({
               </motion.button>
             ))}
           </div>
+          )}
+          {withPartnerJoin && <div className="mb-5" />}
 
           {!state.isPartner && (
             <label
@@ -244,7 +233,7 @@ export function PartnerHomeTab({
               <span className="text-[11px] leading-relaxed text-left">
                 <span className="font-semibold">{p('home.becomePartnerCheckbox')}</span>
                 <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-                  {p('home.becomePartnerCheckboxHint', { fee: PARTNER_JOIN_USDT.toLocaleString() })}
+                  {p('home.becomePartnerCheckboxHint', { fee: PARTNER_ENTRY_USDT.toLocaleString() })}
                 </span>
               </span>
             </label>
@@ -308,37 +297,31 @@ export function PartnerHomeTab({
       <PartnerModal
         open={confirmOpen}
         onClose={() => !paying && setConfirmOpen(false)}
-        title={p('home.confirmStakeTitle')}
+        title={isDemo ? p('home.demoConfirmStakeTitle') : p('home.confirmStakeTitle')}
         isDark={isDark}
       >
         <div className="space-y-2 mb-5">
-          {withPartnerJoin && (
-            <div className="partner-depth-inset p-3 rounded-xl flex justify-between items-center">
-              <span className={`text-xs ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.joinFee')}</span>
-              <span className="text-sm font-bold text-[#E0568F]">{PARTNER_JOIN_USDT.toLocaleString()} USDT</span>
-            </div>
-          )}
           <div className="partner-depth-inset p-4 text-center rounded-2xl">
             <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-              {p('stake.stakeAmount')}
+              {withPartnerJoin ? p('stake.partner') : p('stake.stakeAmount')}
             </div>
-            <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{numAmount.toLocaleString()}</div>
+            <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{stakeAmount.toLocaleString()}</div>
             <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>USDT</div>
           </div>
-          {withPartnerJoin && (
-            <div className={`flex justify-between items-center px-1 text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-              <span>{p('home.joinAndStakeTotal')}</span>
-              <span className="text-[#E0568F]">{totalPay.toLocaleString()} USDT</span>
-            </div>
-          )}
         </div>
-        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
+        <PartnerPaymentConfirmSection
+          isDemo={isDemo}
+          amountUsdt={stakeAmount}
+          depositIntent={lastDepositIntent}
+          isDark={isDark}
+          label={p}
+        />
         <div className="flex flex-col-reverse sm:flex-row gap-3">
           <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => setConfirmOpen(false)}>
             {p('stake.cancel')}
           </GlassButton>
           <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying || !isValidAmount} onClick={() => void confirmStake()}>
-            {paying ? p('stake.paying') : p('stake.confirm')}
+            {paying ? (isDemo ? p('stake.demoPaying') : p('stake.paying')) : isDemo ? p('stake.demoConfirm') : p('stake.confirm')}
           </GlassButton>
         </div>
       </PartnerModal>

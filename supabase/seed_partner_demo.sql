@@ -41,7 +41,7 @@ insert into public.partner_accounts (
 ) values (
   '0x1234567890abcdef1234567890abcdef12345678',
   true,
-  2960,
+  4960,
   4960,
   296,
   0,
@@ -67,16 +67,7 @@ on conflict (id) do update set
   status = excluded.status,
   updated_at = excluded.updated_at;
 
--- ── sD3 transfer (deducts available balance) ────────────────────────────────
-insert into public.partner_sd3_transfers (id, from_wallet, to_wallet, amount_sd3, status, created_at)
-values (
-  'b0000000-0000-4000-8000-000000000001'::uuid,
-  '0x1234567890abcdef1234567890abcdef12345678',
-  '0x1111222233334444555566667777888899990000',
-  1500,
-  'completed',
-  '2026-07-07'::timestamptz
-) on conflict (id) do nothing;
+-- ── sD3: no seed transfer rows — demo sD3 transfers are session-mock on client ─
 
 -- ── Daily sD3 settlements (aggregated) ──────────────────────────────────────
 insert into public.partner_sd3_settlements (id, wallet_address, settlement_date, team_performance_usd, daily_new_performance_usd, tier_rate_pct, sd3_amount)

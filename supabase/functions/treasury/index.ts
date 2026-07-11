@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
 
     if (req.method === 'POST' && path === '/partner/join') {
       const body = await readJson<{ amountUsdt?: number }>(req);
-      const amount = body.amountUsdt ?? 1;
+      const amount = body.amountUsdt ?? 5000;
       const intent = await createStakeIntent(sb, wallet, 'partner_join', amount);
       return jsonResponse(intent);
     }

@@ -16,6 +16,9 @@ import {
   readDemoWalletFromSession,
   writeDemoWalletSession,
 } from '@/lib/demoWallet';
+import { clearDemoPartnerLocalStorage } from '@/components/partner/partnerData';
+import { clearDemoPartnerSession } from '@/lib/demoPartnerSession';
+import { resetDemoPartnerSession } from '@/lib/unionApi';
 import { shortWallet } from '@/lib/wallet';
 import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
 import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
@@ -36,9 +39,18 @@ const privyMissingError = '请在 .env 配置 VITE_PRIVY_APP_ID';
 
 function useDemoWalletState() {
   const [demoWallet, setDemoWallet] = useState<string | null>(() => readDemoWalletFromSession());
+  const [demoSessionKey, setDemoSessionKey] = useState(0);
 
   const activateDemo = useCallback(async () => {
+    clearDemoPartnerLocalStorage(DEMO_LINE_LEADER_WALLET);
+    clearDemoPartnerSession();
     writeDemoWalletSession();
+    try {
+      await resetDemoPartnerSession(DEMO_LINE_LEADER_WALLET);
+    } catch {
+      // Supabase may be offline during UI-only dev
+    }
+    setDemoSessionKey((k) => k + 1);
     setDemoWallet(DEMO_LINE_LEADER_WALLET);
     try {
       await ensureUnionProfile(DEMO_LINE_LEADER_WALLET, {
@@ -56,11 +68,13 @@ function useDemoWalletState() {
   }, []);
 
   const deactivateDemo = useCallback(() => {
+    clearDemoPartnerSession();
+    clearDemoPartnerLocalStorage(DEMO_LINE_LEADER_WALLET);
     clearDemoWalletSession();
     setDemoWallet(null);
   }, []);
 
-  return { demoWallet, isDemo: Boolean(demoWallet), activateDemo, deactivateDemo };
+  return { demoWallet, isDemo: Boolean(demoWallet), demoSessionKey, activateDemo, deactivateDemo };
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -71,7 +85,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 }
 
 function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
-  const { demoWallet, isDemo, activateDemo, deactivateDemo } = useDemoWalletState();
+  const { demoWallet, isDemo, demoSessionKey, activateDemo, deactivateDemo } = useDemoWalletState();
   const [isConnecting, setIsConnecting] = useState(false);
 
   const connectDemo = useCallback(async () => {
@@ -94,6 +108,7 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
       privyInitFailed: false,
       isReady: true,
       isConnecting,
+      demoSessionKey,
       error: null,
       connect: () => {
         throw new Error(privyMissingError);
@@ -101,7 +116,7 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
       connectDemo,
       disconnect: deactivateDemo,
     }),
-    [demoWallet, isDemo, isConnecting, connectDemo, deactivateDemo],
+    [demoWallet, isDemo, isConnecting, demoSessionKey, connectDemo, deactivateDemo],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
@@ -110,7 +125,7 @@ function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
 function WalletProviderPrivy({ children }: { children: ReactNode }) {
   const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
-  const { demoWallet, isDemo, activateDemo, deactivateDemo } = useDemoWalletState();
+  const { demoWallet, isDemo, demoSessionKey, activateDemo, deactivateDemo } = useDemoWalletState();
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
@@ -273,6 +288,7 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
       privyInitFailed,
       isReady,
       isConnecting,
+      demoSessionKey,
       error,
       connect,
       connectDemo,
@@ -286,6 +302,7 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
       privyInitFailed,
       isReady,
       isConnecting,
+      demoSessionKey,
       error,
       connect,
       connectDemo,

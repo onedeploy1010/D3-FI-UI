@@ -282,45 +282,46 @@ export async function runDailyPartnerSettlement(
 }
 
 export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
+  const w = wallet.trim();
   const { data: creditedIntents } = await sb
     .from('stake_intents')
     .select('id')
-    .eq('wallet_address', wallet)
+    .ilike('wallet_address', w)
     .in('status', CREDITED_STATUSES);
   for (const row of creditedIntents ?? []) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
   const [account, positions, sd3History, sd3Allocations, yieldHistory, sd3Transfers] = await Promise.all([
-    sb.from('partner_accounts').select('*').eq('wallet_address', wallet).maybeSingle(),
+    sb.from('partner_accounts').select('*').ilike('wallet_address', w).maybeSingle(),
     sb
       .from('partner_stake_positions')
       .select('*')
-      .eq('wallet_address', wallet)
+      .ilike('wallet_address', w)
       .eq('status', 'active')
       .order('started_at', { ascending: false }),
     sb
       .from('partner_sd3_settlements')
       .select('*')
-      .eq('wallet_address', wallet)
+      .ilike('wallet_address', w)
       .order('settlement_date', { ascending: false })
       .limit(30),
     sb
       .from('partner_sd3_allocations')
       .select('*')
-      .eq('recipient_wallet', wallet)
+      .ilike('recipient_wallet', w)
       .order('settlement_date', { ascending: false })
       .limit(100),
     sb
       .from('partner_yield_settlements')
       .select('*')
-      .eq('wallet_address', wallet)
+      .ilike('wallet_address', w)
       .order('settlement_date', { ascending: false })
       .limit(30),
     sb
       .from('partner_sd3_transfers')
       .select('*')
-      .eq('from_wallet', wallet)
+      .ilike('from_wallet', w)
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(50),

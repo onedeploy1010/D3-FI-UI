@@ -4,7 +4,6 @@ import { useWallet } from '@/contexts/wallet-context';
 import {
   createPartnerJoinIntent,
   createStakeIntent,
-  demoCreditDeposit,
   reportDepositTx,
   waitForDepositCredited,
   type DepositIntent,
@@ -32,14 +31,26 @@ export function useDepositPayment(wallet: string | null) {
     ): Promise<DepositPaymentResult> => {
       setPaying(true);
       try {
+        if (isDemo) {
+          await new Promise((r) => setTimeout(r, 350));
+          const mockIntent: DepositIntent = {
+            intentId: `demo-mock-${Date.now()}`,
+            depositAddress: '0x0000000000000000000000000000000000000000',
+            shortAddress: '0x0000…0000',
+            chainId: 56,
+            chainName: 'BSC',
+            tokenSymbol: 'USDT',
+            tokenContract: '0x55d398326f99059fF775485246999027B3197955',
+            expectedAmount: String(amountUsdt),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+            status: 'credited',
+          };
+          setLastIntent(mockIntent);
+          return { intent: mockIntent, txHash: null };
+        }
+
         const intent = await createIntent();
         setLastIntent(intent);
-
-        if (isDemo) {
-          await demoCreditDeposit(w, intent.intentId);
-          await waitForDepositCredited(w, intent.intentId, { maxAttempts: 3, intervalMs: 500 });
-          return { intent, txHash: null };
-        }
 
         const connected = resolveWalletForAddress(wallets, w);
         if (!connected) {

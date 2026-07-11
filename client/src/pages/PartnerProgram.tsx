@@ -12,7 +12,7 @@ import { useWallet } from '@/contexts/wallet-context';
 import { usePartnerProgram } from '@/hooks/usePartnerProgram';
 import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useDepositPayment } from '@/hooks/useDepositPayment';
-import { PARTNER_JOIN_USDT } from '@/components/partner/partnerData';
+import { PARTNER_ENTRY_USDT } from '@/components/partner/partnerData';
 import { PartnerHomeTab } from '@/components/partner/PartnerHomeTab';
 import { PartnerStakeTab } from '@/components/partner/PartnerStakeTab';
 import { PartnerAssetsTab } from '@/components/partner/PartnerAssetsTab';
@@ -45,7 +45,7 @@ export default function PartnerProgram() {
   const [teamTransferGuide, setTeamTransferGuide] = useState(false);
   const [, navigate] = useLocation();
   const { theme } = useTheme();
-  const { wallet } = useWallet();
+  const { wallet, isDemo, demoSessionKey } = useWallet();
   const isDark = theme === 'dark';
 
   const { hasReferralBound, loading: referralLoading } = useReferralStatus(wallet);
@@ -70,7 +70,7 @@ export default function PartnerProgram() {
     subsidySettings,
     minCrowdfundUsdt,
     hasStake,
-  } = usePartnerProgram(wallet);
+  } = usePartnerProgram(wallet, demoSessionKey);
 
   const visibleTabs = useMemo(
     () => TAB_IDS.filter((id) => id !== 'assets' || state.isPartner),
@@ -111,7 +111,7 @@ export default function PartnerProgram() {
     async (toAddress: string, amount: number) => {
       const ok = await transferSd3(toAddress, amount);
       if (ok) {
-        toast.success(p('assets.transferSuccess'));
+        toast.success(isDemo ? p('assets.demoTransferSuccess') : p('assets.transferSuccess'));
       } else {
         toast.error(p('assets.transferFailed'), {
           description: p('assets.transferInvalidDownline'),
@@ -119,7 +119,7 @@ export default function PartnerProgram() {
       }
       return ok;
     },
-    [transferSd3, p],
+    [transferSd3, p, isDemo],
   );
 
   const handleHomeStake = useCallback(
@@ -127,12 +127,14 @@ export default function PartnerProgram() {
       if (!hasReferralBound) return false;
       try {
         if (withPartnerJoin && !state.isPartner) {
-          await payForJoin(PARTNER_JOIN_USDT);
+          await payForJoin(PARTNER_ENTRY_USDT);
           joinPartner(hasReferralBound);
+          if (isDemo) toast.success(p('stake.demoPaySuccess'));
+          return true;
         }
         await payForStake(amount);
         crowdfundStake(amount, hasReferralBound);
-        await refreshTeamProfile();
+        if (isDemo) toast.success(p('stake.demoPaySuccess'));
         return true;
       } catch (e) {
         notifyPayError(e);
@@ -148,6 +150,8 @@ export default function PartnerProgram() {
       crowdfundStake,
       notifyPayError,
       refreshTeamProfile,
+      isDemo,
+      p,
     ],
   );
 
@@ -210,6 +214,7 @@ export default function PartnerProgram() {
                   hasReferralBound={hasReferralBound}
                   referralLoading={referralLoading}
                   minCrowdfundUsdt={minCrowdfundUsdt}
+                  isDemo={isDemo}
                   paying={depositPaying}
                   lastDepositIntent={lastIntent}
                   onHomeStake={handleHomeStake}

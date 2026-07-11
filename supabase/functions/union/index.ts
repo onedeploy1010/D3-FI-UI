@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
 import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
+import { resetDemoPartnerSession } from '../_shared/demoPartnerReset.ts';
 import { getPrivyToken, requirePrivyAuth } from '../_shared/privy.ts';
 import {
   createPrivyTreasuryWallet,
@@ -865,6 +866,15 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && path === '/partner/program-settings') {
       const settings = await getPartnerProgramSettings(sb);
       return jsonResponse({ ok: true, settings });
+    }
+
+    // POST /partner/demo-reset — restore seeded demo partner data on each demo login
+    if (req.method === 'POST' && path === '/partner/demo-reset') {
+      const wallet = requireWallet(req);
+      if (!demoMode || !isDemoWalletAddress(wallet)) {
+        throw new HttpError(403, 'Demo reset requires demo mode');
+      }
+      return jsonResponse(await resetDemoPartnerSession(sb));
     }
 
     // POST /partner/subsidy-receipts/sign

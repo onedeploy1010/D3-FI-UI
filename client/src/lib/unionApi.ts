@@ -253,3 +253,11 @@ export function fetchPartnerSubsidyTickets(wallet: string) {
     wallet,
   );
 }
+
+/** Reset demo line-leader partner stakes / transfers to seed snapshot (demo login only). */
+export function resetDemoPartnerSession(wallet: string) {
+  return unionFetch<{ ok: boolean }>('/partner/demo-reset', wallet, {
+    method: 'POST',
+    body: '{}',
+  });
+}

@@ -14,9 +14,12 @@ import {
   type SubsidyQuotaView,
 } from '@/components/partner/partnerSubsidyQuota';
 
-export const PARTNER_JOIN_USDT = 1;
+/** Fixed USDT amount to become a partner (single partner_join stake). */
+export const PARTNER_ENTRY_USDT = 5000;
+/** @deprecated Use PARTNER_ENTRY_USDT */
+export const PARTNER_JOIN_USDT = PARTNER_ENTRY_USDT;
 export const MIN_CROWDFUND_STAKE_USDT = 0.01;
-export const DEFAULT_HOME_STAKE_USDT = 5000;
+export const DEFAULT_HOME_STAKE_USDT = PARTNER_ENTRY_USDT;
 export const REGULAR_STAKE_STEP_USDT = 100;
 export const REGULAR_STAKE_MIN_USDT = 100;
 
@@ -450,7 +453,7 @@ export function applyPartnerJoin(prev: PartnerState): PartnerState {
     ...prev,
     isPartner: true,
     joinedAt: new Date().toISOString().slice(0, 10),
-    stakeOrders: [createStakeOrder(PARTNER_JOIN_USDT, 'partner_join'), ...prev.stakeOrders],
+    stakeOrders: [createStakeOrder(PARTNER_ENTRY_USDT, 'partner_join'), ...prev.stakeOrders],
     dtPreorderEligible: true,
   };
 }
@@ -557,24 +560,16 @@ export const DEMO_PARTNER_STATE: PartnerState = {
       claimedYieldUsdt: 8,
     },
   ],
-  sd3Balance: 0,
-  sd3StakedFromRewards: 500,
+  sd3Balance: 4960,
+  sd3StakedFromRewards: 0,
   teamPerformanceUsd: 86_400,
   dailyNewPerformanceUsd: 1800,
   totalNewPerformanceUsd: 52_000,
   lastSettlementDate: '2026-07-08',
   dailySd3Earned: 0,
-  lifetimeSd3Earned: 0,
+  lifetimeSd3Earned: 4960,
   lifetimeUsdtYield: 296,
-  transfers: [
-    {
-      id: 't1',
-      toAddress: '0x1111222233334444555566667777888899990000',
-      toLabel: 'Direct A3',
-      amountSd3: 1500,
-      at: '2026-07-07',
-    },
-  ],
+  transfers: [],
   yieldWithdrawals: [
     { id: 'yw-demo-1', amountUsdt: 120, at: '2026-07-06' },
     { id: 'yw-demo-2', amountUsdt: 80, at: '2026-07-04' },
@@ -610,9 +605,79 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   marketSubsidyPerformanceUsed: 16_000,
-  sd3SettlementHistory: [],
+  sd3SettlementHistory: [
+    {
+      id: 'demo-sd3-1',
+      settledAt: '2026-07-08',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1800,
+      tierRatePct: 100,
+      rewardSharePct: 50,
+      role: 'direct',
+      sourceAddress: '0xaaaabbbbccccddddeeeeffff0011223344556677',
+      sd3Amount: 900,
+    },
+    {
+      id: 'demo-sd3-2',
+      settledAt: '2026-07-07',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1728,
+      tierRatePct: 100,
+      rewardSharePct: 50,
+      role: 'direct',
+      sourceAddress: '0xbb11223344556677889900aabbccddeeff001122',
+      sd3Amount: 864,
+    },
+    {
+      id: 'demo-sd3-3',
+      settledAt: '2026-07-06',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1656,
+      tierRatePct: 100,
+      sd3Amount: 928,
+    },
+    {
+      id: 'demo-sd3-4',
+      settledAt: '2026-07-05',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1584,
+      tierRatePct: 100,
+      sd3Amount: 792,
+    },
+    {
+      id: 'demo-sd3-5',
+      settledAt: '2026-07-04',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1512,
+      tierRatePct: 100,
+      sd3Amount: 756,
+    },
+    {
+      id: 'demo-sd3-6',
+      settledAt: '2026-07-03',
+      teamPerformanceUsd: 45000,
+      dailyNewPerformanceUsd: 1440,
+      tierRatePct: 100,
+      sd3Amount: 720,
+    },
+  ],
   pendingUsdtYield: 0,
   yieldSettlementsByPosition: {},
+};
+
+/** Demo login baseline — performance/settlements only; partner/stake/transfer come from session mocks. */
+export const DEMO_PARTNER_BASELINE: PartnerState = {
+  ...DEMO_PARTNER_STATE,
+  isPartner: false,
+  joinedAt: null,
+  stakeOrders: [],
+  transfers: [],
+  yieldWithdrawals: [],
+  dtPreorderEligible: false,
+  sd3Balance: 4960,
+  sd3StakedFromRewards: 0,
+  lifetimeUsdtYield: 0,
+  pendingUsdtYield: 0,
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
@@ -746,6 +811,18 @@ export function hydratePartnerStateFromApi(
 
   const latestSd3 = sd3SettlementHistory[0];
 
+  const settledSum = round2(sd3SettlementHistory.reduce((s, r) => s + r.sd3Amount, 0));
+  const accountLifetime = account ? Number(account.lifetime_sd3_earned ?? 0) : 0;
+  const accountBalance = account ? Number(account.sd3_balance ?? 0) : 0;
+  const lifetimeSd3Earned =
+    accountLifetime > 0 ? accountLifetime : settledSum > 0 ? settledSum : local.lifetimeSd3Earned;
+  const sd3Balance =
+    accountBalance > 0
+      ? accountBalance
+      : lifetimeSd3Earned > 0
+        ? lifetimeSd3Earned
+        : local.sd3Balance;
+
   const serverTransfers: PartnerTransfer[] = (api.partnerSd3Transfers ?? []).map((r) => ({
     id: r.id,
     toAddress: r.to_wallet,
@@ -759,8 +836,8 @@ export function hydratePartnerStateFromApi(
     ...local,
     isPartner: account?.is_partner ?? local.isPartner,
     joinedAt: account?.joined_at ?? local.joinedAt,
-    sd3Balance: account ? Number(account.sd3_balance) : local.sd3Balance,
-    lifetimeSd3Earned: account ? Number(account.lifetime_sd3_earned) : local.lifetimeSd3Earned,
+    sd3Balance,
+    lifetimeSd3Earned,
     lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
     stakeOrders: mergedStakeOrders,
@@ -958,4 +1035,10 @@ export function applyMarketSubsidy(
 
 export function storageKey(wallet: string) {
   return `d3_partner_v2_${wallet.toLowerCase()}`;
+}
+
+export function clearDemoPartnerLocalStorage(wallet: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(storageKey(wallet));
+  localStorage.removeItem(`d3-partner-team-alias:${wallet.trim().toLowerCase()}`);
 }

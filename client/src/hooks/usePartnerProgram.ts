@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isDemoWallet } from '@/lib/demoWallet';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
-import { transferPartnerSd3 } from '@/lib/depositApi';
 import {
   aggregateStakeOrders,
   applyCrowdfundStake,
@@ -13,11 +12,12 @@ import {
   resolveFlashYieldBalances,
   MIN_YIELD_WITHDRAW_USDT,
   GUEST_PARTNER_STATE,
+  DEMO_PARTNER_BASELINE,
   hydratePartnerStateFromApi,
   mapSubsidyTicketsToApplications,
   migratePartnerState,
   MIN_CROWDFUND_STAKE_USDT,
-  PARTNER_JOIN_USDT,
+  PARTNER_ENTRY_USDT,
   type PartnerProgramSettings,
   type PartnerState,
   type SubsidyApplicationType,
@@ -27,16 +27,26 @@ import { getSd3Available } from '@/components/partner/partnerSd3View';
 import {
   buildPartnerTeamNodes,
   emptyPartnerTeamNodes,
+  findPartnerTeamNodeLabel,
   isPartnerDownlineMember,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
+import { loadTeamAliases, resolveTeamNodeDisplayName } from '@/components/partner/partnerTeamAliases';
+import {
+  addDemoMockStakeOrder,
+  addDemoMockTransfer,
+  applyDemoSessionOverlay,
+  createDemoMockStakeOrder,
+  createDemoMockTransfer,
+  loadDemoPartnerSession,
+} from '@/lib/demoPartnerSession';
 import {
   createPartnerSubsidyTicket,
   fetchPartnerProgramSettings,
   fetchPartnerSubsidyTickets,
   fetchUnionProfile,
 } from '@/lib/unionApi';
-import { withdrawPartnerYield } from '@/lib/depositApi';
+import { transferPartnerSd3, withdrawPartnerYield } from '@/lib/depositApi';
 
 const EMPTY_TEAM_STATS: PartnerTeamStats = {
   personalPerformanceUsd: 0,
@@ -49,7 +59,7 @@ const EMPTY_TEAM_STATS: PartnerTeamStats = {
 };
 
 function loadState(wallet: string | null): PartnerState | null {
-  if (!wallet || typeof localStorage === 'undefined') return null;
+  if (!wallet || typeof localStorage === 'undefined' || isDemoWallet(wallet)) return null;
   try {
     const raw = localStorage.getItem(storageKey(wallet));
     if (!raw) return null;
@@ -60,6 +70,7 @@ function loadState(wallet: string | null): PartnerState | null {
 }
 
 function saveState(wallet: string, state: PartnerState) {
+  if (isDemoWallet(wallet)) return;
   localStorage.setItem(storageKey(wallet), JSON.stringify(state));
 }
 
@@ -75,9 +86,26 @@ function hydrateFromBundle(prev: PartnerState, bundle: Awaited<ReturnType<typeof
   });
 }
 
-export function usePartnerProgram(wallet: string | null) {
+function finalizeDemoPartnerState(
+  merged: PartnerState,
+  session = loadDemoPartnerSession(),
+): PartnerState {
+  const baseline = {
+    ...merged,
+    isPartner: false,
+    joinedAt: null,
+    stakeOrders: [],
+    transfers: [],
+    yieldWithdrawals: [],
+    dtPreorderEligible: false,
+  };
+  return applyDemoSessionOverlay(baseline, session);
+}
+
+export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
   const [state, setState] = useState<PartnerState>(() => {
     if (!wallet) return GUEST_PARTNER_STATE;
+    if (isDemoWallet(wallet)) return DEMO_PARTNER_BASELINE;
     return loadState(wallet) ?? GUEST_PARTNER_STATE;
   });
 
@@ -86,10 +114,14 @@ export function usePartnerProgram(wallet: string | null) {
       setState(GUEST_PARTNER_STATE);
       return;
     }
+    if (isDemoWallet(wallet)) {
+      setState(finalizeDemoPartnerState(DEMO_PARTNER_BASELINE));
+      return;
+    }
     const saved = loadState(wallet);
     if (saved) setState(saved);
     else setState(GUEST_PARTNER_STATE);
-  }, [wallet]);
+  }, [wallet, demoSessionKey]);
 
   const [teamNodes, setTeamNodes] = useState<Record<string, PartnerTeamNode>>({});
   const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
@@ -137,15 +169,20 @@ export function usePartnerProgram(wallet: string | null) {
       setPendingSd3Earned(bundle.pendingSd3Earned ?? 0);
       setDownlineWallets(bundle.partnerDownlineWallets ?? []);
       setState((prev) => {
-        const merged = { ...hydrateFromBundle(prev, bundle), ...subsidyPatch };
-        saveState(wallet, merged);
-        return merged;
+        const hydrateBase = isDemoWallet(wallet) ? DEMO_PARTNER_BASELINE : prev;
+        const merged = { ...hydrateFromBundle(hydrateBase, bundle), ...subsidyPatch };
+        const next = isDemoWallet(wallet) ? finalizeDemoPartnerState(merged) : merged;
+        saveState(wallet, next);
+        return next;
       });
     } catch {
       setTeamNodes(emptyPartnerTeamNodes(wallet));
       setTeamStats(EMPTY_TEAM_STATS);
       setPendingSd3Earned(0);
       setDownlineWallets([]);
+      if (isDemoWallet(wallet)) {
+        setState(finalizeDemoPartnerState(DEMO_PARTNER_BASELINE));
+      }
     } finally {
       setTeamLoading(false);
     }
@@ -153,7 +190,7 @@ export function usePartnerProgram(wallet: string | null) {
 
   useEffect(() => {
     void refreshTeamProfile();
-  }, [refreshTeamProfile]);
+  }, [refreshTeamProfile, demoSessionKey]);
 
   const persist = useCallback(
     (next: PartnerState) => {
@@ -168,16 +205,28 @@ export function usePartnerProgram(wallet: string | null) {
   const crowdfundStake = useCallback(
     (amountUsdt: number, hasReferralBound: boolean) => {
       if (!hasReferralBound || amountUsdt < MIN_CROWDFUND_STAKE_USDT) return false;
+      if (wallet && isDemoWallet(wallet)) {
+        const order = createDemoMockStakeOrder(amountUsdt, 'crowdfund');
+        const session = addDemoMockStakeOrder(order);
+        setState((prev) => applyDemoSessionOverlay({ ...prev, transfers: [] }, session));
+        return true;
+      }
       persist(applyCrowdfundStake(state, amountUsdt));
       void refreshTeamProfile();
       return true;
     },
-    [state, persist, refreshTeamProfile],
+    [wallet, state, persist, refreshTeamProfile],
   );
 
   const joinPartner = useCallback(
     (hasReferralBound: boolean) => {
       if (!wallet || state.isPartner || !hasReferralBound) return false;
+      if (isDemoWallet(wallet)) {
+        const order = createDemoMockStakeOrder(PARTNER_ENTRY_USDT, 'partner_join');
+        const session = addDemoMockStakeOrder(order, { partnerJoined: true });
+        setState((prev) => applyDemoSessionOverlay({ ...prev, transfers: [] }, session));
+        return true;
+      }
       persist(applyPartnerJoin(state));
       void refreshTeamProfile();
       return true;
@@ -199,6 +248,17 @@ export function usePartnerProgram(wallet: string | null) {
       const normalized = toAddress.trim();
       if (!isPartnerDownlineMember(normalized, downlineWallets, teamNodes)) return false;
       if (!wallet) return false;
+
+      if (isDemoWallet(wallet)) {
+        const aliases = loadTeamAliases(wallet);
+        const fallback = findPartnerTeamNodeLabel(teamNodes, normalized);
+        const toLabel = resolveTeamNodeDisplayName(aliases, normalized, fallback);
+        const transfer = createDemoMockTransfer(normalized, amount, toLabel || undefined);
+        const session = addDemoMockTransfer(transfer);
+        setState((prev) => applyDemoSessionOverlay({ ...prev, transfers: [] }, session));
+        return true;
+      }
+
       try {
         await transferPartnerSd3(wallet, normalized, amount);
         await refreshTeamProfile();
@@ -335,7 +395,7 @@ export function usePartnerProgram(wallet: string | null) {
     submitMarketSubsidy,
     requestMarketLeader,
     subsidySettings,
-    joinFeeUsdt: PARTNER_JOIN_USDT,
+    joinFeeUsdt: PARTNER_ENTRY_USDT,
     minCrowdfundUsdt: MIN_CROWDFUND_STAKE_USDT,
     hasStake,
   };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Send } from 'lucide-react';
-import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
+import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerLevelBadge, PartnerSd3Amount } from '@/components/partner/partnerUiKit';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import type { AppLang } from '@/i18n/types';
@@ -18,7 +19,10 @@ export function PartnerSd3TransferModal({
   lang,
   isDark,
   toAddress,
-  toLabel,
+  levelLabel,
+  layerLabel,
+  recipientIsDirect = false,
+  toAlias,
   transferQuota,
   onConfirm,
 }: {
@@ -27,7 +31,13 @@ export function PartnerSd3TransferModal({
   lang: AppLang;
   isDark: boolean;
   toAddress: string;
-  toLabel?: string;
+  /** Partner tier label — same as team tree level badge. */
+  levelLabel: string;
+  /** Direct / layer depth chip, e.g. 直推、二层. */
+  layerLabel?: string;
+  recipientIsDirect?: boolean;
+  /** Optional remark alias for the recipient. */
+  toAlias?: string;
   transferQuota: number;
   onConfirm: (amount: number) => Promise<boolean>;
 }) {
@@ -39,9 +49,6 @@ export function PartnerSd3TransferModal({
   const panelClass = isDark
     ? 'bg-white/[0.06] border border-white/12'
     : 'bg-[#FFF8FC] border border-[#8A2B57]/22 shadow-sm';
-  const hintPanelClass = isDark
-    ? 'bg-[#E0568F]/12 border border-[#E0568F]/28 text-[#f9a8d4]'
-    : 'bg-[#FFF0F6] border border-[#E0568F]/35 text-[#6B1D42]';
   const inputPanelClass = isDark
     ? 'bg-black/25 border border-white/10'
     : 'bg-white border border-[#8A2B57]/20 shadow-sm';
@@ -66,26 +73,37 @@ export function PartnerSd3TransferModal({
   };
 
   return (
-    <PartnerModal open={open} onClose={onClose} title={p('tree.transferTitle')} isDark={isDark}>
-      <p className={`text-[11px] leading-relaxed mb-4 px-3.5 py-2.5 rounded-xl font-medium ${hintPanelClass}`}>
-        {p('assets.transferHint')}
-      </p>
-
+    <PartnerModal open={open} onClose={onClose} title={p('assets.balanceTitle')} isDark={isDark}>
       <div className={`mb-4 p-3.5 rounded-2xl ${panelClass}`}>
         <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${labelMuted}`}>
           {p('tree.transferTo')}
         </div>
-        <AddressBlock
-          label={toLabel}
-          value={toAddress}
-          isDark={isDark}
-          compact
-          surface={isDark ? 'default' : 'solid'}
-        />
+        <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+          <PartnerLevelBadge label={levelLabel} />
+          {layerLabel ? (
+            <span
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                recipientIsDirect
+                  ? 'text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20'
+                  : isDark
+                    ? 'text-white/45 bg-white/[0.06] border border-white/10'
+                    : 'text-[#160510]/50 bg-[#160510]/5 border border-[#160510]/10'
+              }`}
+            >
+              {layerLabel}
+            </span>
+          ) : null}
+          {toAlias ? (
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20 max-w-[8rem] truncate">
+              {toAlias}
+            </span>
+          ) : null}
+        </div>
+        <AddressBlock value={toAddress} isDark={isDark} compact showCopy />
       </div>
 
       <div className={`p-3.5 rounded-2xl flex justify-between items-center mb-4 ${panelClass}`}>
-        <span className={`text-xs font-semibold ${labelMuted}`}>{p('assets.canTransfer')}</span>
+        <span className={`text-xs font-semibold ${labelMuted}`}>{p('assets.balanceTitle')}</span>
         <span className={`text-base font-bold ${isDark ? 'text-amber-400' : 'text-[#d97706]'}`}>
           <PartnerSd3Amount value={transferQuota} />
         </span>

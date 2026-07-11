@@ -12,6 +12,7 @@ import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import { resolvePartnerSd3Metrics } from '@/components/partner/partnerSd3View';
 import { PartnerDualAnimatedBar, PartnerLevelBadge } from '@/components/partner/partnerUiKit';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
+import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
 const TIER_KEYS = ['tier.proBribe', 'tier.seniorBribe', 'tier.director', 'tier.chief'] as const;
@@ -34,12 +35,12 @@ export function PartnerTeamDashboard({
   pendingSd3Earned?: number;
 }) {
   const p = usePartnerTranslation(lang);
-  const isPartner = state.isPartner;
-  const areas = sd3Metrics.areas;
   const sd3Metrics = useMemo(
     () => resolvePartnerSd3Metrics(state, teamNodes, teamStats, pendingSd3Earned),
     [state, teamNodes, teamStats, pendingSd3Earned],
   );
+  const isPartner = state.isPartner;
+  const areas = sd3Metrics.areas;
   const sd3Tier = isPartner ? getBribeTier(areas.smallAreaUsd) : null;
   const sd3TierIdx = sd3Tier ? BRIBE_TIERS.indexOf(sd3Tier) : -1;
   const levelKey = partnerTreeLevelKey(isPartner, teamStats.teamPerformanceUsd);

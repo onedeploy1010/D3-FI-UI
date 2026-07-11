@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Layers, Search } from 'lucide-react';
+import { ArrowUp, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
@@ -186,13 +186,6 @@ export function PartnerTeamTree({
   const focus = nodes[focusId] ?? nodes.me;
   const parent = focus?.parentId ? nodes[focus.parentId] : null;
   const children = focus?.childrenIds.map((id) => nodes[id]).filter(Boolean) ?? [];
-  const currentDepth = useMemo(() => (focus ? partnerTeamDepth(nodes, focusId) : 0), [nodes, focusId, focus]);
-
-  const layerLabel = !focus
-    ? ''
-    : focusId === 'me'
-      ? p('tree.layerMe', { depth: currentDepth })
-      : p('tree.layer', { depth: currentDepth });
 
   const searchHits = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -267,49 +260,8 @@ export function PartnerTeamTree({
     );
   }
 
-  const focusLevelKey = partnerTreeLevelKey(focus.isPartner, focus.teamUsd);
-  const focusAlias = getTeamAlias(aliases, focus.address);
-  const focusDepth = partnerTeamDepth(nodes, focusId);
-
   return (
     <div className="space-y-4">
-      <div className={glassCardClass('highlight', 'p-5')}>
-        <div className="flex items-center gap-2 mb-3">
-          <Layers size={14} className="text-[#E0568F]" />
-          <span className="site-section-title">{p('tree.title')}</span>
-        </div>
-        <div className={`text-[10px] font-semibold mb-2 flex items-center gap-1 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-          <Layers size={11} className="text-[#E0568F]" />
-          {layerLabel}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 mb-2">
-          <PartnerLevelBadge label={p(focusLevelKey)} />
-          {focusId !== 'me' && (
-            <>
-              <span
-                className={cn(
-                  'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',
-                  nodeLayerChipClass(focus.isDirect, isDark),
-                )}
-              >
-                {focus.isDirect ? p('tree.direct') : layerDepthLabel(focusDepth, p)}
-              </span>
-              <PartnerTeamNodeRemarkChip
-                alias={focusAlias}
-                isDark={isDark}
-                editable={Boolean(wallet)}
-                p={p}
-                onSave={(next) => saveAlias(focus.address, next)}
-              />
-            </>
-          )}
-        </div>
-        <AddressBlock label={focus.label} value={focus.address} isDark={isDark} compact />
-        <div className="mt-3">
-          <NodeStatGrid node={focus} isDark={isDark} p={p} />
-        </div>
-      </div>
-
       <div className={glassCardClass('default', 'p-4')} data-guide="tree-panel">
         {focusId !== 'me' && (
           <div className="flex gap-2 mb-3">
@@ -356,7 +308,14 @@ export function PartnerTeamTree({
           lang={lang}
           isDark={isDark}
           toAddress={transferTarget.address}
-          toLabel={getTeamAlias(aliases, transferTarget.address) || transferTarget.label}
+          levelLabel={p(partnerTreeLevelKey(transferTarget.isPartner, transferTarget.teamUsd))}
+          layerLabel={
+            transferTarget.isDirect
+              ? p('tree.direct')
+              : layerDepthLabel(partnerTeamDepth(nodes, transferTarget.id), p)
+          }
+          recipientIsDirect={transferTarget.isDirect}
+          toAlias={getTeamAlias(aliases, transferTarget.address) || undefined}
           transferQuota={transferQuota}
           onConfirm={(amount) => onTransferSd3(transferTarget.address, amount)}
         />

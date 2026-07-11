@@ -13,6 +13,8 @@ export type WalletContextValue = {
   /** Safe to load wallet-bound APIs (Privy ready or demo session). */
   isReady: boolean;
   isConnecting: boolean;
+  /** Bumps after each demo login reset so wallet-bound hooks re-fetch clean baseline. */
+  demoSessionKey: number;
   error: string | null;
   connect: () => void;
   connectDemo: () => Promise<void>;
