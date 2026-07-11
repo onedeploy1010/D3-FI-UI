@@ -16,6 +16,16 @@ import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { fetchPartnerTeamStats, fetchPartnerMemberWallets, fetchPartnerReferralNodeStats, collectPartnerDownlineWallets } from '../_shared/partnerPerformance.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
+  addApplicantTicketMessage,
+  createPartnerSubsidyTicket,
+  listWalletSubsidyTickets,
+} from '../_shared/partnerSubsidyTickets.ts';
+import {
+  computeSubsidyQuota,
+  getPartnerProgramSettings,
+  signSubsidyReceiptUploads,
+} from '../_shared/partnerSubsidySettings.ts';
+import {
   HttpError,
   isEthAddress,
   requireWallet,
@@ -823,6 +833,78 @@ Deno.serve(async (req) => {
         .in('status', ['pending', 'claimable']);
 
       return jsonResponse({ usd3Account: updated });
+    }
+
+    // GET /partner/program-settings
+    if (req.method === 'GET' && path === '/partner/program-settings') {
+      const settings = await getPartnerProgramSettings(sb);
+      return jsonResponse({ ok: true, settings });
+    }
+
+    // POST /partner/subsidy-receipts/sign
+    if (req.method === 'POST' && path === '/partner/subsidy-receipts/sign') {
+      const wallet = requireWallet(req);
+      const body = await req.json().catch(() => ({}));
+      const { files } = body as {
+        files?: Array<{ name: string; contentType: string; size: number }>;
+      };
+      if (!Array.isArray(files) || !files.length) throw new HttpError(400, 'files required');
+      const signed = await signSubsidyReceiptUploads(sb, wallet, files);
+      return jsonResponse({ ok: true, ...signed });
+    }
+
+    // POST /partner/subsidy-tickets
+    if (req.method === 'POST' && path === '/partner/subsidy-tickets') {
+      const wallet = requireWallet(req);
+      const body = await req.json().catch(() => ({}));
+      const { kind, amountUsd, purpose, applicationType, receiptPaths } = body as {
+        kind?: 'partner_subsidy' | 'market_subsidy' | 'market_leader';
+        amountUsd?: number;
+        purpose?: string;
+        applicationType?: 'reserve' | 'reimbursement';
+        receiptPaths?: string[];
+      };
+      if (!kind) throw new HttpError(400, 'kind required');
+      const ticket = await createPartnerSubsidyTicket(sb, wallet, {
+        kind,
+        amountUsd,
+        purpose,
+        applicationType,
+        receiptPaths,
+      });
+      return jsonResponse({ ok: true, ticket });
+    }
+
+    // GET /partner/subsidy-quota?kind=partner_subsidy
+    if (req.method === 'GET' && path === '/partner/subsidy-quota') {
+      const wallet = requireWallet(req);
+      const url = new URL(req.url);
+      const kind = url.searchParams.get('kind');
+      if (kind !== 'partner_subsidy' && kind !== 'market_subsidy') {
+        throw new HttpError(400, 'kind must be partner_subsidy or market_subsidy');
+      }
+      const [settings, quota] = await Promise.all([
+        getPartnerProgramSettings(sb),
+        computeSubsidyQuota(sb, wallet, kind),
+      ]);
+      return jsonResponse({ ok: true, settings, quota });
+    }
+
+    // GET /partner/subsidy-tickets
+    if (req.method === 'GET' && path === '/partner/subsidy-tickets') {
+      const wallet = requireWallet(req);
+      const tickets = await listWalletSubsidyTickets(sb, wallet);
+      return jsonResponse({ ok: true, tickets });
+    }
+
+    const ticketMsgMatch = path.match(/^\/partner\/subsidy-tickets\/([0-9a-f-]{36})\/messages$/);
+    if (req.method === 'POST' && ticketMsgMatch) {
+      const wallet = requireWallet(req);
+      const body = await req.json().catch(() => ({}));
+      const { body: messageBody } = body as { body?: string };
+      if (!messageBody?.trim()) throw new HttpError(400, 'body required');
+      const message = await addApplicantTicketMessage(sb, wallet, ticketMsgMatch[1], messageBody.trim());
+      return jsonResponse({ ok: true, message });
     }
 
     // POST /referrals/bind

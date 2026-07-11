@@ -142,6 +142,34 @@ export function partnerTeamDepth(nodes: Record<string, PartnerTeamNode>, nodeId:
   return depth;
 }
 
+export type PartnerAreaStats = {
+  smallAreaUsd: number;
+  smallAreaNewUsd: number;
+  largeAreaUsd: number;
+  largeAreaNewUsd: number;
+};
+
+/** 大区 = 最大直推线业绩；小区 = 其余直推线合计。 */
+export function computePartnerAreaStats(
+  nodes: Record<string, PartnerTeamNode>,
+  rootId = 'me',
+): PartnerAreaStats {
+  const root = nodes[rootId];
+  if (!root) {
+    return { smallAreaUsd: 0, smallAreaNewUsd: 0, largeAreaUsd: 0, largeAreaNewUsd: 0 };
+  }
+  const children = root.childrenIds.map((id) => nodes[id]).filter(Boolean);
+  if (children.length === 0) {
+    return { smallAreaUsd: 0, smallAreaNewUsd: 0, largeAreaUsd: 0, largeAreaNewUsd: 0 };
+  }
+  const sorted = [...children].sort((a, b) => b.teamUsd - a.teamUsd);
+  const largeAreaUsd = sorted[0]?.teamUsd ?? 0;
+  const largeAreaNewUsd = sorted[0]?.dailyNewUsd ?? 0;
+  const smallAreaUsd = sorted.slice(1).reduce((s, c) => s + c.teamUsd, 0);
+  const smallAreaNewUsd = sorted.slice(1).reduce((s, c) => s + c.dailyNewUsd, 0);
+  return { smallAreaUsd, smallAreaNewUsd, largeAreaUsd, largeAreaNewUsd };
+}
+
 export function emptyPartnerTeamNodes(
   wallet: string,
   meLabel?: string,

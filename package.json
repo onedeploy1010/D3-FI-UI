@@ -18,6 +18,8 @@
     "partner:setup-cron": "tsx scripts/partner-setup-cron.ts",
     "treasury:path-c": "tsx scripts/turnkey-path-c.ts",
     "supabase:deploy": "supabase secrets set PRIVY_APP_ID=$PRIVY_APP_ID PRIVY_JWKS_URL=$PRIVY_JWKS_URL DEMO_WALLET_ADDRESS=$DEMO_WALLET_ADDRESS && supabase functions deploy union --no-verify-jwt && supabase functions deploy market --no-verify-jwt && supabase functions deploy polymarket --no-verify-jwt",
+    "admin:dev": "npm run dev --prefix admin-panel",
+    "admin:build": "npm run build --prefix admin-panel",
     "format": "prettier --write ."
   },
   "dependencies": {

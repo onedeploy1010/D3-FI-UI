@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Shield, Users, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
-import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
+import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
+import { PartnerListFilters } from '@/components/partner/partnerUiKit';
 import {
   formatDailyYieldUsdt,
   aggregateStakeOrders,
-  PARTNER_JOIN_USDT,
   stakeOrderDaysLeft,
   stakeOrderProgress,
   STAKE_LOCK_DAYS,
@@ -18,9 +18,10 @@ import {
 } from '@/components/partner/partnerData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
-import type { DepositIntent } from '@/lib/depositApi';
 
-type StakeSub = 'crowdfund' | 'partner' | 'mine';
+type OrderSort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc';
+
+const YIELD_HISTORY_PAGE_SIZE = 7;
 
 function stakeKindKey(kind: StakeOrderKind): string {
   if (kind === 'crowdfund') return 'stake.kind.crowdfund';
@@ -28,73 +29,20 @@ function stakeKindKey(kind: StakeOrderKind): string {
   return 'stake.kind.sd3';
 }
 
-function DepositHint({
-  intent,
-  isDark,
-  label,
-}: {
-  intent: DepositIntent | null | undefined;
-  isDark: boolean;
-  label: (key: string) => string;
-}) {
-  if (!intent) return null;
-  return (
-    <div className={`partner-depth-inset rounded-xl p-3 mb-4 text-left ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-      <div className="text-[10px] uppercase tracking-widest mb-1">{label('stake.depositAddress')}</div>
-      <div className={`text-xs font-mono break-all ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
-        {intent.depositAddress}
-      </div>
-      <div className="text-[10px] mt-2">
-        {label('stake.depositHint')} · BSC USDT · {intent.expectedAmount} USDT
-      </div>
-    </div>
-  );
-}
-
-function PayConfirmBody({
-  label,
-  amount,
-  unit,
-  isDark,
-}: {
-  label: string;
-  amount: number;
-  unit: string;
-  isDark: boolean;
-}) {
-  return (
-    <div className="partner-depth-inset p-4 mb-5 text-center rounded-2xl">
-      <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-        {label}
-      </div>
-      <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{amount.toLocaleString()}</div>
-      <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{unit}</div>
-    </div>
-  );
-}
-
 export function PartnerStakeTab({
   lang,
   isDark,
   state,
   hasReferralBound,
-  minCrowdfundUsdt,
-  initialSub,
-  paying,
-  lastDepositIntent,
-  onCrowdfundStake,
-  onJoinPartner,
+  referralLoading,
+  onGoHome,
 }: {
   lang: AppLang;
   isDark: boolean;
   state: PartnerState;
   hasReferralBound: boolean;
-  minCrowdfundUsdt: number;
-  initialSub?: StakeSub;
-  paying: boolean;
-  lastDepositIntent?: DepositIntent | null;
-  onCrowdfundStake: (amount: number) => Promise<boolean>;
-  onJoinPartner: () => Promise<boolean>;
+  referralLoading?: boolean;
+  onGoHome?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const crowdfundOrders = useMemo(
@@ -103,13 +51,30 @@ export function PartnerStakeTab({
   );
   const stats = aggregateStakeOrders(crowdfundOrders);
   const hasStake = stats.orderCount > 0;
-
-  const defaultSub: StakeSub = initialSub ?? (hasStake ? 'mine' : 'crowdfund');
-  const [sub, setSub] = useState<StakeSub>(defaultSub);
-  const [amount, setAmount] = useState('');
-  const [stakeOpen, setStakeOpen] = useState(false);
-  const [joinOpen, setJoinOpen] = useState(false);
   const [historyOrder, setHistoryOrder] = useState<PartnerStakeOrder | null>(null);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sort, setSort] = useState<OrderSort>('date_desc');
+
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let rows = crowdfundOrders.filter((o) => {
+      if (dateFrom && o.startedAt < dateFrom) return false;
+      if (dateTo && o.startedAt > dateTo) return false;
+      if (!q) return true;
+      const hay = [o.id, o.startedAt, o.unlockAt, String(o.principalUsdt), o.kind].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+    rows = [...rows].sort((a, b) => {
+      if (sort === 'date_asc') return a.startedAt.localeCompare(b.startedAt);
+      if (sort === 'amount_desc') return b.principalUsdt - a.principalUsdt;
+      if (sort === 'amount_asc') return a.principalUsdt - b.principalUsdt;
+      return b.startedAt.localeCompare(a.startedAt);
+    });
+    return rows;
+  }, [crowdfundOrders, search, dateFrom, dateTo, sort]);
 
   const historyRows = useMemo(() => {
     if (!historyOrder) return [];
@@ -123,15 +88,31 @@ export function PartnerStakeTab({
     [historyRows],
   );
 
-  useEffect(() => {
-    if (initialSub) setSub(initialSub);
-  }, [initialSub]);
+  const historyPageCount = Math.max(1, Math.ceil(historyRows.length / YIELD_HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyPageCount - 1);
+  const pagedHistoryRows = useMemo(
+    () =>
+      historyRows.slice(
+        safeHistoryPage * YIELD_HISTORY_PAGE_SIZE,
+        safeHistoryPage * YIELD_HISTORY_PAGE_SIZE + YIELD_HISTORY_PAGE_SIZE,
+      ),
+    [historyRows, safeHistoryPage],
+  );
 
-  const subs = [
-    { id: 'crowdfund', label: p('stake.crowdfund') },
-    ...(!state.isPartner ? [{ id: 'partner', label: p('stake.partner') }] : []),
-    { id: 'mine', label: p('stake.mine') },
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [historyOrder?.id]);
+
+  const sortOptions = [
+    { id: 'date_desc', label: p('filters.sortDateDesc') },
+    { id: 'date_asc', label: p('filters.sortDateAsc') },
+    { id: 'amount_desc', label: p('filters.sortAmountDesc') },
+    { id: 'amount_asc', label: p('filters.sortAmountAsc') },
   ];
+
+  if (referralLoading) {
+    return <PartnerReferralLoading label={p('referral.checking')} isDark={isDark} className="min-h-[40vh]" />;
+  }
 
   if (!hasReferralBound) {
     return (
@@ -141,262 +122,223 @@ export function PartnerStakeTab({
     );
   }
 
-  const pendingAmount = Number(amount);
-  const canOpenStake = Number.isFinite(pendingAmount) && pendingAmount >= minCrowdfundUsdt;
-
-  const confirmStake = async () => {
-    if (!canOpenStake) return;
-    const ok = await onCrowdfundStake(pendingAmount);
-    if (ok) {
-      setStakeOpen(false);
-      setAmount('');
-      setSub('mine');
-    }
-  };
-
-  const confirmJoin = async () => {
-    const ok = await onJoinPartner();
-    if (ok) {
-      setJoinOpen(false);
-      setSub('mine');
-    }
-  };
-
-  const payActions = (onCancel: () => void, onConfirm: () => void) => (
-  <>
-    <div className="flex flex-col-reverse sm:flex-row gap-3">
-      <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={onCancel}>
-        {p('stake.cancel')}
-      </GlassButton>
-      <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => void onConfirm()}>
-        {paying ? p('stake.paying') : p('stake.confirm')}
-      </GlassButton>
-    </div>
-  </>
-  );
+  if (!hasStake) {
+    return (
+      <div className="space-y-4">
+        <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+          <p className="text-sm mb-4">{p('stake.noStake')}</p>
+          {onGoHome && (
+            <GlassButton className="!px-6" onClick={onGoHome}>
+              {p('stake.goHomeStake')}
+            </GlassButton>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <SectionTabBar tabs={subs} active={sub} onChange={(id) => setSub(id as StakeSub)} isDark={isDark} />
-
-      {sub === 'crowdfund' && (
-        <div className="space-y-3">
-          <div className={`partner-elevated-card p-5 ${glassCardClass('highlight', '')}`}>
-            <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-            <div className="site-section-title mb-1">{p('stake.usdtTitle')}</div>
-            <p className={`text-[10px] mb-4 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-              {`${STAKE_LOCK_DAYS}${p('stake.lockHint')}${minCrowdfundUsdt} USDT`}
-            </p>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="number"
-                min={minCrowdfundUsdt}
-                step="any"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder={`≥${minCrowdfundUsdt} USDT`}
-                className={`flex-1 partner-depth-inset px-3 py-3 text-sm rounded-xl outline-none ${isDark ? 'text-white bg-transparent' : 'text-[#160510]'}`}
-              />
-              <GlassButton className="!px-5" disabled={!canOpenStake} onClick={() => setStakeOpen(true)}>
-                {p('stake.stakeBtn')}
-              </GlassButton>
-            </div>
-            <div className="flex gap-2">
-              {[1, 5, 10, 50].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setAmount(String(v))}
-                  className="text-[10px] px-2.5 py-1 rounded-lg partner-depth-inset ios-glass-pressable text-[#E0568F] font-semibold"
-                >
-                  +{v}
-                </button>
-              ))}
-            </div>
+    <div className="space-y-3">
+      <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
+        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="partner-depth-inset p-3 rounded-xl">
+            <div className="site-stat-label">{p('stake.total')}</div>
+            <div className="site-stat-value-md site-stat-value-accent">${stats.principalUsdt.toLocaleString()}</div>
+          </div>
+          <div className="partner-depth-inset p-3 rounded-xl">
+            <div className="site-stat-label">{p('stake.daily')}</div>
+            <div className="site-stat-value-md text-emerald-500">${formatDailyYieldUsdt(stats.dailyUsdtYield)}</div>
           </div>
         </div>
-      )}
+      </div>
 
-      {sub === 'partner' && !state.isPartner && (
-        <div className={`partner-elevated-card p-5 relative overflow-hidden ${glassCardClass('highlight', '')}`}>
-          <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-[#E0568F]/10 text-[#E0568F] shadow-sm">
-                <Shield size={18} />
-              </div>
-              <div>
-                <div className={`text-sm font-semibold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                  {p('stake.joinTitle')}
-                </div>
-                <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-                  {p('stake.joinSubtitle')}
-                </div>
-              </div>
-            </div>
-            <p className={`text-[11px] leading-relaxed mb-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-              {p('stake.joinDesc')}
-            </p>
-            <div className="partner-depth-inset p-5 mb-4 text-center rounded-2xl">
-              <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-                {p('stake.joinFee')}
-              </div>
-              <div className="text-3xl font-bold tracking-tight text-[#E0568F]">{PARTNER_JOIN_USDT.toLocaleString()}</div>
-              <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>USDT</div>
-            </div>
-            <GlassButton className="w-full !py-3.5 flex items-center justify-center gap-2" onClick={() => setJoinOpen(true)}>
-              <Users size={16} />
-              {p('stake.payJoin')}
-            </GlassButton>
-          </div>
-        </div>
-      )}
-
-      {sub === 'mine' && (
-        !hasStake ? (
-          <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>{p('stake.noStake')}</div>
-        ) : (
-          <div className="space-y-3">
-            <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
-              <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="partner-depth-inset p-3 rounded-xl">
-                  <div className="site-stat-label">{p('stake.total')}</div>
-                  <div className="site-stat-value-md site-stat-value-accent">${stats.principalUsdt.toLocaleString()}</div>
-                </div>
-                <div className="partner-depth-inset p-3 rounded-xl">
-                  <div className="site-stat-label">{p('stake.daily')}</div>
-                  <div className="site-stat-value-md text-emerald-500">${formatDailyYieldUsdt(stats.dailyUsdtYield)}</div>
-                </div>
-              </div>
-            </div>
-            <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 px-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-              {p('stake.orders')} · {STAKE_LOCK_DAYS}{p('stake.daysEach')}
-            </div>
-            {crowdfundOrders.map((order) => {
-              const progress = stakeOrderProgress(order);
-              const daysLeft = stakeOrderDaysLeft(order);
-              return (
-                <button
-                  key={order.id}
-                  type="button"
-                  onClick={() => setHistoryOrder(order)}
-                  className={`partner-elevated-card p-4 w-full text-left ios-glass-pressable ${glassCardClass('default', '')}`}
-                >
-                  <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-                  <div className="flex justify-between mb-2">
-                    <span className="text-xs font-bold text-[#E0568F]">{p(stakeKindKey(order.kind))}</span>
-                    <span className={`text-[10px] flex items-center gap-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-                      {order.startedAt}
-                      <ChevronRight size={12} className="opacity-60" />
-                    </span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className={`font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                      ${order.principalUsdt.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-emerald-500">${formatDailyYieldUsdt(order.dailyYieldUsdt)}/{p('stake.perDay')}</span>
-                  </div>
-                  <div className={`h-1 rounded-full overflow-hidden mb-1 partner-depth-inset`}>
-                    <div className="h-full rounded-full" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />
-                  </div>
-                  <div className={`flex justify-between text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                    <span>
-                      {daysLeft}{p('stake.daysLeft')} · {order.unlockAt}
-                    </span>
-                    <span className="text-[#E0568F]/80">{p('stake.yieldHistoryTap')}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )
-      )}
-
-      <PartnerModal
-        open={stakeOpen}
-        onClose={() => !paying && setStakeOpen(false)}
-        title={p('stake.confirmStake')}
+      <PartnerListFilters
         isDark={isDark}
-      >
-        <PayConfirmBody label={p('stake.stakeAmount')} amount={pendingAmount} unit="USDT" isDark={isDark} />
-        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
-        {payActions(() => setStakeOpen(false), confirmStake)}
-      </PartnerModal>
+        p={p}
+        search={search}
+        onSearchChange={setSearch}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        sortLabel={p('filters.sort')}
+        sortValue={sort}
+        sortOptions={sortOptions}
+        onSortChange={(v) => setSort(v as OrderSort)}
+      />
 
-      <PartnerModal open={joinOpen} onClose={() => !paying && setJoinOpen(false)} title={p('stake.confirmPay')} isDark={isDark}>
-        <PayConfirmBody label={p('stake.joinFee')} amount={PARTNER_JOIN_USDT} unit="USDT" isDark={isDark} />
-        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
-        {payActions(() => setJoinOpen(false), confirmJoin)}
-      </PartnerModal>
+      <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 px-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+        {p('stake.orders')} · {STAKE_LOCK_DAYS}{p('stake.daysEach')}
+      </div>
+
+      {filteredOrders.length === 0 ? (
+        <div className={`text-center py-10 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+          {p('filters.noResults')}
+        </div>
+      ) : (
+        filteredOrders.map((order) => {
+          const progress = stakeOrderProgress(order);
+          const daysLeft = stakeOrderDaysLeft(order);
+          return (
+            <button
+              key={order.id}
+              type="button"
+              onClick={() => setHistoryOrder(order)}
+              className={`partner-elevated-card p-4 w-full text-left ios-glass-pressable ${glassCardClass('default', '')}`}
+            >
+              <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+              <div className="flex justify-between mb-2">
+                <span className="text-xs font-bold text-[#E0568F]">{p(stakeKindKey(order.kind))}</span>
+                <span className={`text-[10px] flex items-center gap-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  {order.startedAt}
+                  <ChevronRight size={12} className="opacity-60" />
+                </span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                  ${order.principalUsdt.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-emerald-500">${formatDailyYieldUsdt(order.dailyYieldUsdt)}/{p('stake.perDay')}</span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden mb-1 partner-depth-inset">
+                <div className="h-full rounded-full" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />
+              </div>
+              <div className={`flex justify-between text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                <span>
+                  {daysLeft}{p('stake.daysLeft')} · {order.unlockAt}
+                </span>
+                <span className="text-[#E0568F]/80">{p('stake.yieldHistoryTap')}</span>
+              </div>
+            </button>
+          );
+        })
+      )}
 
       <PartnerModal
         open={historyOrder !== null}
-        onClose={() => setHistoryOrder(null)}
+        onClose={() => {
+          setHistoryOrder(null);
+          setHistoryPage(0);
+        }}
         title={p('stake.yieldHistoryTitle')}
         isDark={isDark}
       >
         {historyOrder && (
           <>
-            <div className="partner-depth-inset p-4 mb-4 rounded-2xl">
-              <div className="flex justify-between items-start gap-3 mb-2">
-                <div>
-                  <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+            <div className={`p-3 mb-3 rounded-2xl border ${isDark ? 'bg-[#E0568F]/10 border-[#E0568F]/25' : 'bg-[#E0568F]/8 border-[#E0568F]/20'}`}>
+              <div className="flex justify-between items-start gap-2 mb-1.5">
+                <div className="min-w-0">
+                  <div className={`text-[10px] uppercase tracking-widest mb-0.5 ${isDark ? 'text-[#f9a8d4]' : 'text-[#8A2B57]/70'}`}>
                     {p(stakeKindKey(historyOrder.kind))}
                   </div>
-                  <div className="text-lg font-bold text-[#E0568F]">
+                  <div className="text-base font-bold text-[#E0568F]">
                     ${historyOrder.principalUsdt.toLocaleString()}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{p('stake.daily')}</div>
-                  <div className="text-sm font-semibold text-emerald-500">
+                <div className="text-right shrink-0">
+                  <div className={`text-[10px] ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.daily')}</div>
+                  <div className="text-sm font-semibold text-emerald-400">
                     ${formatDailyYieldUsdt(historyOrder.dailyYieldUsdt)}
                   </div>
                 </div>
               </div>
-              <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+              <div className={`text-[10px] ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
                 {historyOrder.startedAt} → {historyOrder.unlockAt}
               </div>
             </div>
 
             {historyRows.length === 0 ? (
-              <div className={`text-center py-8 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+              <div className={`text-center py-8 text-sm ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
                 {p('stake.yieldHistoryEmpty')}
               </div>
             ) : (
-              <div className="space-y-2 mb-4 max-h-[min(40dvh,280px)] overflow-y-auto">
+              <div className="mb-3">
                 <div
-                  className={`grid grid-cols-[1fr_auto_auto] gap-2 px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}
+                  className={`grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-0 px-1.5 pb-1.5 text-[10px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}
                 >
                   <span>{p('stake.yieldHistoryDate')}</span>
-                  <span className="text-right">{p('stake.yieldHistoryAmount')}</span>
-                  <span className="text-right w-14">{p('stake.yieldHistoryStatus')}</span>
+                  <span className="text-right min-w-[4.5rem]">{p('stake.yieldHistoryAmount')}</span>
+                  <span className="text-right min-w-[2.75rem]">{p('stake.yieldHistoryStatus')}</span>
                 </div>
-                {historyRows.map((row) => (
-                  <div
-                    key={row.id}
-                    className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center partner-depth-inset px-3 py-2.5 rounded-xl text-sm`}
-                  >
-                    <span className={`font-mono text-xs ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
-                      {row.date}
-                    </span>
-                    <span className="font-semibold text-emerald-500 text-right">
-                      +${formatDailyYieldUsdt(row.yieldUsdt)}
-                    </span>
-                    <span
-                      className={`text-[10px] text-right w-14 ${row.source === 'settled' ? 'text-emerald-500/80' : isDark ? 'text-white/35' : 'text-[#160510]/40'}`}
+                <div className="space-y-1.5 min-h-[min(42dvh,19.5rem)] max-h-[min(42dvh,19.5rem)] sm:min-h-[280px] sm:max-h-[280px]">
+                  {pagedHistoryRows.map((row) => (
+                    <div
+                      key={row.id}
+                      className={`grid grid-cols-[1fr_auto_auto] gap-x-2 items-center px-2.5 py-2 rounded-xl text-xs border ${
+                        row.source === 'settled'
+                          ? isDark
+                            ? 'bg-emerald-500/15 border-emerald-500/30'
+                            : 'bg-emerald-50 border-emerald-200/80'
+                          : isDark
+                            ? 'bg-white/[0.06] border-white/10'
+                            : 'bg-[#160510]/[0.03] border-[#160510]/10'
+                      }`}
                     >
-                      {row.source === 'settled' ? p('stake.yieldHistorySettled') : p('stake.yieldHistoryAccrued')}
+                      <span className={`font-mono text-[11px] truncate ${isDark ? 'text-white/90' : 'text-[#160510]/85'}`}>
+                        {row.date}
+                      </span>
+                      <span
+                        className={`font-semibold text-right min-w-[4.5rem] whitespace-nowrap ${
+                          row.source === 'settled' ? 'text-emerald-400' : 'text-emerald-600'
+                        }`}
+                      >
+                        +${formatDailyYieldUsdt(row.yieldUsdt)}
+                      </span>
+                      <span
+                        className={`text-[10px] text-right min-w-[2.75rem] font-medium leading-tight ${
+                          row.source === 'settled'
+                            ? isDark ? 'text-emerald-300/90' : 'text-emerald-700'
+                            : isDark ? 'text-amber-300/80' : 'text-amber-700'
+                        }`}
+                      >
+                        {row.source === 'settled' ? p('stake.yieldHistorySettled') : p('stake.yieldHistoryAccrued')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {historyPageCount > 1 && (
+                  <div className="flex items-center justify-between gap-2 pt-2.5 mt-1">
+                    <button
+                      type="button"
+                      disabled={safeHistoryPage <= 0}
+                      onClick={() => setHistoryPage((n) => Math.max(0, n - 1))}
+                      className={`flex items-center gap-0.5 min-h-[40px] px-2.5 rounded-xl text-[11px] font-semibold touch-manipulation disabled:opacity-35 ${
+                        isDark
+                          ? 'bg-white/[0.06] text-white/80 active:bg-white/10'
+                          : 'bg-[#160510]/5 text-[#160510]/80 active:bg-[#160510]/10'
+                      }`}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <ChevronLeft size={14} />
+                      {p('stake.yieldHistoryPrev')}
+                    </button>
+                    <span className={`text-[10px] font-medium tabular-nums ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+                      {p('stake.yieldHistoryPage', { page: safeHistoryPage + 1, total: historyPageCount })}
                     </span>
+                    <button
+                      type="button"
+                      disabled={safeHistoryPage >= historyPageCount - 1}
+                      onClick={() => setHistoryPage((n) => Math.min(historyPageCount - 1, n + 1))}
+                      className={`flex items-center gap-0.5 min-h-[40px] px-2.5 rounded-xl text-[11px] font-semibold touch-manipulation disabled:opacity-35 ${
+                        isDark
+                          ? 'bg-white/[0.06] text-white/80 active:bg-white/10'
+                          : 'bg-[#160510]/5 text-[#160510]/80 active:bg-[#160510]/10'
+                      }`}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      {p('stake.yieldHistoryNext')}
+                      <ChevronRight size={14} />
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
-            <div className={`flex justify-between items-center pt-3 border-t ${isDark ? 'border-white/10' : 'border-[#160510]/10'}`}>
-              <span className={`text-xs ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.yieldHistoryTotal')}</span>
-              <span className="text-base font-bold text-emerald-500">+${formatDailyYieldUsdt(historyTotal)}</span>
+            <div className={`flex justify-between items-center pt-3 border-t ${isDark ? 'border-white/15' : 'border-[#160510]/12'}`}>
+              <span className={`text-xs font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{p('stake.yieldHistoryTotal')}</span>
+              <span className="text-base font-bold text-emerald-400">+${formatDailyYieldUsdt(historyTotal)}</span>
             </div>
           </>
         )}

@@ -10,6 +10,17 @@ import type {
 
 export const PARTNER_JOIN_USDT = 1;
 export const MIN_CROWDFUND_STAKE_USDT = 0.01;
+export const DEFAULT_HOME_STAKE_USDT = 5000;
+export const REGULAR_STAKE_STEP_USDT = 100;
+export const REGULAR_STAKE_MIN_USDT = 100;
+
+export function isValidRegularStakeAmount(amount: number): boolean {
+  return (
+    Number.isFinite(amount) &&
+    amount >= REGULAR_STAKE_MIN_USDT &&
+    amount % REGULAR_STAKE_STEP_USDT === 0
+  );
+}
 /** Minimum USDT yield flash-withdraw (1 USDT @ 0.4%/day = 0.004). */
 export const MIN_YIELD_WITHDRAW_USDT = 0.001;
 export const DAILY_YIELD_PCT = 0.4;
@@ -23,6 +34,7 @@ export const MARKET_SUBSIDY_RATE = 0.05;
 
 export type SubsidyStatus = 'pending' | 'approved' | 'rejected' | 'paid';
 export type MarketLeaderStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type SubsidyApplicationType = 'reserve' | 'reimbursement';
 
 export type SubsidyApplication = {
   id: string;
@@ -30,9 +42,16 @@ export type SubsidyApplication = {
   purpose: string;
   appliedAt: string;
   status: SubsidyStatus;
+  applicationType?: SubsidyApplicationType;
+  receiptPaths?: string[];
   reviewedAt?: string;
   paidAt?: string;
   note?: string;
+};
+
+export type PartnerProgramSettings = {
+  partnerSubsidyRatePct: number;
+  marketSubsidyRatePct: number;
 };
 
 export type BribeTier = {
@@ -672,6 +691,54 @@ export function hydratePartnerStateFromApi(
     sd3SettlementHistory,
     lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
     dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,
+    marketLeaderStatus:
+      (account as { market_leader_status?: string } | null | undefined)?.market_leader_status as
+        | MarketLeaderStatus
+        | undefined ?? local.marketLeaderStatus,
+  };
+}
+
+export function mapSubsidyTicketsToApplications(
+  tickets: Array<{
+    id: string;
+    kind: string;
+    amount_usd: number | null;
+    purpose: string;
+    status: string;
+    application_type?: string | null;
+    receipt_paths?: string[] | null;
+    applied_at: string;
+    reviewed_at?: string | null;
+    paid_at?: string | null;
+  }>,
+): {
+  partnerSubsidyApplications: SubsidyApplication[];
+  marketSubsidyApplications: SubsidyApplication[];
+} {
+  const toApp = (t: (typeof tickets)[0]): SubsidyApplication => {
+    let status: SubsidyStatus = 'pending';
+    if (t.status === 'approved') status = 'approved';
+    if (t.status === 'paid') status = 'paid';
+    if (t.status === 'rejected') status = 'rejected';
+    const applicationType =
+      t.application_type === 'reimbursement' || t.application_type === 'reserve'
+        ? t.application_type
+        : undefined;
+    return {
+      id: t.id,
+      amountUsd: Number(t.amount_usd ?? 0),
+      purpose: t.purpose,
+      appliedAt: t.applied_at.slice(0, 10),
+      status,
+      applicationType,
+      receiptPaths: Array.isArray(t.receipt_paths) ? t.receipt_paths : [],
+      reviewedAt: t.reviewed_at?.slice(0, 10),
+      paidAt: t.paid_at?.slice(0, 10),
+    };
+  };
+  return {
+    partnerSubsidyApplications: tickets.filter((t) => t.kind === 'partner_subsidy').map(toApp),
+    marketSubsidyApplications: tickets.filter((t) => t.kind === 'market_subsidy').map(toApp),
   };
 }
 
@@ -689,30 +756,41 @@ export function getSd3Quotas(state: PartnerState) {
   };
 }
 
-export function partnerSubsidyQuota(state: PartnerState) {
-  const base = state.totalNewPerformanceUsd;
-  const cap = Math.round(base * PARTNER_SUBSIDY_RATE * 100) / 100;
+export function partnerSubsidyQuota(
+  state: PartnerState,
+  ratePct: number = PARTNER_SUBSIDY_RATE * 100,
+  basePerformanceUsd?: number,
+) {
+  const base = basePerformanceUsd ?? state.totalNewPerformanceUsd;
+  const rate = ratePct / 100;
+  const cap = Math.round(base * rate * 100) / 100;
   const reserved = state.partnerSubsidyApplications
     .filter((a) => a.status !== 'rejected')
     .reduce((s, a) => s + a.amountUsd, 0);
   return {
     basePerformance: base,
-    ratePct: PARTNER_SUBSIDY_RATE * 100,
+    ratePct,
     cap,
     reserved,
     remaining: Math.max(0, Math.round((cap - reserved) * 100) / 100),
   };
 }
 
-export function marketSubsidyQuota(state: PartnerState) {
-  const remainingPerf = Math.max(0, state.totalNewPerformanceUsd - state.marketSubsidyPerformanceUsed);
-  const cap = Math.round(remainingPerf * MARKET_SUBSIDY_RATE * 100) / 100;
+export function marketSubsidyQuota(
+  state: PartnerState,
+  ratePct: number = MARKET_SUBSIDY_RATE * 100,
+  basePerformanceUsd?: number,
+) {
+  const baseSource = basePerformanceUsd ?? state.totalNewPerformanceUsd;
+  const remainingPerf = Math.max(0, baseSource - state.marketSubsidyPerformanceUsed);
+  const rate = ratePct / 100;
+  const cap = Math.round(remainingPerf * rate * 100) / 100;
   const reserved = state.marketSubsidyApplications
     .filter((a) => a.status !== 'rejected')
     .reduce((s, a) => s + a.amountUsd, 0);
   return {
     basePerformance: remainingPerf,
-    ratePct: MARKET_SUBSIDY_RATE * 100,
+    ratePct,
     cap,
     reserved,
     remaining: Math.max(0, Math.round((cap - reserved) * 100) / 100),
@@ -728,6 +806,8 @@ export function applyPartnerSubsidy(
   prev: PartnerState,
   amountUsd: number,
   purpose: string,
+  applicationType: SubsidyApplicationType = 'reserve',
+  receiptPaths: string[] = [],
 ): PartnerState {
   if (!prev.isPartner || amountUsd <= 0) return prev;
   const { remaining } = partnerSubsidyQuota(prev);
@@ -738,6 +818,8 @@ export function applyPartnerSubsidy(
     purpose: purpose.trim(),
     appliedAt: new Date().toISOString().slice(0, 10),
     status: 'pending',
+    applicationType,
+    receiptPaths,
   };
   return { ...prev, partnerSubsidyApplications: [app, ...prev.partnerSubsidyApplications] };
 }
@@ -753,17 +835,21 @@ export function applyMarketSubsidy(
   prev: PartnerState,
   amountUsd: number,
   purpose: string,
+  applicationType: SubsidyApplicationType = 'reserve',
+  receiptPaths: string[] = [],
 ): PartnerState {
   if (!prev.isPartner || prev.marketLeaderStatus !== 'approved' || amountUsd <= 0) return prev;
   const { remaining } = marketSubsidyQuota(prev);
   if (amountUsd > remaining) return prev;
-  const perfConsumed = Math.round((amountUsd / MARKET_SUBSIDY_RATE) * 100) / 100;
+  const perfConsumed = Math.round((amountUsd / (MARKET_SUBSIDY_RATE)) * 100) / 100;
   const app: SubsidyApplication = {
     id: `ms-${Date.now()}`,
     amountUsd,
     purpose: purpose.trim(),
     appliedAt: new Date().toISOString().slice(0, 10),
     status: 'pending',
+    applicationType,
+    receiptPaths,
   };
   return {
     ...prev,

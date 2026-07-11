@@ -213,6 +213,7 @@ export type PartnerAccountRow = {
   lifetime_sd3_earned: number;
   lifetime_usdt_yield: number;
   joined_at: string | null;
+  market_leader_status?: 'none' | 'pending' | 'approved' | 'rejected';
 };
 
 export type PartnerStakePositionRow = {

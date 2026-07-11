@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
+import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useWallet } from '@/contexts/wallet-context';
@@ -243,6 +243,9 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
 
 export function ReferralBindGate({ children }: { children: ReactNode }) {
   const { wallet, isConnected } = useWallet();
+  const { lang } = useAppLang();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const { hasReferralBound, loading, refetch } = useReferralStatus(wallet);
 
   if (!isConnected || !wallet || isDemoWallet(wallet)) {
@@ -251,8 +254,8 @@ export function ReferralBindGate({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#E0568F]/60" />
+      <div className={`min-h-[100dvh] flex items-center justify-center ${isDark ? 'bg-dark-gradient' : 'bg-light-gradient'}`}>
+        <PartnerReferralLoading label={t(lang, 'loading')} isDark={isDark} />
       </div>
     );
   }

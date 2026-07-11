@@ -4,7 +4,7 @@ import { fetchUnionProfile } from '@/lib/unionApi';
 
 export function useReferralStatus(wallet: string | null) {
   const [hasReferralBound, setHasReferralBound] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(wallet));
   const [version, setVersion] = useState(0);
 
   const refetch = useCallback(() => {

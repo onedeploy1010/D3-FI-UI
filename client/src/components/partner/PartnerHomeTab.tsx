@@ -1,112 +1,48 @@
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Coins, Gift, Globe2, Shield, Sparkles, Users, Zap } from 'lucide-react';
+import { CheckCircle2, Sparkles, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
+import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
+import { PartnerTagChip } from '@/components/partner/partnerUiKit';
 import {
-  BRIBE_TIERS,
-  CROWDFUND_TOKEN_SUPPLY,
+  calcDailyUsdtYield,
   CROWDFUND_UNIT_PRICE_USDT,
+  DEFAULT_HOME_STAKE_USDT,
   DAILY_YIELD_PCT,
+  formatDailyYieldUsdt,
+  isValidRegularStakeAmount,
   PARTNER_JOIN_USDT,
+  REGULAR_STAKE_MIN_USDT,
+  REGULAR_STAKE_STEP_USDT,
+  STAKE_LOCK_DAYS,
   type PartnerState,
 } from '@/components/partner/partnerData';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
+import type { DepositIntent } from '@/lib/depositApi';
 
-const TIER_KEYS = ['tier.proBribe', 'tier.seniorBribe', 'tier.director', 'tier.chief'] as const;
-
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.06 } },
-};
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const } },
-};
-
-function formatTierVolume(min: number, max: number, lang: AppLang): string {
-  if (lang === 'zh-CN' || lang === 'zh-TW') {
-    const fmt = (n: number) => (n >= 100_000 ? `${n / 10_000}万` : String(n));
-    return `${fmt(min)}–${fmt(max)}U`;
-  }
-  const fmt = (n: number) => (n >= 1_000_000 ? `${n / 1_000_000}M` : n >= 1_000 ? `${n / 1_000}K` : String(n));
-  return `${fmt(min)}–${fmt(max)} USDT`;
-}
-
-function PartnerTiersInline({ lang, isDark }: { lang: AppLang; isDark: boolean }) {
-  const p = usePartnerTranslation(lang);
-
+function DepositHint({
+  intent,
+  isDark,
+  label,
+}: {
+  intent: DepositIntent | null | undefined;
+  isDark: boolean;
+  label: (key: string) => string;
+}) {
+  if (!intent) return null;
   return (
-    <div className="mt-4 pt-4 border-t border-[#E0568F]/10">
-      <div className="site-section-title mb-2 text-[11px]">{p('home.tiersTitle')}</div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {BRIBE_TIERS.map((tier, i) => (
-          <div key={TIER_KEYS[i]} className="partner-depth-inset rounded-lg px-2.5 py-2">
-            <div className="flex items-center justify-between gap-1">
-              <span className={`text-[10px] font-bold truncate ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                {p(TIER_KEYS[i])}
-              </span>
-              <span className="text-xs font-bold text-[#E0568F] shrink-0">{tier.ratePct}%</span>
-            </div>
-            <div className={`text-[9px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-              {formatTierVolume(tier.min, tier.max, lang)}
-            </div>
-          </div>
-        ))}
+    <div className={`partner-depth-inset rounded-xl p-3 mb-4 text-left ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+      <div className="text-[10px] uppercase tracking-widest mb-1">{label('stake.depositAddress')}</div>
+      <div className={`text-xs font-mono break-all ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
+        {intent.depositAddress}
+      </div>
+      <div className="text-[10px] mt-2">
+        {label('stake.depositHint')} · BSC USDT · {intent.expectedAmount} USDT
       </div>
     </div>
-  );
-}
-
-function PartnerIntro({ lang, isDark }: { lang: AppLang; isDark: boolean }) {
-  const p = usePartnerTranslation(lang);
-
-  const benefits = [
-    { icon: Globe2, label: p('benefit.globalTree') },
-    { icon: Coins, label: p('benefit.price', { price: CROWDFUND_UNIT_PRICE_USDT }) },
-    { icon: Zap, label: p('benefit.static', { pct: DAILY_YIELD_PCT }) },
-    { icon: Gift, label: p('benefit.antibribe') },
-    { icon: Shield, label: p('benefit.investor') },
-    { icon: Sparkles, label: p('benefit.contract') },
-  ];
-
-  return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
-      <motion.div variants={fadeUp} className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
-        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-        <div className="relative">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Sparkles size={14} className="text-[#E0568F]" />
-            <span className="site-stat-label">{p('home.badge')}</span>
-          </div>
-          <h2 className={`text-base font-bold leading-snug mb-1.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-            {p('home.headline')}
-          </h2>
-          <p className={`text-[11px] leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-            {p('home.subline', { supply: CROWDFUND_TOKEN_SUPPLY.toLocaleString() })}
-          </p>
-        </div>
-      </motion.div>
-
-      <motion.div variants={fadeUp} className={`partner-elevated-card p-3.5 ${glassCardClass('default', '')}`}>
-        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-        <div className="site-section-title mb-2 text-[11px]">{p('home.benefitsTitle')}</div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {benefits.map(({ icon: Icon, label }, i) => (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.08 + i * 0.04 }}
-              className={`flex flex-col items-center gap-1 partner-depth-inset rounded-lg px-1.5 py-2 text-center ${isDark ? 'text-white/75' : 'text-[#160510]/75'}`}
-            >
-              <Icon size={13} className="text-[#E0568F] shrink-0" strokeWidth={2.25} />
-              <span className="text-[9px] font-semibold leading-tight">{label}</span>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -115,15 +51,77 @@ export function PartnerHomeTab({
   isDark,
   state,
   hasReferralBound,
-  onGoPartnerJoin,
+  referralLoading,
+  minCrowdfundUsdt,
+  paying,
+  lastDepositIntent,
+  onHomeStake,
 }: {
   lang: AppLang;
   isDark: boolean;
   state: PartnerState;
   hasReferralBound: boolean;
-  onGoPartnerJoin: () => void;
+  referralLoading?: boolean;
+  minCrowdfundUsdt: number;
+  paying: boolean;
+  lastDepositIntent?: DepositIntent | null;
+  onHomeStake: (amount: number, withPartnerJoin: boolean) => Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
+  const [amount, setAmount] = useState(String(DEFAULT_HOME_STAKE_USDT));
+  const [becomePartner, setBecomePartner] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const numAmount = Number(amount);
+  const isRegularMode = !state.isPartner && !becomePartner;
+  const withPartnerJoin = !state.isPartner && becomePartner;
+
+  const isValidAmount = useMemo(() => {
+    if (!Number.isFinite(numAmount)) return false;
+    if (isRegularMode) return isValidRegularStakeAmount(numAmount);
+    return numAmount >= minCrowdfundUsdt;
+  }, [numAmount, isRegularMode, minCrowdfundUsdt]);
+
+  const quickIncrements = [100, 500, 1000, 5000];
+  const totalPay = withPartnerJoin ? numAmount + PARTNER_JOIN_USDT : numAmount;
+  const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(numAmount) : 0;
+  const sd3QuotaPreview = isValidAmount ? Math.floor(numAmount / CROWDFUND_UNIT_PRICE_USDT) : 0;
+
+  const addAmount = (delta: number) => {
+    const base = Number.isFinite(numAmount) ? numAmount : 0;
+    let next = base + delta;
+    if (isRegularMode) {
+      next = Math.max(REGULAR_STAKE_MIN_USDT, Math.round(next / REGULAR_STAKE_STEP_USDT) * REGULAR_STAKE_STEP_USDT);
+    } else {
+      next = Math.max(minCrowdfundUsdt, next);
+    }
+    setAmount(String(next));
+  };
+
+  const handleTogglePartner = (checked: boolean) => {
+    setBecomePartner(checked);
+    if (checked) {
+      setAmount(String(DEFAULT_HOME_STAKE_USDT));
+    } else {
+      const n = Number.isFinite(numAmount) ? numAmount : DEFAULT_HOME_STAKE_USDT;
+      const rounded = Math.max(REGULAR_STAKE_MIN_USDT, Math.floor(n / REGULAR_STAKE_STEP_USDT) * REGULAR_STAKE_STEP_USDT);
+      setAmount(String(rounded));
+    }
+  };
+
+  const confirmStake = async () => {
+    if (!isValidAmount) return;
+    const ok = await onHomeStake(numAmount, withPartnerJoin);
+    if (ok) {
+      setConfirmOpen(false);
+      setAmount(String(DEFAULT_HOME_STAKE_USDT));
+      if (!state.isPartner) setBecomePartner(true);
+    }
+  };
+
+  if (referralLoading) {
+    return <PartnerReferralLoading label={p('referral.checking')} isDark={isDark} className="min-h-[55vh]" />;
+  }
 
   if (!hasReferralBound) {
     return (
@@ -134,38 +132,215 @@ export function PartnerHomeTab({
   }
 
   return (
-    <div className="space-y-4">
-      <PartnerIntro lang={lang} isDark={isDark} />
-
-      {!state.isPartner ? (
-        <div className={`partner-elevated-card p-5 ${glassCardClass('highlight', '')}`}>
-          <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-          <div className="relative">
-            <div className={`text-sm font-semibold tracking-tight mb-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-              {p('home.becomePartner')}
-            </div>
-            <p className={`text-[11px] leading-relaxed mb-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-              {p('home.becomeDesc', { fee: PARTNER_JOIN_USDT.toLocaleString() })}
-            </p>
-            <GlassButton className="w-full !py-3.5 flex items-center justify-center gap-2" onClick={onGoPartnerJoin}>
-              <Users size={16} />
-              {p('home.goJoin')}
-              <ArrowRight size={14} />
-            </GlassButton>
-            <PartnerTiersInline lang={lang} isDark={isDark} />
-          </div>
-        </div>
-      ) : (
-        <div className={`partner-elevated-card p-4 ${glassCardClass('default', '')}`}>
-          <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+    <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-11rem)] py-4">
+      {state.isPartner && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
           <GlassChip className="!py-1.5 !px-3 text-xs font-bold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/20">
             <CheckCircle2 size={12} className="inline mr-1 -mt-0.5" />
             {p('home.isPartner')}
             {state.joinedAt ? ` · ${state.joinedAt}` : ''}
           </GlassChip>
-          <PartnerTiersInline lang={lang} isDark={isDark} />
-        </div>
+        </motion.div>
       )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-sm mx-auto"
+      >
+        <motion.div
+          className="absolute -inset-4 rounded-[2rem] pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 40%, rgba(224,86,143,0.22) 0%, transparent 70%)',
+          }}
+          animate={{ opacity: [0.45, 0.75, 0.45], scale: [0.98, 1.02, 0.98] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute -top-6 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full blur-3xl pointer-events-none bg-[#E0568F]/20"
+          animate={{ opacity: [0.3, 0.55, 0.3], y: [0, -6, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        />
+
+        <div className={`partner-elevated-card partner-stake-hero p-6 sm:p-7 relative ${glassCardClass('highlight', '')}`}>
+          <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+          <motion.div
+            className="absolute top-4 right-4 text-[#E0568F]/40"
+            animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.08, 1] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <Sparkles size={18} />
+          </motion.div>
+
+          <div className="relative text-center mb-5">
+            <motion.div
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 bg-[#E0568F]/10 text-[#E0568F] shadow-lg shadow-[#E0568F]/10"
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Zap size={26} strokeWidth={2.25} />
+            </motion.div>
+            <h2 className={`text-lg font-bold tracking-tight mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              {p('home.stakeTitle')}
+            </h2>
+            <div className="flex flex-wrap justify-center gap-1.5 mb-1">
+              <PartnerTagChip accent>{p('home.tagDays', { days: STAKE_LOCK_DAYS })}</PartnerTagChip>
+              <PartnerTagChip accent>{p('home.tagDoubleExit')}</PartnerTagChip>
+              <PartnerTagChip>{p('home.tagDailyYield', { pct: DAILY_YIELD_PCT })}</PartnerTagChip>
+            </div>
+          </div>
+
+          <div className="relative mb-4">
+            <div className={`text-[10px] font-semibold uppercase tracking-widest text-center mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+              USDT
+            </div>
+            <input
+              type="number"
+              min={isRegularMode ? REGULAR_STAKE_MIN_USDT : minCrowdfundUsdt}
+              step={isRegularMode ? REGULAR_STAKE_STEP_USDT : 'any'}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={
+                isRegularMode
+                  ? p('home.stakeRegularPlaceholder', { min: REGULAR_STAKE_MIN_USDT, step: REGULAR_STAKE_STEP_USDT })
+                  : p('home.stakePartnerPlaceholder', { default: DEFAULT_HOME_STAKE_USDT })
+              }
+              className={`w-full partner-depth-inset px-4 py-4 text-3xl font-bold text-center rounded-2xl outline-none tracking-tight ${
+                isDark ? 'text-white bg-transparent' : 'text-[#160510]'
+              }`}
+            />
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2 mb-5">
+            {quickIncrements.map((v, i) => (
+              <motion.button
+                key={v}
+                type="button"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.15 + i * 0.05 }}
+                onClick={() => addAmount(v)}
+                className="text-xs px-3.5 py-1.5 rounded-full partner-depth-inset ios-glass-pressable font-semibold text-[#E0568F] transition-colors"
+              >
+                +{v.toLocaleString()}
+              </motion.button>
+            ))}
+          </div>
+
+          {!state.isPartner && (
+            <label
+              className={`flex items-start gap-2.5 cursor-pointer partner-depth-inset rounded-xl px-3.5 py-3 mb-4 ${
+                isDark ? 'text-white/75' : 'text-[#160510]/75'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={becomePartner}
+                onChange={(e) => handleTogglePartner(e.target.checked)}
+                className="mt-0.5 accent-[#E0568F] shrink-0 scale-110"
+              />
+              <span className="text-[11px] leading-relaxed text-left">
+                <span className="font-semibold">{p('home.becomePartnerCheckbox')}</span>
+                <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                  {p('home.becomePartnerCheckboxHint', { fee: PARTNER_JOIN_USDT.toLocaleString() })}
+                </span>
+              </span>
+            </label>
+          )}
+
+          {isRegularMode && (
+            <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+              {p('home.stakeStepHint', { step: REGULAR_STAKE_STEP_USDT })}
+            </p>
+          )}
+
+          <motion.div whileTap={{ scale: 0.98 }}>
+            <GlassButton
+              className="w-full !py-4 !text-base font-bold flex items-center justify-center gap-2"
+              disabled={!isValidAmount}
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Zap size={18} />
+              {p('home.stakeOneClick')}
+            </GlassButton>
+          </motion.div>
+
+          {isValidAmount && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 space-y-2"
+            >
+              <div className="partner-depth-inset rounded-xl px-3 py-2.5 flex justify-between items-center">
+                <span className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{p('home.estDailyYield')}</span>
+                <span className="text-sm font-bold text-emerald-500">${formatDailyYieldUsdt(dailyYieldUsdt)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => toast.info(p('home.sd3QuotaToast'))}
+                className={`w-full partner-depth-inset rounded-xl px-3 py-2.5 flex items-start gap-2.5 text-left ios-glass-pressable ${
+                  isDark ? 'text-white/75' : 'text-[#160510]/75'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  readOnly
+                  checked
+                  className="mt-0.5 accent-[#E0568F] shrink-0 scale-110 pointer-events-none"
+                />
+                <span className="text-[11px] leading-relaxed">
+                  <span className="font-semibold">{p('home.sd3QuotaLabel')}</span>
+                  <span className={`block text-sm font-bold text-[#E0568F] mt-0.5`}>
+                    {sd3QuotaPreview.toLocaleString()} sD3
+                  </span>
+                  <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                    {p('home.sd3QuotaHint')}
+                  </span>
+                </span>
+              </button>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+
+      <PartnerModal
+        open={confirmOpen}
+        onClose={() => !paying && setConfirmOpen(false)}
+        title={p('home.confirmStakeTitle')}
+        isDark={isDark}
+      >
+        <div className="space-y-2 mb-5">
+          {withPartnerJoin && (
+            <div className="partner-depth-inset p-3 rounded-xl flex justify-between items-center">
+              <span className={`text-xs ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.joinFee')}</span>
+              <span className="text-sm font-bold text-[#E0568F]">{PARTNER_JOIN_USDT.toLocaleString()} USDT</span>
+            </div>
+          )}
+          <div className="partner-depth-inset p-4 text-center rounded-2xl">
+            <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+              {p('stake.stakeAmount')}
+            </div>
+            <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{numAmount.toLocaleString()}</div>
+            <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>USDT</div>
+          </div>
+          {withPartnerJoin && (
+            <div className={`flex justify-between items-center px-1 text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              <span>{p('home.joinAndStakeTotal')}</span>
+              <span className="text-[#E0568F]">{totalPay.toLocaleString()} USDT</span>
+            </div>
+          )}
+        </div>
+        <DepositHint intent={lastDepositIntent} isDark={isDark} label={p} />
+        <div className="flex flex-col-reverse sm:flex-row gap-3">
+          <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => setConfirmOpen(false)}>
+            {p('stake.cancel')}
+          </GlassButton>
+          <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying || !isValidAmount} onClick={() => void confirmStake()}>
+            {paying ? p('stake.paying') : p('stake.confirm')}
+          </GlassButton>
+        </div>
+      </PartnerModal>
     </div>
   );
 }

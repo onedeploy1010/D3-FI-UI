@@ -30,8 +30,8 @@ export function SectionTabBar({
               } ${
                 isActive
                   ? isDark
-                    ? 'text-white'
-                    : 'text-[#8A2B57]'
+                    ? 'text-[#f9a8d4]'
+                    : 'text-[#7A2450]'
                   : isDark
                     ? 'text-white/40'
                     : 'text-[#160510]/40'

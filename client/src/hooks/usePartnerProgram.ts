@@ -16,10 +16,13 @@ import {
   DEMO_PARTNER_STATE,
   GUEST_PARTNER_STATE,
   hydratePartnerStateFromApi,
+  mapSubsidyTicketsToApplications,
   migratePartnerState,
   MIN_CROWDFUND_STAKE_USDT,
   PARTNER_JOIN_USDT,
+  type PartnerProgramSettings,
   type PartnerState,
+  type SubsidyApplicationType,
   storageKey,
 } from '@/components/partner/partnerData';
 import {
@@ -29,7 +32,8 @@ import {
   isPartnerDownlineMember,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
-import { fetchUnionProfile } from '@/lib/unionApi';
+import { getTeamAlias, loadTeamAliases } from '@/components/partner/partnerTeamAliases';
+import { createPartnerSubsidyTicket, fetchPartnerProgramSettings, fetchPartnerSubsidyTickets, fetchUnionProfile } from '@/lib/unionApi';
 import { withdrawPartnerYield } from '@/lib/depositApi';
 
 const EMPTY_TEAM_STATS: PartnerTeamStats = {
@@ -73,6 +77,10 @@ export function usePartnerProgram(wallet: string | null) {
   const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
   const [downlineWallets, setDownlineWallets] = useState<string[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
+  const [subsidySettings, setSubsidySettings] = useState<PartnerProgramSettings>({
+    partnerSubsidyRatePct: 10,
+    marketSubsidyRatePct: 5,
+  });
 
   const refreshTeamProfile = useCallback(async () => {
     if (!wallet) {
@@ -84,12 +92,35 @@ export function usePartnerProgram(wallet: string | null) {
     }
     setTeamLoading(true);
     try {
+      if (wallet && !isDemoWallet(wallet)) {
+        try {
+          const { settings } = await fetchPartnerProgramSettings(wallet);
+          setSubsidySettings(settings);
+        } catch {
+          /* keep defaults */
+        }
+      }
       const bundle = await fetchUnionProfile(wallet);
+      let subsidyPatch: Partial<PartnerState> = {};
+      if (!isDemoWallet(wallet)) {
+        try {
+          const { tickets } = await fetchPartnerSubsidyTickets(wallet);
+          const mapped = mapSubsidyTicketsToApplications(tickets ?? []);
+          subsidyPatch = {
+            ...mapped,
+            marketLeaderStatus:
+              (bundle.partnerAccount as { market_leader_status?: string } | null | undefined)
+                ?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
+          };
+        } catch {
+          /* keep local subsidy state */
+        }
+      }
       setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
       setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
       setDownlineWallets(bundle.partnerDownlineWallets ?? []);
       setState((prev) => {
-        const merged = hydratePartnerStateFromApi(prev, bundle);
+        const merged = { ...hydratePartnerStateFromApi(prev, bundle), ...subsidyPatch };
         if (wallet) saveState(wallet, merged);
         return merged;
       });
@@ -151,12 +182,15 @@ export function usePartnerProgram(wallet: string | null) {
       if (!isPartnerDownlineMember(normalized, downlineWallets, teamNodes)) return false;
 
       if (wallet && isDemoWallet(wallet)) {
+        const aliases = loadTeamAliases(wallet);
+        const label =
+          getTeamAlias(aliases, normalized) || findPartnerTeamNodeLabel(teamNodes, normalized);
         persist(
           applySd3Transfer(
             state,
             normalized,
             amount,
-            findPartnerTeamNodeLabel(teamNodes, normalized),
+            label,
           ),
         );
         return true;
@@ -197,37 +231,90 @@ export function usePartnerProgram(wallet: string | null) {
   );
 
   const submitPartnerSubsidy = useCallback(
-    (amountUsd: number, purpose: string) => {
-      if (!state.isPartner || !purpose.trim()) return false;
-      const next = applyPartnerSubsidy(state, amountUsd, purpose);
-      if (next === state) return false;
-      persist(next);
-      return true;
+    async (input: {
+      amountUsd: number;
+      purpose: string;
+      applicationType: SubsidyApplicationType;
+      receiptPaths: string[];
+    }) => {
+      const { amountUsd, purpose, applicationType, receiptPaths } = input;
+      if (!state.isPartner || !purpose.trim() || !wallet || isDemoWallet(wallet)) {
+        if (!wallet || isDemoWallet(wallet)) {
+          const next = applyPartnerSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
+          if (next === state) return false;
+          persist(next);
+          return true;
+        }
+        return false;
+      }
+      try {
+        await createPartnerSubsidyTicket(wallet, {
+          kind: 'partner_subsidy',
+          amountUsd,
+          purpose: purpose.trim(),
+          applicationType,
+          receiptPaths,
+        });
+        await refreshTeamProfile();
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [state, persist],
+    [state, wallet, persist, refreshTeamProfile],
   );
 
   const submitMarketSubsidy = useCallback(
-    (amountUsd: number, purpose: string) => {
-      if (!state.isPartner || !purpose.trim()) return false;
-      const next = applyMarketSubsidy(state, amountUsd, purpose);
-      if (next === state) return false;
-      persist(next);
-      return true;
+    async (input: {
+      amountUsd: number;
+      purpose: string;
+      applicationType: SubsidyApplicationType;
+      receiptPaths: string[];
+    }) => {
+      const { amountUsd, purpose, applicationType, receiptPaths } = input;
+      if (!state.isPartner || !purpose.trim() || !wallet || isDemoWallet(wallet)) {
+        if (!wallet || isDemoWallet(wallet)) {
+          const next = applyMarketSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
+          if (next === state) return false;
+          persist(next);
+          return true;
+        }
+        return false;
+      }
+      try {
+        await createPartnerSubsidyTicket(wallet, {
+          kind: 'market_subsidy',
+          amountUsd,
+          purpose: purpose.trim(),
+          applicationType,
+          receiptPaths,
+        });
+        await refreshTeamProfile();
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [state, persist],
+    [state, wallet, persist, refreshTeamProfile],
   );
 
-  const requestMarketLeader = useCallback(() => {
+  const requestMarketLeader = useCallback(async () => {
     if (!state.isPartner) return false;
-    let next = applyMarketLeader(state);
-    if (next === state) return false;
-    if (wallet && isDemoWallet(wallet)) {
+    if (!wallet || isDemoWallet(wallet)) {
+      let next = applyMarketLeader(state);
+      if (next === state) return false;
       next = { ...next, marketLeaderStatus: 'approved' };
+      persist(next);
+      return true;
     }
-    persist(next);
-    return true;
-  }, [state, wallet, persist]);
+    try {
+      await createPartnerSubsidyTicket(wallet, { kind: 'market_leader', purpose: '申请开通市场领袖补贴' });
+      await refreshTeamProfile();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [state, wallet, persist, refreshTeamProfile]);
 
   const hasStake = stats.orderCount > 0;
 
@@ -259,6 +346,7 @@ export function usePartnerProgram(wallet: string | null) {
     submitPartnerSubsidy,
     submitMarketSubsidy,
     requestMarketLeader,
+    subsidySettings,
     joinFeeUsdt: PARTNER_JOIN_USDT,
     minCrowdfundUsdt: MIN_CROWDFUND_STAKE_USDT,
     hasStake,

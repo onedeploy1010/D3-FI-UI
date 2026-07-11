@@ -174,3 +174,80 @@ export function removeCommitteeMember(wallet: string, memberId: string) {
     method: 'DELETE',
   });
 }
+
+export type PartnerSubsidyTicketRow = {
+  id: string;
+  wallet_address: string;
+  kind: 'partner_subsidy' | 'market_subsidy' | 'market_leader';
+  amount_usd: number | null;
+  purpose: string;
+  status: string;
+  application_type?: 'reserve' | 'reimbursement' | null;
+  receipt_paths?: string[];
+  team_performance_usd: number;
+  daily_new_performance_usd: number;
+  applied_at: string;
+};
+
+export type PartnerProgramSettings = {
+  partnerSubsidyRatePct: number;
+  marketSubsidyRatePct: number;
+};
+
+export type PartnerSubsidyQuota = {
+  ratePct: number;
+  basePerformanceUsd: number;
+  cap: number;
+  reserved: number;
+  remaining: number;
+};
+
+export function fetchPartnerProgramSettings(wallet: string) {
+  return unionFetch<{ ok: boolean; settings: PartnerProgramSettings }>('/partner/program-settings', wallet);
+}
+
+export function fetchPartnerSubsidyQuota(wallet: string, kind: 'partner_subsidy' | 'market_subsidy') {
+  return unionFetch<{
+    ok: boolean;
+    settings: PartnerProgramSettings;
+    quota: PartnerSubsidyQuota;
+  }>(`/partner/subsidy-quota?kind=${kind}`, wallet);
+}
+
+export function signPartnerSubsidyReceiptUploads(
+  wallet: string,
+  files: Array<{ name: string; contentType: string; size: number }>,
+) {
+  return unionFetch<{
+    ok: boolean;
+    bucket: string;
+    uploads: Array<{ path: string; signedUrl: string; token: string; contentType: string }>;
+  }>('/partner/subsidy-receipts/sign', wallet, {
+    method: 'POST',
+    body: JSON.stringify({ files }),
+  });
+}
+
+export function createPartnerSubsidyTicket(
+  wallet: string,
+  body: {
+    kind: 'partner_subsidy' | 'market_subsidy' | 'market_leader';
+    amountUsd?: number;
+    purpose?: string;
+    applicationType?: 'reserve' | 'reimbursement';
+    receiptPaths?: string[];
+  },
+) {
+  return unionFetch<{ ok: boolean; ticket: PartnerSubsidyTicketRow }>(
+    '/partner/subsidy-tickets',
+    wallet,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function fetchPartnerSubsidyTickets(wallet: string) {
+  return unionFetch<{ ok: boolean; tickets: PartnerSubsidyTicketRow[] }>(
+    '/partner/subsidy-tickets',
+    wallet,
+  );
+}

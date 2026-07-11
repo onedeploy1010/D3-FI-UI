@@ -1,23 +1,26 @@
 import { useMemo, useState } from 'react';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerSubsidyPanel } from '@/components/partner/PartnerSubsidyPanel';
-import { ArrowRightLeft, Landmark, Search, Send, Zap } from 'lucide-react';
+import { ArrowRightLeft, Send, Zap } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
+import { Search } from 'lucide-react';
 import {
   buildHistoryRecords,
   getSd3Quotas,
   MIN_YIELD_WITHDRAW_USDT,
   resolveFlashYieldBalances,
   type PartnerHistoryKind,
+  type PartnerProgramSettings,
   type PartnerState,
+  type SubsidyApplicationType,
 } from '@/components/partner/partnerData';
-import { isPartnerDownlineMember, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
-type Sd3Action = 'stake' | 'transfer';
 type AssetsView = 'overview' | 'subsidy' | 'history';
 
 function clampAmount(raw: string, max: number): number {
@@ -29,43 +32,54 @@ function clampAmount(raw: string, max: number): number {
 export function PartnerAssetsTab({
   lang,
   isDark,
+  wallet,
   state,
-  teamNodes,
-  downlineWallets,
-  onStakeSd3,
-  onTransferSd3,
+  teamStats,
+  subsidySettings,
+  teamNodes: _teamNodes,
+  downlineWallets: _downlineWallets,
+  onStakeSd3: _onStakeSd3,
+  onTransferSd3: _onTransferSd3,
   onWithdrawYield,
   onPartnerSubsidy,
   onMarketSubsidy,
+  onGoTeamTransferGuide,
   yieldWithdrawing = false,
 }: {
   lang: AppLang;
   isDark: boolean;
+  wallet: string | null;
   state: PartnerState;
+  teamStats: PartnerTeamStats;
+  subsidySettings: PartnerProgramSettings;
   teamNodes?: Record<string, PartnerTeamNode>;
   downlineWallets?: string[];
   onStakeSd3: (amount: number) => void;
   onTransferSd3: (to: string, amount: number) => Promise<boolean>;
   onWithdrawYield: (amount: number) => Promise<boolean>;
   yieldWithdrawing?: boolean;
-  onPartnerSubsidy: (amount: number, purpose: string) => boolean;
-  onMarketSubsidy: (amount: number, purpose: string) => boolean;
+  onPartnerSubsidy: (input: {
+    amountUsd: number;
+    purpose: string;
+    applicationType: SubsidyApplicationType;
+    receiptPaths: string[];
+  }) => boolean | Promise<boolean>;
+  onMarketSubsidy: (input: {
+    amountUsd: number;
+    purpose: string;
+    applicationType: SubsidyApplicationType;
+    receiptPaths: string[];
+  }) => boolean | Promise<boolean>;
+  onGoTeamTransferGuide?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const [view, setView] = useState<AssetsView>('overview');
-  const [sd3Action, setSd3Action] = useState<Sd3Action>('stake');
-  const [stakeAmount, setStakeAmount] = useState('');
-  const [to, setTo] = useState('');
-  const [transferAmount, setTransferAmount] = useState('');
   const [histKind, setHistKind] = useState<'all' | PartnerHistoryKind>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [flashOpen, setFlashOpen] = useState(false);
   const [flashAmount, setFlashAmount] = useState('');
-  const [transferError, setTransferError] = useState('');
-  const [transferSubmitting, setTransferSubmitting] = useState(false);
-
   const quotas = getSd3Quotas(state);
   const yieldBalances = useMemo(() => resolveFlashYieldBalances(state), [state]);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
@@ -94,39 +108,6 @@ export function PartnerAssetsTab({
       return hay.includes(q);
     });
   }, [assetsHistory, histKind, dateFrom, dateTo, search]);
-
-  const submitStake = () => {
-    const n = clampAmount(stakeAmount, quotas.stakeQuota);
-    if (n > 0) {
-      onStakeSd3(n);
-      setStakeAmount('');
-    }
-  };
-
-  const submitTransfer = async () => {
-    const trimmed = to.trim();
-    const n = clampAmount(transferAmount, quotas.transferQuota);
-    if (trimmed.length < 10 || n <= 0 || transferSubmitting) return;
-
-    if (!isPartnerDownlineMember(trimmed, downlineWallets ?? [], teamNodes)) {
-      setTransferError(p('assets.transferInvalidDownline'));
-      return;
-    }
-
-    setTransferError('');
-    setTransferSubmitting(true);
-    try {
-      const ok = await onTransferSd3(trimmed, n);
-      if (ok) {
-        setTransferAmount('');
-        setTo('');
-      } else {
-        setTransferError(p('assets.transferFailed'));
-      }
-    } finally {
-      setTransferSubmitting(false);
-    }
-  };
 
   const [flashSubmitting, setFlashSubmitting] = useState(false);
 
@@ -159,11 +140,6 @@ export function PartnerAssetsTab({
     { id: 'history', label: p('assets.history') },
   ];
 
-  const sd3Tabs = [
-    { id: 'stake', label: p('assets.sd3Stake') },
-    { id: 'transfer', label: p('assets.sd3Transfer') },
-  ];
-
   const histTabs = [
     { id: 'all', label: p('assets.all') },
     { id: 'withdraw', label: p('assets.withdrawHist') },
@@ -171,7 +147,6 @@ export function PartnerAssetsTab({
     { id: 'transfer', label: p('assets.transferHist') },
   ];
 
-  const quickStakeAmounts = [100, 500, 1000].filter((v) => v <= quotas.stakeQuota);
   const quickFlashAmounts = [10, 50, 100].filter((v) => v <= yieldBalances.claimable);
 
   const historyKindLabel = (kind: PartnerHistoryKind) => {
@@ -251,149 +226,28 @@ export function PartnerAssetsTab({
           </div>
 
           <div className={glassCardClass('default', 'p-5')}>
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm"
-                style={{ background: 'linear-gradient(135deg, rgba(138,43,87,0.3), rgba(224,86,143,0.1))', color: '#E0568F' }}
-              >
-                sD3
-              </div>
+            <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                  {p('assets.antibribe')}
+                <div className="site-stat-label">{p('assets.antibribe')}</div>
+                <div className="text-2xl font-black text-[#E0568F] mt-1">
+                  {quotas.transferQuota.toLocaleString()} sD3
                 </div>
-                <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-                  {p('assets.antibribeDesc')}
+                <div className={`text-[10px] mt-1 ${muted}`}>
+                  {p('assets.canTransfer')}
                 </div>
               </div>
+              <GlassButton
+                className="!py-2.5 !px-4 flex items-center gap-1.5 shrink-0"
+                disabled={quotas.transferQuota <= 0}
+                onClick={() => onGoTeamTransferGuide?.()}
+              >
+                <Send size={14} />
+                {p('assets.goTransfer')}
+              </GlassButton>
             </div>
-
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className="ios-glass-inset p-3">
-                <div className="site-stat-label">{p('assets.available')}</div>
-                <div className="font-bold text-[#E0568F]">{quotas.available.toLocaleString()}</div>
-              </div>
-              <div className="ios-glass-inset p-3">
-                <div className="site-stat-label">{p('assets.staked')}</div>
-                <div className="font-bold">{quotas.staked.toLocaleString()}</div>
-              </div>
-              <div className="ios-glass-inset p-3">
-                <div className="site-stat-label">{p('assets.stakeQuota')}</div>
-                <div className="font-bold text-emerald-500">{quotas.stakeQuota.toLocaleString()}</div>
-              </div>
-              <div className="ios-glass-inset p-3">
-                <div className="site-stat-label">{p('assets.transferQuota')}</div>
-                <div className="font-bold text-amber-500">{quotas.transferQuota.toLocaleString()}</div>
-              </div>
+            <div className={`text-[10px] ${muted}`}>
+              {p('assets.antibribeDesc')} · {p('assets.available')}: {quotas.available.toLocaleString()} sD3
             </div>
-
-            <SectionTabBar tabs={sd3Tabs} active={sd3Action} onChange={(id) => setSd3Action(id as Sd3Action)} isDark={isDark} />
-
-            {sd3Action === 'stake' && (
-              <div className="mt-4 space-y-3">
-                <div className="ios-glass-inset p-3 flex justify-between items-center text-xs">
-                  <span className={muted}>{p('assets.canStake')}</span>
-                  <span className="font-bold text-emerald-500">{quotas.stakeQuota.toLocaleString()} sD3</span>
-                </div>
-                <div>
-                  <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.amount')}</div>
-                  <div className="flex items-center gap-3 ios-glass-inset px-3 py-3">
-                    <input
-                      type="number"
-                      min={0}
-                      max={quotas.stakeQuota}
-                      value={stakeAmount}
-                      onChange={(e) => setStakeAmount(e.target.value)}
-                      placeholder="0"
-                      className={`flex-1 bg-transparent text-xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`}
-                    />
-                    <span className={`text-sm shrink-0 ${muted}`}>sD3</span>
-                    <button
-                      type="button"
-                      className="text-[#E0568F] text-xs font-bold shrink-0"
-                      onClick={() => setStakeAmount(String(quotas.stakeQuota))}
-                    >
-                      MAX
-                    </button>
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {quickStakeAmounts.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setStakeAmount(String(v))}
-                      className="text-[10px] px-2.5 py-1 rounded-lg ios-glass-inset ios-glass-pressable text-[#E0568F] font-semibold"
-                    >
-                      +{v}
-                    </button>
-                  ))}
-                </div>
-                <GlassButton
-                  className="w-full !py-3.5 flex items-center justify-center gap-2"
-                  disabled={quotas.stakeQuota <= 0}
-                  onClick={submitStake}
-                >
-                  <Landmark size={14} /> {p('assets.confirmStake')}
-                </GlassButton>
-              </div>
-            )}
-
-            {sd3Action === 'transfer' && (
-              <div className="mt-4 space-y-3">
-                <div className={`text-[11px] leading-relaxed px-3 py-2 rounded-xl ios-glass-inset ${isDark ? 'text-[#E0568F]/80' : 'text-[#8A2B57]/80'}`}>
-                  {p('assets.transferHint')}
-                </div>
-                <div className="ios-glass-inset p-3 flex justify-between items-center text-xs">
-                  <span className={muted}>{p('assets.canTransfer')}</span>
-                  <span className="font-bold text-amber-500">{quotas.transferQuota.toLocaleString()} sD3</span>
-                </div>
-                <div>
-                  <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.downline')}</div>
-                  <input
-                    value={to}
-                    onChange={(e) => {
-                      setTo(e.target.value);
-                      setTransferError('');
-                    }}
-                    placeholder="0x…"
-                    className={`w-full ios-glass-inset px-3 py-2.5 text-xs rounded-xl outline-none font-mono ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/25'}`}
-                  />
-                  {transferError && (
-                    <div className="text-[11px] text-red-400 mt-2">{transferError}</div>
-                  )}
-                </div>
-                <div>
-                  <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.transferAmount')}</div>
-                  <div className="flex items-center gap-3 ios-glass-inset px-3 py-3">
-                    <input
-                      type="number"
-                      min={0}
-                      max={quotas.transferQuota}
-                      value={transferAmount}
-                      onChange={(e) => setTransferAmount(e.target.value)}
-                      placeholder="0"
-                      className={`flex-1 bg-transparent text-xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`}
-                    />
-                    <span className={`text-sm shrink-0 ${muted}`}>sD3</span>
-                    <button
-                      type="button"
-                      className="text-[#E0568F] text-xs font-bold shrink-0"
-                      onClick={() => setTransferAmount(String(quotas.transferQuota))}
-                    >
-                      MAX
-                    </button>
-                  </div>
-                </div>
-                <GlassButton
-                  className="w-full !py-3.5 flex items-center justify-center gap-2"
-                  disabled={quotas.transferQuota <= 0 || transferSubmitting}
-                  onClick={() => void submitTransfer()}
-                >
-                  <Send size={14} /> {transferSubmitting ? p('stake.paying') : p('assets.confirmTransfer')}
-                </GlassButton>
-              </div>
-            )}
           </div>
         </>
       )}
@@ -402,7 +256,10 @@ export function PartnerAssetsTab({
         <PartnerSubsidyPanel
           lang={lang}
           isDark={isDark}
+          wallet={wallet}
           state={state}
+          teamStats={teamStats}
+          subsidySettings={subsidySettings}
           onPartnerSubsidy={onPartnerSubsidy}
           onMarketSubsidy={onMarketSubsidy}
         />

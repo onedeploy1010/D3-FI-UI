@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Building2, Clock, Gift, Users } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
-import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerSubsidyApplyModal } from '@/components/partner/PartnerSubsidyApplyModal';
 import {
   marketSubsidyQuota,
   partnerSubsidyQuota,
+  type PartnerProgramSettings,
   type PartnerState,
   type SubsidyApplication,
+  type SubsidyApplicationType,
   type SubsidyStatus,
 } from '@/components/partner/partnerData';
+import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
@@ -30,13 +33,19 @@ function statusLabel(status: SubsidyStatus, p: (key: string) => string) {
   return { label: p(STATUS_KEYS[status]), cls: STATUS_CLS[status] };
 }
 
+function typeLabel(type: SubsidyApplicationType | undefined, p: (key: string, vars?: Record<string, string | number>) => string) {
+  if (type === 'reimbursement') return p('subsidy.typeReimbursement');
+  if (type === 'reserve') return p('subsidy.typeReserve');
+  return '';
+}
+
 function SubsidyHistoryList({
   items,
   p,
   isDark,
 }: {
   items: SubsidyApplication[];
-  p: (key: string) => string;
+  p: (key: string, vars?: Record<string, string | number>) => string;
   isDark: boolean;
 }) {
   if (items.length === 0) {
@@ -50,10 +59,18 @@ function SubsidyHistoryList({
     <div className="space-y-2">
       {items.map((row) => {
         const st = statusLabel(row.status, p);
+        const tLabel = typeLabel(row.applicationType, p);
         return (
           <div key={row.id} className="partner-depth-inset p-3 rounded-xl">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+            <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                {tLabel && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/[0.06] text-white/55' : 'bg-[#160510]/5 text-[#160510]/55'}`}>
+                    {tLabel}
+                  </span>
+                )}
+              </div>
               <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{row.appliedAt}</span>
             </div>
             <div className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
@@ -75,72 +92,47 @@ function SubsidyHistoryList({
 export function PartnerSubsidyPanel({
   lang,
   isDark,
+  wallet,
   state,
+  teamStats,
+  subsidySettings,
   onPartnerSubsidy,
   onMarketSubsidy,
 }: {
   lang: AppLang;
   isDark: boolean;
+  wallet: string | null;
   state: PartnerState;
-  onPartnerSubsidy: (amount: number, purpose: string) => boolean;
-  onMarketSubsidy: (amount: number, purpose: string) => boolean;
+  teamStats: PartnerTeamStats;
+  subsidySettings: PartnerProgramSettings;
+  onPartnerSubsidy: (input: {
+    amountUsd: number;
+    purpose: string;
+    applicationType: SubsidyApplicationType;
+    receiptPaths: string[];
+  }) => boolean | Promise<boolean>;
+  onMarketSubsidy: (input: {
+    amountUsd: number;
+    purpose: string;
+    applicationType: SubsidyApplicationType;
+    receiptPaths: string[];
+  }) => boolean | Promise<boolean>;
 }) {
   const p = usePartnerTranslation(lang);
   const [partnerOpen, setPartnerOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [error, setError] = useState('');
 
-  const partnerQuota = useMemo(() => partnerSubsidyQuota(state), [state]);
-  const marketQuota = useMemo(() => marketSubsidyQuota(state), [state]);
+  const perfBase = teamStats.dailyNewPerformanceUsd || state.totalNewPerformanceUsd;
+
+  const partnerQuota = useMemo(
+    () => partnerSubsidyQuota(state, subsidySettings.partnerSubsidyRatePct, perfBase),
+    [state, subsidySettings.partnerSubsidyRatePct, perfBase],
+  );
+  const marketQuota = useMemo(
+    () => marketSubsidyQuota(state, subsidySettings.marketSubsidyRatePct, perfBase),
+    [state, subsidySettings.marketSubsidyRatePct, perfBase],
+  );
   const isLeader = state.marketLeaderStatus === 'approved';
-
-  const reset = () => {
-    setAmount('');
-    setPurpose('');
-    setError('');
-  };
-
-  const submitPartner = () => {
-    const n = Number(amount);
-    if (!purpose.trim()) {
-      setError(p('subsidy.err.purpose'));
-      return;
-    }
-    if (!Number.isFinite(n) || n <= 0) {
-      setError(p('subsidy.err.amount'));
-      return;
-    }
-    if (n > partnerQuota.remaining) {
-      setError(p('subsidy.err.quota'));
-      return;
-    }
-    if (onPartnerSubsidy(n, purpose)) {
-      reset();
-      setPartnerOpen(false);
-    }
-  };
-
-  const submitMarket = () => {
-    const n = Number(amount);
-    if (!purpose.trim()) {
-      setError(p('subsidy.err.purpose'));
-      return;
-    }
-    if (!Number.isFinite(n) || n <= 0) {
-      setError(p('subsidy.err.amount'));
-      return;
-    }
-    if (n > marketQuota.remaining) {
-      setError(p('subsidy.err.quota'));
-      return;
-    }
-    if (onMarketSubsidy(n, purpose)) {
-      reset();
-      setMarketOpen(false);
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -155,7 +147,7 @@ export function PartnerSubsidyPanel({
               {p('subsidy.partnerTitle')}
             </div>
             <div className={`text-[11px] mt-1 leading-relaxed ${isDark ? 'text-white/42' : 'text-[#160510]/45'}`}>
-              {p('subsidy.partnerDesc')}
+              {p('subsidy.partnerDesc', { pct: subsidySettings.partnerSubsidyRatePct })}
             </div>
           </div>
         </div>
@@ -176,16 +168,13 @@ export function PartnerSubsidyPanel({
         <GlassButton
           className="w-full !py-3 !text-xs"
           disabled={partnerQuota.remaining <= 0}
-          onClick={() => {
-            reset();
-            setPartnerOpen(true);
-          }}
+          onClick={() => setPartnerOpen(true)}
         >
           <Gift size={14} className="inline mr-1.5" />
           {p('subsidy.apply')}
         </GlassButton>
         {state.partnerSubsidyApplications.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+          <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/[0.06]' : 'border-[#160510]/10'}`}>
             <div className="site-stat-label mb-2">{p('subsidy.history')}</div>
             <SubsidyHistoryList items={state.partnerSubsidyApplications} p={p} isDark={isDark} />
           </div>
@@ -203,7 +192,7 @@ export function PartnerSubsidyPanel({
               {p('subsidy.marketTitle')}
             </div>
             <div className={`text-[11px] mt-1 leading-relaxed ${isDark ? 'text-white/42' : 'text-[#160510]/45'}`}>
-              {p('subsidy.marketDesc')}
+              {p('subsidy.marketDesc', { pct: subsidySettings.marketSubsidyRatePct })}
             </div>
           </div>
         </div>
@@ -212,9 +201,7 @@ export function PartnerSubsidyPanel({
           <div className="partner-depth-inset p-4 rounded-xl text-center">
             <Clock size={18} className="mx-auto mb-2 text-[#E0568F]/60" />
             <div className={`text-xs ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
-              {state.marketLeaderStatus === 'pending'
-                ? p('subsidy.leaderPending')
-                : p('subsidy.leaderNone')}
+              {state.marketLeaderStatus === 'pending' ? p('subsidy.leaderPending') : p('subsidy.leaderNone')}
             </div>
           </div>
         ) : (
@@ -236,16 +223,13 @@ export function PartnerSubsidyPanel({
             <GlassButton
               className="w-full !py-3 !text-xs"
               disabled={marketQuota.remaining <= 0}
-              onClick={() => {
-                reset();
-                setMarketOpen(true);
-              }}
+              onClick={() => setMarketOpen(true)}
             >
               <Gift size={14} className="inline mr-1.5" />
               {p('subsidy.apply')}
             </GlassButton>
             {state.marketSubsidyApplications.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/[0.06]' : 'border-[#160510]/10'}`}>
                 <div className="site-stat-label mb-2">{p('subsidy.history')}</div>
                 <SubsidyHistoryList items={state.marketSubsidyApplications} p={p} isDark={isDark} />
               </div>
@@ -254,93 +238,33 @@ export function PartnerSubsidyPanel({
         )}
       </div>
 
-      <PartnerModal
+      <PartnerSubsidyApplyModal
         open={partnerOpen}
-        onClose={() => {
-          setPartnerOpen(false);
-          reset();
-        }}
+        onClose={() => setPartnerOpen(false)}
         title={p('subsidy.modal.partner')}
+        lang={lang}
         isDark={isDark}
-      >
-        <div className="partner-depth-inset p-3 mb-4 flex justify-between text-xs rounded-xl">
-          <span className={isDark ? 'text-white/50' : 'text-[#160510]/50'}>{p('subsidy.quota10')}</span>
-          <span className="font-bold text-emerald-500">${partnerQuota.remaining.toLocaleString()}</span>
-        </div>
-        <div className={`text-xs font-medium mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-          {p('subsidy.amountUsdt')}
-        </div>
-        <div className="flex items-center gap-2 partner-depth-inset px-3 py-3 mb-4 rounded-xl">
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0"
-            className={`flex-1 bg-transparent text-xl font-bold outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`}
-          />
-          <button type="button" className="text-[#E0568F] text-xs font-bold" onClick={() => setAmount(String(partnerQuota.remaining))}>
-            MAX
-          </button>
-        </div>
-        <div className={`text-xs font-medium mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-          {p('subsidy.purpose')}
-        </div>
-        <textarea
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          rows={3}
-          placeholder={p('subsidy.purposePlaceholder')}
-          className={`w-full partner-depth-inset px-3 py-2.5 text-xs rounded-xl outline-none resize-none mb-4 ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510]'}`}
-        />
-        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-        <GlassButton className="w-full !py-3" onClick={submitPartner}>
-          {p('subsidy.submit')}
-        </GlassButton>
-      </PartnerModal>
+        wallet={wallet}
+        ratePct={partnerQuota.ratePct}
+        remainingUsd={partnerQuota.remaining}
+        accentClass={isDark ? 'text-emerald-400' : 'text-emerald-600'}
+        purposePlaceholder={p('subsidy.purposePlaceholder')}
+        onSubmit={onPartnerSubsidy}
+      />
 
-      <PartnerModal
+      <PartnerSubsidyApplyModal
         open={marketOpen}
-        onClose={() => {
-          setMarketOpen(false);
-          reset();
-        }}
+        onClose={() => setMarketOpen(false)}
         title={p('subsidy.modal.market')}
+        lang={lang}
         isDark={isDark}
-      >
-        <div className="partner-depth-inset p-3 mb-4 flex justify-between text-xs rounded-xl">
-          <span className={isDark ? 'text-white/50' : 'text-[#160510]/50'}>{p('subsidy.quota5')}</span>
-          <span className="font-bold text-amber-500">${marketQuota.remaining.toLocaleString()}</span>
-        </div>
-        <div className={`text-xs font-medium mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-          {p('subsidy.amountUsdt')}
-        </div>
-        <div className="flex items-center gap-2 partner-depth-inset px-3 py-3 mb-4 rounded-xl">
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0"
-            className={`flex-1 bg-transparent text-xl font-bold outline-none ${isDark ? 'text-white' : 'text-[#160510]'}`}
-          />
-          <button type="button" className="text-[#E0568F] text-xs font-bold" onClick={() => setAmount(String(marketQuota.remaining))}>
-            MAX
-          </button>
-        </div>
-        <div className={`text-xs font-medium mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
-          {p('subsidy.purpose')}
-        </div>
-        <textarea
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          rows={3}
-          placeholder={p('subsidy.purposePlaceholderMarket')}
-          className={`w-full partner-depth-inset px-3 py-2.5 text-xs rounded-xl outline-none resize-none mb-4 ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510]'}`}
-        />
-        {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-        <GlassButton className="w-full !py-3" onClick={submitMarket}>
-          {p('subsidy.submit')}
-        </GlassButton>
-      </PartnerModal>
+        wallet={wallet}
+        ratePct={marketQuota.ratePct}
+        remainingUsd={marketQuota.remaining}
+        accentClass={isDark ? 'text-amber-400' : 'text-[#d97706]'}
+        purposePlaceholder={p('subsidy.purposePlaceholderMarket')}
+        onSubmit={onMarketSubsidy}
+      />
     </div>
   );
 }

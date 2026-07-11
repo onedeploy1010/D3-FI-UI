@@ -27,7 +27,6 @@ import {
 } from '@/lib/partnerPaymentErrors';
 
 type PartnerTab = 'home' | 'stake' | 'assets' | 'team';
-type StakeSub = 'crowdfund' | 'partner' | 'mine';
 
 const TAB_IDS: PartnerTab[] = ['home', 'stake', 'assets', 'team'];
 const TAB_ICONS = { home: Home, stake: Landmark, assets: Wallet, team: Users } as const;
@@ -43,13 +42,13 @@ export default function PartnerProgram() {
   const p = usePartnerTranslation(lang);
   const legacyLang = toLegacyLang(lang);
   const [tab, setTab] = useState<PartnerTab>('home');
-  const [stakeSub, setStakeSub] = useState<StakeSub | undefined>();
+  const [teamTransferGuide, setTeamTransferGuide] = useState(false);
   const [, navigate] = useLocation();
   const { theme } = useTheme();
   const { wallet } = useWallet();
   const isDark = theme === 'dark';
 
-  const { hasReferralBound } = useReferralStatus(wallet);
+  const { hasReferralBound, loading: referralLoading } = useReferralStatus(wallet);
   const { payForJoin, payForStake, paying: depositPaying, lastIntent } = useDepositPayment(wallet);
 
   const {
@@ -67,6 +66,7 @@ export default function PartnerProgram() {
     yieldWithdrawing,
     submitPartnerSubsidy,
     submitMarketSubsidy,
+    subsidySettings,
     minCrowdfundUsdt,
     hasStake,
   } = usePartnerProgram(wallet);
@@ -106,37 +106,6 @@ export default function PartnerProgram() {
     [p],
   );
 
-  const handleJoinPartner = useCallback(async () => {
-      if (!hasReferralBound) return false;
-      try {
-        await payForJoin(PARTNER_JOIN_USDT);
-        joinPartner(hasReferralBound);
-        await refreshTeamProfile();
-        return true;
-      } catch (e) {
-        notifyPayError(e);
-        return false;
-      }
-    },
-    [hasReferralBound, payForJoin, joinPartner, notifyPayError, refreshTeamProfile],
-  );
-
-  const handleCrowdfundStake = useCallback(
-    async (amount: number) => {
-      if (!hasReferralBound) return false;
-      try {
-        await payForStake(amount);
-        crowdfundStake(amount, hasReferralBound);
-        await refreshTeamProfile();
-        return true;
-      } catch (e) {
-        notifyPayError(e);
-        return false;
-      }
-    },
-    [hasReferralBound, payForStake, crowdfundStake, notifyPayError, refreshTeamProfile],
-  );
-
   const handleTransferSd3 = useCallback(
     async (toAddress: string, amount: number) => {
       const ok = await transferSd3(toAddress, amount);
@@ -152,9 +121,38 @@ export default function PartnerProgram() {
     [transferSd3, p],
   );
 
-  const handleGoPartnerJoin = useCallback(() => {
-    setStakeSub('partner');
-    setTab('stake');
+  const handleHomeStake = useCallback(
+    async (amount: number, withPartnerJoin: boolean) => {
+      if (!hasReferralBound) return false;
+      try {
+        if (withPartnerJoin && !state.isPartner) {
+          await payForJoin(PARTNER_JOIN_USDT);
+          joinPartner(hasReferralBound);
+        }
+        await payForStake(amount);
+        crowdfundStake(amount, hasReferralBound);
+        await refreshTeamProfile();
+        return true;
+      } catch (e) {
+        notifyPayError(e);
+        return false;
+      }
+    },
+    [
+      hasReferralBound,
+      state.isPartner,
+      payForJoin,
+      payForStake,
+      joinPartner,
+      crowdfundStake,
+      notifyPayError,
+      refreshTeamProfile,
+    ],
+  );
+
+  const handleGoTeamTransferGuide = useCallback(() => {
+    setTab('team');
+    setTeamTransferGuide(true);
   }, []);
 
   return (
@@ -209,7 +207,11 @@ export default function PartnerProgram() {
                   isDark={isDark}
                   state={state}
                   hasReferralBound={hasReferralBound}
-                  onGoPartnerJoin={handleGoPartnerJoin}
+                  referralLoading={referralLoading}
+                  minCrowdfundUsdt={minCrowdfundUsdt}
+                  paying={depositPaying}
+                  lastDepositIntent={lastIntent}
+                  onHomeStake={handleHomeStake}
                 />
               )}
               {tab === 'stake' && (
@@ -218,19 +220,18 @@ export default function PartnerProgram() {
                   isDark={isDark}
                   state={state}
                   hasReferralBound={hasReferralBound}
-                  minCrowdfundUsdt={minCrowdfundUsdt}
-                  initialSub={stakeSub}
-                  paying={depositPaying}
-                  lastDepositIntent={lastIntent}
-                  onCrowdfundStake={handleCrowdfundStake}
-                  onJoinPartner={handleJoinPartner}
+                  referralLoading={referralLoading}
+                  onGoHome={() => setTab('home')}
                 />
               )}
               {tab === 'assets' && state.isPartner && (
                 <PartnerAssetsTab
                   lang={lang}
                   isDark={isDark}
+                  wallet={wallet}
                   state={state}
+                  teamStats={teamStats}
+                  subsidySettings={subsidySettings}
                   teamNodes={teamNodes}
                   downlineWallets={downlineWallets}
                   onStakeSd3={stakeSd3}
@@ -239,6 +240,7 @@ export default function PartnerProgram() {
                   yieldWithdrawing={yieldWithdrawing}
                   onPartnerSubsidy={submitPartnerSubsidy}
                   onMarketSubsidy={submitMarketSubsidy}
+                  onGoTeamTransferGuide={handleGoTeamTransferGuide}
                 />
               )}
               {tab === 'team' && (
@@ -251,6 +253,8 @@ export default function PartnerProgram() {
                   teamStats={teamStats}
                   teamLoading={teamLoading}
                   onTransferSd3={handleTransferSd3}
+                  transferGuideActive={teamTransferGuide}
+                  onTransferGuideComplete={() => setTeamTransferGuide(false)}
                 />
               )}
             </motion.div>
@@ -270,12 +274,15 @@ export default function PartnerProgram() {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => {
-                    setTab(id);
-                    if (id !== 'stake') setStakeSub(undefined);
-                  }}
+                  onClick={() => setTab(id)}
                   className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 ios-glass-pressable ${
-                    active ? 'text-[#E0568F]' : isDark ? 'text-white/35' : 'text-[#160510]/35'
+                    active
+                      ? isDark
+                        ? 'text-[#E0568F]'
+                        : 'text-[#B23A6E]'
+                      : isDark
+                        ? 'text-white/35'
+                        : 'text-[#160510]/35'
                   }`}
                 >
                   <Icon size={18} strokeWidth={active ? 2.5 : 2} />
