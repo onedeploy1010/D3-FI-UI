@@ -42,6 +42,24 @@ export function PartnerTagChip({
   );
 }
 
+/** Numeric sD3 with smaller unit suffix. */
+export function PartnerSd3Amount({
+  value,
+  className = '',
+  unitClassName = 'text-[0.62em] font-semibold opacity-75 ml-0.5 align-baseline',
+}: {
+  value: number;
+  className?: string;
+  unitClassName?: string;
+}) {
+  return (
+    <span className={className}>
+      {value.toLocaleString()}
+      <span className={unitClassName}>sD3</span>
+    </span>
+  );
+}
+
 export function PartnerInsetCell({
   label,
   value,
@@ -216,7 +234,7 @@ export function PartnerDualAnimatedBar({
           <div className={`text-[10px] font-semibold mb-0.5 flex items-center flex-wrap gap-1 ${muted}`}>
             <span>{newLabel}</span>
             {badge && (
-              <span className="text-[9px] font-semibold text-amber-500/95 px-1.5 py-px rounded-md bg-amber-500/10 border border-amber-500/20 leading-tight">
+              <span className="text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none scale-95 origin-left">
                 {badge}
               </span>
             )}

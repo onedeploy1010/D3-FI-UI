@@ -7,6 +7,12 @@ import type {
   PartnerStakePositionRow,
   PartnerYieldSettlementRow,
 } from '@/lib/d3fiTypes';
+import type { PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import {
+  computeMarketSubsidyQuotaFromTree,
+  computePartnerSubsidyQuotaFromTree,
+  type SubsidyQuotaView,
+} from '@/components/partner/partnerSubsidyQuota';
 
 export const PARTNER_JOIN_USDT = 1;
 export const MIN_CROWDFUND_STAKE_USDT = 0.01;
@@ -63,26 +69,39 @@ export type BribeTier = {
   labelEn: string;
 };
 
-export const BRIBE_TIER_MIN_USD = 1;
+export const BRIBE_TIER_MIN_USD = 100;
 
 export const BRIBE_TIERS: BribeTier[] = [
-  { min: 1, max: 100_000, rate: 1, ratePct: 100, labelZh: '职业受贿人', labelEn: 'Pro Bribe Officer' },
+  { min: 100, max: 100_000, rate: 1, ratePct: 100, labelZh: '职业受贿人', labelEn: 'Pro Bribe Officer' },
   { min: 100_000, max: 200_000, rate: 0.8, ratePct: 80, labelZh: '大受贿人', labelEn: 'Senior Bribe Officer' },
   { min: 200_000, max: 500_000, rate: 0.6, ratePct: 60, labelZh: '受贿总监', labelEn: 'Bribe Director' },
   { min: 500_000, max: 1_000_000, rate: 0.5, ratePct: 50, labelZh: '首席', labelEn: 'Chief' },
 ];
 
-/** 伞下业绩达到对应区间时返回受贿金等级；不足 1U 无等级。 */
-export function getBribeTier(teamPerformanceUsd: number): BribeTier | null {
-  if (teamPerformanceUsd < BRIBE_TIER_MIN_USD) return null;
+/** Direct / upline split by bribe tier (tier 1 = 100–100k USD small area). */
+export const BRIBE_TIER_SPLITS = [
+  { directShare: 0.5, uplineShare: 0.5 },
+  { directShare: 0.4, uplineShare: 0.6 },
+  { directShare: 0.3, uplineShare: 0.7 },
+  { directShare: 0.2, uplineShare: 0.8 },
+] as const;
+
+/** 小区业绩达到对应区间时返回受贿金等级；不足 100U 无等级。 */
+export function getBribeTier(smallAreaPerformanceUsd: number): BribeTier | null {
+  if (smallAreaPerformanceUsd < BRIBE_TIER_MIN_USD) return null;
   for (const tier of BRIBE_TIERS) {
-    if (teamPerformanceUsd >= tier.min && teamPerformanceUsd < tier.max) return tier;
+    if (smallAreaPerformanceUsd >= tier.min && smallAreaPerformanceUsd < tier.max) return tier;
   }
-  if (teamPerformanceUsd >= 1_000_000) return BRIBE_TIERS[BRIBE_TIERS.length - 1];
+  if (smallAreaPerformanceUsd >= 1_000_000) return BRIBE_TIERS[BRIBE_TIERS.length - 1];
   return null;
 }
 
-/** 推荐树节点展示的合伙人等级文案键。 */
+export function getBribeTierSplit(tier: BribeTier) {
+  const idx = BRIBE_TIERS.indexOf(tier);
+  return BRIBE_TIER_SPLITS[idx >= 0 ? idx : 0];
+}
+
+/** 推荐树节点展示的合伙人等级文案键（按伞下业绩展示等级）。 */
 export function partnerTreeLevelKey(
   isPartner: boolean,
   teamPerformanceUsd: number,
@@ -95,16 +114,38 @@ export function partnerTreeLevelKey(
   return keys[idx >= 0 ? idx : 0];
 }
 
-/** 受贿金（sD3）仅合伙人上线获得：当日伞下新增业绩 × 等级比例。 */
+/** 小区新增业绩 × 等级受贿比例 × 直推合伙人分成。 */
 export function calcDailySd3(
-  teamPerformanceUsd: number,
-  dailyNewPerformanceUsd: number,
+  smallAreaPerformanceUsd: number,
+  smallAreaNewPerformanceUsd: number,
   isPartner: boolean,
 ): number {
-  if (!isPartner || dailyNewPerformanceUsd <= 0) return 0;
-  const tier = getBribeTier(teamPerformanceUsd);
+  if (!isPartner || smallAreaNewPerformanceUsd <= 0) return 0;
+  const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return 0;
-  return Math.round(dailyNewPerformanceUsd * tier.rate * 100) / 100;
+  const split = getBribeTierSplit(tier);
+  const gross = smallAreaNewPerformanceUsd * tier.rate;
+  return Math.round(gross * split.directShare * 100) / 100;
+}
+
+export function calcDailySd3Gross(
+  smallAreaPerformanceUsd: number,
+  smallAreaNewPerformanceUsd: number,
+  isPartner: boolean,
+): { grossSd3: number; tierRatePct: number; directSharePct: number; uplineSharePct: number } {
+  if (!isPartner || smallAreaNewPerformanceUsd <= 0) {
+    return { grossSd3: 0, tierRatePct: 0, directSharePct: 0, uplineSharePct: 0 };
+  }
+  const tier = getBribeTier(smallAreaPerformanceUsd);
+  if (!tier) return { grossSd3: 0, tierRatePct: 0, directSharePct: 0, uplineSharePct: 0 };
+  const split = getBribeTierSplit(tier);
+  const grossSd3 = Math.round(smallAreaNewPerformanceUsd * tier.rate * 100) / 100;
+  return {
+    grossSd3,
+    tierRatePct: tier.ratePct,
+    directSharePct: Math.round(split.directShare * 100),
+    uplineSharePct: Math.round(split.uplineShare * 100),
+  };
 }
 
 export function calcDailyUsdtYield(stakedUsdt: number): number {
@@ -193,6 +234,8 @@ export type PartnerHistoryRecord = {
   unlockAt?: string;
 };
 
+export type Sd3RewardRole = 'direct' | 'upline';
+
 export type Sd3SettlementRecord = {
   id: string;
   settledAt: string;
@@ -200,6 +243,12 @@ export type Sd3SettlementRecord = {
   dailyNewPerformanceUsd: number;
   tierRatePct: number;
   sd3Amount: number;
+  /** 直推 / 间推（上级分成） */
+  role?: Sd3RewardRole;
+  /** 该角色分成比例，如 50 表示 50% */
+  rewardSharePct?: number;
+  sourceAddress?: string;
+  sourceLabel?: string;
 };
 
 export type PartnerState = {
@@ -406,12 +455,23 @@ export function applyPartnerJoin(prev: PartnerState): PartnerState {
   };
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function sd3AvailableForState(state: PartnerState): number {
+  const settled = round2((state.sd3SettlementHistory ?? []).reduce((s, r) => s + r.sd3Amount, 0));
+  const transferred = round2((state.transfers ?? []).reduce((s, t) => s + t.amountSd3, 0));
+  return Math.max(0, round2(settled - transferred - (state.sd3StakedFromRewards ?? 0)));
+}
+
 export function applySd3Stake(prev: PartnerState, amount: number): PartnerState {
-  if (!prev.isPartner || amount <= 0 || amount > prev.sd3Balance) return prev;
+  if (!prev.isPartner || amount <= 0 || amount > sd3AvailableForState(prev)) return prev;
+  const nextStaked = prev.sd3StakedFromRewards + amount;
+  const next = { ...prev, sd3StakedFromRewards: nextStaked };
   return {
-    ...prev,
-    sd3Balance: prev.sd3Balance - amount,
-    sd3StakedFromRewards: prev.sd3StakedFromRewards + amount,
+    ...next,
+    sd3Balance: sd3AvailableForState(next),
     stakeOrders: [createStakeOrder(amount, 'sd3'), ...prev.stakeOrders],
   };
 }
@@ -422,14 +482,15 @@ export function applySd3Transfer(
   amount: number,
   toLabel?: string,
 ): PartnerState {
-  if (!prev.isPartner || amount <= 0 || amount > prev.sd3Balance) return prev;
+  if (!prev.isPartner || amount <= 0 || amount > sd3AvailableForState(prev)) return prev;
+  const transfers = [
+    { id: `t-${Date.now()}`, toAddress, toLabel, amountSd3: amount, at: new Date().toISOString().slice(0, 10) },
+    ...prev.transfers,
+  ];
+  const next = { ...prev, transfers };
   return {
-    ...prev,
-    sd3Balance: prev.sd3Balance - amount,
-    transfers: [
-      { id: `t-${Date.now()}`, toAddress, toLabel, amountSd3: amount, at: new Date().toISOString().slice(0, 10) },
-      ...prev.transfers,
-    ],
+    ...next,
+    sd3Balance: sd3AvailableForState(next),
   };
 }
 
@@ -496,14 +557,14 @@ export const DEMO_PARTNER_STATE: PartnerState = {
       claimedYieldUsdt: 8,
     },
   ],
-  sd3Balance: 1500,
+  sd3Balance: 0,
   sd3StakedFromRewards: 500,
   teamPerformanceUsd: 86_400,
-  dailyNewPerformanceUsd: 3000,
+  dailyNewPerformanceUsd: 1800,
   totalNewPerformanceUsd: 52_000,
   lastSettlementDate: '2026-07-08',
-  dailySd3Earned: 3000,
-  lifetimeSd3Earned: 24_600,
+  dailySd3Earned: 0,
+  lifetimeSd3Earned: 0,
   lifetimeUsdtYield: 296,
   transfers: [
     {
@@ -549,14 +610,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   marketSubsidyPerformanceUsed: 16_000,
-  sd3SettlementHistory: [
-    { id: 'sd3-1', settledAt: '2026-07-08', teamPerformanceUsd: 86_400, dailyNewPerformanceUsd: 3000, tierRatePct: 100, sd3Amount: 3000 },
-    { id: 'sd3-2', settledAt: '2026-07-07', teamPerformanceUsd: 83_400, dailyNewPerformanceUsd: 2800, tierRatePct: 100, sd3Amount: 2800 },
-    { id: 'sd3-3', settledAt: '2026-07-06', teamPerformanceUsd: 80_600, dailyNewPerformanceUsd: 2500, tierRatePct: 100, sd3Amount: 2500 },
-    { id: 'sd3-4', settledAt: '2026-07-05', teamPerformanceUsd: 78_100, dailyNewPerformanceUsd: 2200, tierRatePct: 100, sd3Amount: 2200 },
-    { id: 'sd3-5', settledAt: '2026-07-04', teamPerformanceUsd: 75_900, dailyNewPerformanceUsd: 1900, tierRatePct: 100, sd3Amount: 1900 },
-    { id: 'sd3-6', settledAt: '2026-07-03', teamPerformanceUsd: 74_000, dailyNewPerformanceUsd: 1600, tierRatePct: 100, sd3Amount: 1600 },
-  ],
+  sd3SettlementHistory: [],
   pendingUsdtYield: 0,
   yieldSettlementsByPosition: {},
 };
@@ -641,13 +695,20 @@ export function hydratePartnerStateFromApi(
     partnerAccount?: PartnerAccountRow | null;
     partnerStakePositions?: PartnerStakePositionRow[];
     partnerSd3Settlements?: PartnerSd3SettlementRow[];
+    partnerSd3Allocations?: import('@/lib/d3fiTypes').PartnerSd3AllocationRow[];
     partnerSd3Transfers?: PartnerSd3TransferRow[];
     partnerYieldSettlements?: PartnerYieldSettlementRow[];
+    pendingSd3Earned?: number;
   },
 ): PartnerState {
   const account = api.partnerAccount;
   const positions = api.partnerStakePositions ?? [];
-  const hasServer = Boolean(account || positions.length > 0 || (api.partnerSd3Settlements?.length ?? 0) > 0);
+  const hasServer = Boolean(
+    account ||
+      positions.length > 0 ||
+      (api.partnerSd3Settlements?.length ?? 0) > 0 ||
+      (api.partnerSd3Allocations?.length ?? 0) > 0,
+  );
   if (!hasServer) return local;
 
   const stakeOrders: PartnerStakeOrder[] = positions.map(mapStakePositionToOrder);
@@ -657,14 +718,31 @@ export function hydratePartnerStateFromApi(
   const mergedStakeOrders =
     stakeOrders.length > 0 ? [...stakeOrders, ...localExtras] : local.stakeOrders;
 
-  const sd3SettlementHistory: Sd3SettlementRecord[] = (api.partnerSd3Settlements ?? []).map((r) => ({
-    id: r.id,
-    settledAt: r.settlement_date,
-    teamPerformanceUsd: Number(r.team_performance_usd),
-    dailyNewPerformanceUsd: Number(r.daily_new_performance_usd),
-    tierRatePct: Number(r.tier_rate_pct),
-    sd3Amount: Number(r.sd3_amount),
-  }));
+  const allocationHistory =
+    (api.partnerSd3Allocations?.length ?? 0) > 0
+      ? api.partnerSd3Allocations!.map((r) => ({
+          id: r.id,
+          settledAt: r.settlement_date,
+          teamPerformanceUsd: 0,
+          dailyNewPerformanceUsd: Number(r.event_amount_usd),
+          tierRatePct: Number(r.tier_rate_pct),
+          rewardSharePct: Number(r.reward_share_pct),
+          role: r.role,
+          sourceAddress: r.source_wallet,
+          sd3Amount: Number(r.sd3_amount),
+        }))
+      : null;
+
+  const sd3SettlementHistory: Sd3SettlementRecord[] =
+    allocationHistory ??
+    (api.partnerSd3Settlements ?? []).map((r) => ({
+      id: r.id,
+      settledAt: r.settlement_date,
+      teamPerformanceUsd: Number(r.team_performance_usd),
+      dailyNewPerformanceUsd: Number(r.daily_new_performance_usd),
+      tierRatePct: Number(r.tier_rate_pct),
+      sd3Amount: Number(r.sd3_amount),
+    }));
 
   const latestSd3 = sd3SettlementHistory[0];
 
@@ -690,7 +768,7 @@ export function hydratePartnerStateFromApi(
     yieldSettlementsByPosition,
     sd3SettlementHistory,
     lastSettlementDate: latestSd3?.settledAt ?? local.lastSettlementDate,
-    dailySd3Earned: latestSd3?.sd3Amount ?? local.dailySd3Earned,
+    dailySd3Earned: api.pendingSd3Earned ?? latestSd3?.sd3Amount ?? local.dailySd3Earned,
     marketLeaderStatus:
       (account as { market_leader_status?: string } | null | undefined)?.market_leader_status as
         | MarketLeaderStatus
@@ -745,55 +823,75 @@ export function mapSubsidyTicketsToApplications(
 export const SD3_QUOTA_RATE_PCT = 100;
 
 export function getSd3Quotas(state: PartnerState) {
-  const available = state.sd3Balance;
-  const quota = available;
+  const available = state.isPartner ? round2(state.sd3Balance) : sd3AvailableForState(state);
   return {
     available,
     staked: state.sd3StakedFromRewards,
     quotaRatePct: SD3_QUOTA_RATE_PCT,
-    stakeQuota: quota,
-    transferQuota: quota,
+    stakeQuota: available,
+    transferQuota: available,
   };
 }
+
+import type { PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import {
+  computeMarketSubsidyQuotaFromTree,
+  computePartnerSubsidyQuotaFromTree,
+  type SubsidyQuotaView,
+} from '@/components/partner/partnerSubsidyQuota';
+
+export type { SubsidyQuotaView };
 
 export function partnerSubsidyQuota(
   state: PartnerState,
   ratePct: number = PARTNER_SUBSIDY_RATE * 100,
-  basePerformanceUsd?: number,
-) {
-  const base = basePerformanceUsd ?? state.totalNewPerformanceUsd;
+  nodes: Record<string, PartnerTeamNode> = {},
+  isMarketLeader?: (nodeId: string) => boolean,
+): SubsidyQuotaView {
+  if (Object.keys(nodes).length > 0) {
+    return computePartnerSubsidyQuotaFromTree(state, ratePct, nodes, isMarketLeader ?? (() => false));
+  }
+  const marketDeduction = state.marketSubsidyPerformanceUsed;
+  const dedupPartner = Math.max(0, state.totalNewPerformanceUsd);
+  const calculable = Math.max(0, dedupPartner - marketDeduction);
   const rate = ratePct / 100;
-  const cap = Math.round(base * rate * 100) / 100;
-  const reserved = state.partnerSubsidyApplications
+  const cap = Math.round(calculable * rate * 100) / 100;
+  const applied = state.partnerSubsidyApplications
     .filter((a) => a.status !== 'rejected')
     .reduce((s, a) => s + a.amountUsd, 0);
   return {
-    basePerformance: base,
     ratePct,
-    cap,
-    reserved,
-    remaining: Math.max(0, Math.round((cap - reserved) * 100) / 100),
+    calculablePerformanceUsd: calculable,
+    applicableCapUsd: cap,
+    appliedUsd: Math.round(applied * 100) / 100,
+    applicableRemainingUsd: Math.max(0, Math.round((cap - applied) * 100) / 100),
+    dedupPerformanceUsd: dedupPartner,
+    marketDeductionUsd: marketDeduction,
   };
 }
 
 export function marketSubsidyQuota(
   state: PartnerState,
   ratePct: number = MARKET_SUBSIDY_RATE * 100,
-  basePerformanceUsd?: number,
-) {
-  const baseSource = basePerformanceUsd ?? state.totalNewPerformanceUsd;
-  const remainingPerf = Math.max(0, baseSource - state.marketSubsidyPerformanceUsed);
+  nodes: Record<string, PartnerTeamNode> = {},
+  isMarketLeader?: (nodeId: string) => boolean,
+): SubsidyQuotaView {
+  if (Object.keys(nodes).length > 0) {
+    return computeMarketSubsidyQuotaFromTree(state, ratePct, nodes, isMarketLeader ?? (() => false));
+  }
+  const dedupLeader = Math.max(0, state.totalNewPerformanceUsd - state.marketSubsidyPerformanceUsed);
   const rate = ratePct / 100;
-  const cap = Math.round(remainingPerf * rate * 100) / 100;
-  const reserved = state.marketSubsidyApplications
+  const cap = Math.round(dedupLeader * rate * 100) / 100;
+  const applied = state.marketSubsidyApplications
     .filter((a) => a.status !== 'rejected')
     .reduce((s, a) => s + a.amountUsd, 0);
   return {
-    basePerformance: remainingPerf,
     ratePct,
-    cap,
-    reserved,
-    remaining: Math.max(0, Math.round((cap - reserved) * 100) / 100),
+    calculablePerformanceUsd: dedupLeader,
+    applicableCapUsd: cap,
+    appliedUsd: Math.round(applied * 100) / 100,
+    applicableRemainingUsd: Math.max(0, Math.round((cap - applied) * 100) / 100),
+    dedupPerformanceUsd: dedupLeader,
   };
 }
 
@@ -810,8 +908,8 @@ export function applyPartnerSubsidy(
   receiptPaths: string[] = [],
 ): PartnerState {
   if (!prev.isPartner || amountUsd <= 0) return prev;
-  const { remaining } = partnerSubsidyQuota(prev);
-  if (amountUsd > remaining) return prev;
+  const { applicableRemainingUsd } = partnerSubsidyQuota(prev);
+  if (amountUsd > applicableRemainingUsd) return prev;
   const app: SubsidyApplication = {
     id: `ps-${Date.now()}`,
     amountUsd,
@@ -839,8 +937,8 @@ export function applyMarketSubsidy(
   receiptPaths: string[] = [],
 ): PartnerState {
   if (!prev.isPartner || prev.marketLeaderStatus !== 'approved' || amountUsd <= 0) return prev;
-  const { remaining } = marketSubsidyQuota(prev);
-  if (amountUsd > remaining) return prev;
+  const { applicableRemainingUsd } = marketSubsidyQuota(prev);
+  if (amountUsd > applicableRemainingUsd) return prev;
   const perfConsumed = Math.round((amountUsd / (MARKET_SUBSIDY_RATE)) * 100) / 100;
   const app: SubsidyApplication = {
     id: `ms-${Date.now()}`,

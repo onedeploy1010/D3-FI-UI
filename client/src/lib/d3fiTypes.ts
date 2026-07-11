@@ -200,9 +200,15 @@ export type DirectReferral = {
 
 export type PartnerTeamStats = {
   personalPerformanceUsd: number;
-  /** 伞下累计业绩（用于受贿金等级） */
+  /** 伞下累计业绩 */
   teamPerformanceUsd: number;
   dailyNewPerformanceUsd: number;
+  /** 小区累计业绩（sD3 等级依据） */
+  smallAreaPerformanceUsd?: number;
+  /** 小区当日新增（sD3 计算基数之一） */
+  smallAreaNewPerformanceUsd?: number;
+  largeAreaPerformanceUsd?: number;
+  largeAreaNewPerformanceUsd?: number;
 };
 
 export type PartnerAccountRow = {
@@ -236,6 +242,26 @@ export type PartnerSd3SettlementRow = {
   daily_new_performance_usd: number;
   tier_rate_pct: number;
   sd3_amount: number;
+};
+
+export type PartnerSd3AllocationRow = {
+  id: string;
+  recipient_wallet: string;
+  source_wallet: string;
+  settlement_date: string;
+  intent_id?: string | null;
+  event_amount_usd: number;
+  tier_rate_pct: number;
+  reward_share_pct: number;
+  role: 'direct' | 'upline';
+  sd3_amount: number;
+  created_at?: string;
+};
+
+export type PartnerDirectLineStat = {
+  wallet: string;
+  teamUsd: number;
+  dailyNewUsd: number;
 };
 
 export type PartnerSd3TransferRow = {
@@ -274,11 +300,15 @@ export type UnionProfileBundle = {
   multisigSignatures: MultisigSignatureRow[];
   pocScore: PocScoreRow | null;
   partnerTeamStats?: PartnerTeamStats;
+  partnerDirectLineStats?: PartnerDirectLineStat[];
+  /** Today's unsettled sD3 estimate (small-area basis). */
+  pendingSd3Earned?: number;
   /** Wallets with completed partner join (入盟). */
   partnerMemberWallets?: string[];
   partnerAccount?: PartnerAccountRow | null;
   partnerStakePositions?: PartnerStakePositionRow[];
   partnerSd3Settlements?: PartnerSd3SettlementRow[];
+  partnerSd3Allocations?: PartnerSd3AllocationRow[];
   partnerSd3Transfers?: PartnerSd3TransferRow[];
   partnerYieldSettlements?: PartnerYieldSettlementRow[];
   /** All partner-referral downline wallet addresses (umbrella tree). */

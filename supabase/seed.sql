@@ -455,3 +455,6 @@ insert into public.team_nodes (
   '0x871512590eE68bFDcf713Ee31dF882777106D2f4',
   null, '发起人', 0, 0, 0, 1, false
 ) on conflict (line_id, wallet_address) do update set level_label = excluded.level_label;
+
+-- Partner program demo (requires migrations 017 + 022):
+--   psql $DATABASE_URL -f supabase/seed_partner_demo.sql

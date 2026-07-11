@@ -1,45 +1,17 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { fetchPartnerTeamStats } from './partnerPerformance.ts';
-import { sgtDayBounds, yesterdaySgtDateString } from './partnerTimezone.ts';
+import {
+  collectPartnerSd3ForSettlementDate,
+  fetchPartnerAreaStats,
+} from './partnerPerformance.ts';
+import { yesterdaySgtDateString } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
 
 export const DAILY_YIELD_PCT = 0.4;
 export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;
-export const BRIBE_TIER_MIN_USD = 1;
-
-const BRIBE_TIERS = [
-  { min: 1, max: 100_000, rate: 1, ratePct: 100 },
-  { min: 100_000, max: 200_000, rate: 0.8, ratePct: 80 },
-  { min: 200_000, max: 500_000, rate: 0.6, ratePct: 60 },
-  { min: 500_000, max: 1_000_000, rate: 0.5, ratePct: 50 },
-] as const;
 
 const CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweeping'];
-
-export function getBribeTier(teamPerformanceUsd: number) {
-  if (teamPerformanceUsd < BRIBE_TIER_MIN_USD) return null;
-  for (const tier of BRIBE_TIERS) {
-    if (teamPerformanceUsd >= tier.min && teamPerformanceUsd < tier.max) return tier;
-  }
-  if (teamPerformanceUsd >= 1_000_000) return BRIBE_TIERS[BRIBE_TIERS.length - 1];
-  return null;
-}
-
-export function calcDailySd3(
-  teamPerformanceUsd: number,
-  dailyNewPerformanceUsd: number,
-  isPartner: boolean,
-): { sd3: number; tierRatePct: number } {
-  if (!isPartner || dailyNewPerformanceUsd <= 0) return { sd3: 0, tierRatePct: 0 };
-  const tier = getBribeTier(teamPerformanceUsd);
-  if (!tier) return { sd3: 0, tierRatePct: 0 };
-  return {
-    sd3: Math.round(dailyNewPerformanceUsd * tier.rate * 100) / 100,
-    tierRatePct: tier.ratePct,
-  };
-}
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
@@ -110,49 +82,6 @@ export async function syncAllStakePositions(sb: Sb): Promise<number> {
     synced++;
   }
   return synced;
-}
-
-async function sumDownlineNewPerformanceSgt(
-  sb: Sb,
-  wallet: string,
-  settlementDate: string,
-): Promise<number> {
-  const downline: string[] = [];
-  const queue = [wallet];
-  const seen = new Set<string>();
-
-  while (queue.length) {
-    const current = queue.shift()!;
-    const key = current.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const { data: directs } = await sb
-      .from('referrals')
-      .select('wallet_address')
-      .ilike('sponsor_wallet_address', current)
-      .eq('referral_type', 'partner')
-      .eq('status', 'active');
-
-    for (const row of directs ?? []) {
-      const addr = row.wallet_address as string;
-      downline.push(addr);
-      queue.push(addr);
-    }
-  }
-
-  if (!downline.length) return 0;
-
-  const { startIso, endIso } = sgtDayBounds(settlementDate);
-  const { data: intents } = await sb
-    .from('stake_intents')
-    .select('amount_usdt')
-    .in('wallet_address', downline)
-    .in('status', CREDITED_STATUSES)
-    .gte('updated_at', startIso)
-    .lte('updated_at', endIso);
-
-  return round4((intents ?? []).reduce((s, r) => s + Number(r.amount_usdt ?? 0), 0));
 }
 
 export type PartnerSettlementResult = {
@@ -252,13 +181,11 @@ export async function runDailyPartnerSettlement(
       yieldRows++;
     }
 
-    const { data: partners } = await sb
-      .from('partner_accounts')
-      .select('wallet_address')
-      .eq('is_partner', true);
+    const { byWallet: sd3Allocations, events: sd3AllocationEvents } =
+      await collectPartnerSd3ForSettlementDate(sb, dateStr);
 
-    for (const partner of partners ?? []) {
-      const wallet = partner.wallet_address as string;
+    for (const [wallet, row] of sd3Allocations.entries()) {
+      if (row.sd3 <= 0) continue;
 
       const { data: dup } = await sb
         .from('partner_sd3_settlements')
@@ -268,18 +195,22 @@ export async function runDailyPartnerSettlement(
         .maybeSingle();
       if (dup) continue;
 
-      const stats = await fetchPartnerTeamStats(sb, wallet);
-      const dailyNew = await sumDownlineNewPerformanceSgt(sb, wallet, dateStr);
-      const { sd3, tierRatePct } = calcDailySd3(stats.teamPerformanceUsd, dailyNew, true);
-      if (sd3 <= 0) continue;
+      const { data: partnerAcct } = await sb
+        .from('partner_accounts')
+        .select('is_partner')
+        .eq('wallet_address', wallet)
+        .maybeSingle();
+      if (!partnerAcct?.is_partner) continue;
+
+      const areas = await fetchPartnerAreaStats(sb, wallet);
 
       await sb.from('partner_sd3_settlements').insert({
         wallet_address: wallet,
         settlement_date: dateStr,
-        team_performance_usd: stats.teamPerformanceUsd,
-        daily_new_performance_usd: dailyNew,
-        tier_rate_pct: tierRatePct,
-        sd3_amount: sd3,
+        team_performance_usd: areas.smallAreaUsd,
+        daily_new_performance_usd: row.smallAreaNewUsd,
+        tier_rate_pct: row.tierRatePct,
+        sd3_amount: row.sd3,
       });
 
       const { data: acct } = await sb
@@ -291,13 +222,36 @@ export async function runDailyPartnerSettlement(
       await sb
         .from('partner_accounts')
         .update({
-          sd3_balance: round4(Number(acct?.sd3_balance ?? 0) + sd3),
-          lifetime_sd3_earned: round4(Number(acct?.lifetime_sd3_earned ?? 0) + sd3),
+          sd3_balance: round4(Number(acct?.sd3_balance ?? 0) + row.sd3),
+          lifetime_sd3_earned: round4(Number(acct?.lifetime_sd3_earned ?? 0) + row.sd3),
           updated_at: new Date().toISOString(),
         })
         .eq('wallet_address', wallet);
 
       sd3Rows++;
+    }
+
+    if (sd3AllocationEvents.length) {
+      const { data: existingAlloc } = await sb
+        .from('partner_sd3_allocations')
+        .select('id')
+        .eq('settlement_date', dateStr)
+        .limit(1);
+      if (!existingAlloc?.length) {
+        await sb.from('partner_sd3_allocations').insert(
+          sd3AllocationEvents.map((e) => ({
+            recipient_wallet: e.recipientWallet,
+            source_wallet: e.sourceWallet,
+            settlement_date: e.settlementDate,
+            intent_id: e.intentId ?? null,
+            event_amount_usd: e.eventAmountUsd,
+            tier_rate_pct: e.tierRatePct,
+            reward_share_pct: e.rewardSharePct,
+            role: e.role,
+            sd3_amount: e.sd3Amount,
+          })),
+        );
+      }
     }
 
     await sb
@@ -337,7 +291,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
-  const [account, positions, sd3History, yieldHistory, sd3Transfers] = await Promise.all([
+  const [account, positions, sd3History, sd3Allocations, yieldHistory, sd3Transfers] = await Promise.all([
     sb.from('partner_accounts').select('*').eq('wallet_address', wallet).maybeSingle(),
     sb
       .from('partner_stake_positions')
@@ -351,6 +305,12 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .eq('wallet_address', wallet)
       .order('settlement_date', { ascending: false })
       .limit(30),
+    sb
+      .from('partner_sd3_allocations')
+      .select('*')
+      .eq('recipient_wallet', wallet)
+      .order('settlement_date', { ascending: false })
+      .limit(100),
     sb
       .from('partner_yield_settlements')
       .select('*')
@@ -370,7 +330,11 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     account: account.data,
     stakePositions: positions.data ?? [],
     sd3Settlements: sd3History.data ?? [],
+    sd3Allocations: sd3Allocations.data ?? [],
     yieldSettlements: yieldHistory.data ?? [],
     sd3Transfers: sd3Transfers.data ?? [],
   };
 }
+
+// Re-export for callers that imported calcDailySd3 from this module.
+export { getBribeTier, calcDailySd3DirectShare as calcDailySd3 } from './partnerSd3Rules.ts';

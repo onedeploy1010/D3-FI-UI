@@ -8,7 +8,6 @@ import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoad
 import { PartnerTagChip } from '@/components/partner/partnerUiKit';
 import {
   calcDailyUsdtYield,
-  CROWDFUND_UNIT_PRICE_USDT,
   DEFAULT_HOME_STAKE_USDT,
   DAILY_YIELD_PCT,
   formatDailyYieldUsdt,
@@ -19,6 +18,8 @@ import {
   STAKE_LOCK_DAYS,
   type PartnerState,
 } from '@/components/partner/partnerData';
+import { getSd3Available } from '@/components/partner/partnerSd3View';
+import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 import type { DepositIntent } from '@/lib/depositApi';
@@ -85,7 +86,7 @@ export function PartnerHomeTab({
   const quickIncrements = [100, 500, 1000, 5000];
   const totalPay = withPartnerJoin ? numAmount + PARTNER_JOIN_USDT : numAmount;
   const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(numAmount) : 0;
-  const sd3QuotaPreview = isValidAmount ? Math.floor(numAmount / CROWDFUND_UNIT_PRICE_USDT) : 0;
+  const sd3Balance = getSd3Available(state);
 
   const addAmount = (delta: number) => {
     const base = Number.isFinite(numAmount) ? numAmount : 0;
@@ -291,8 +292,8 @@ export function PartnerHomeTab({
                 />
                 <span className="text-[11px] leading-relaxed">
                   <span className="font-semibold">{p('home.sd3QuotaLabel')}</span>
-                  <span className={`block text-sm font-bold text-[#E0568F] mt-0.5`}>
-                    {sd3QuotaPreview.toLocaleString()} sD3
+                  <span className="block text-sm font-bold text-[#E0568F] mt-0.5">
+                    <PartnerSd3Amount value={sd3Balance} />
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.sd3QuotaHint')}

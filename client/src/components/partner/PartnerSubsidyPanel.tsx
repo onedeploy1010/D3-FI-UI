@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Building2, Clock, Gift, Users } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSubsidyApplyModal } from '@/components/partner/PartnerSubsidyApplyModal';
@@ -10,8 +10,12 @@ import {
   type SubsidyApplication,
   type SubsidyApplicationType,
   type SubsidyStatus,
+  type SubsidyQuotaView,
 } from '@/components/partner/partnerData';
-import type { PartnerTeamStats } from '@/lib/d3fiTypes';
+import type { PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { isDemoWallet } from '@/lib/demoWallet';
+import type { PartnerSubsidyQuota } from '@/lib/unionApi';
+import { fetchPartnerSubsidyQuota } from '@/lib/unionApi';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
@@ -37,6 +41,51 @@ function typeLabel(type: SubsidyApplicationType | undefined, p: (key: string, va
   if (type === 'reimbursement') return p('subsidy.typeReimbursement');
   if (type === 'reserve') return p('subsidy.typeReserve');
   return '';
+}
+
+function apiQuotaToView(quota: PartnerSubsidyQuota, ratePct: number): SubsidyQuotaView {
+  return {
+    ratePct,
+    calculablePerformanceUsd: quota.basePerformanceUsd,
+    applicableCapUsd: quota.cap,
+    appliedUsd: quota.reserved,
+    applicableRemainingUsd: quota.remaining,
+    dedupPerformanceUsd: quota.dedupPerformanceUsd ?? quota.basePerformanceUsd,
+    marketDeductionUsd: quota.marketDeductionUsd,
+  };
+}
+
+function QuotaStatGrid({
+  quota,
+  p,
+  isDark,
+  accentClass,
+}: {
+  quota: SubsidyQuotaView;
+  p: (key: string, vars?: Record<string, string | number>) => string;
+  isDark: boolean;
+  accentClass: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2 mb-4 text-center text-[10px]">
+      <div className="partner-depth-inset p-2.5 rounded-xl">
+        <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.calculablePerf')}</div>
+        <div className={`font-bold mt-0.5 ${isDark ? 'text-white/85' : 'text-[#160510]/85'}`}>
+          ${quota.calculablePerformanceUsd.toLocaleString()}
+        </div>
+      </div>
+      <div className="partner-depth-inset p-2.5 rounded-xl">
+        <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.applicableQuota')}</div>
+        <div className={`font-bold mt-0.5 ${accentClass}`}>
+          ${quota.applicableRemainingUsd.toLocaleString()}
+        </div>
+      </div>
+      <div className="partner-depth-inset p-2.5 rounded-xl">
+        <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.applied')}</div>
+        <div className="font-bold mt-0.5">${quota.appliedUsd.toLocaleString()}</div>
+      </div>
+    </div>
+  );
 }
 
 function SubsidyHistoryList({
@@ -94,7 +143,7 @@ export function PartnerSubsidyPanel({
   isDark,
   wallet,
   state,
-  teamStats,
+  teamNodes,
   subsidySettings,
   onPartnerSubsidy,
   onMarketSubsidy,
@@ -103,7 +152,7 @@ export function PartnerSubsidyPanel({
   isDark: boolean;
   wallet: string | null;
   state: PartnerState;
-  teamStats: PartnerTeamStats;
+  teamNodes: Record<string, PartnerTeamNode>;
   subsidySettings: PartnerProgramSettings;
   onPartnerSubsidy: (input: {
     amountUsd: number;
@@ -121,17 +170,69 @@ export function PartnerSubsidyPanel({
   const p = usePartnerTranslation(lang);
   const [partnerOpen, setPartnerOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [apiPartnerQuota, setApiPartnerQuota] = useState<PartnerSubsidyQuota | null>(null);
+  const [apiMarketQuota, setApiMarketQuota] = useState<PartnerSubsidyQuota | null>(null);
 
-  const perfBase = teamStats.dailyNewPerformanceUsd || state.totalNewPerformanceUsd;
+  const useApiQuota = Boolean(wallet && !isDemoWallet(wallet));
+
+  useEffect(() => {
+    if (!useApiQuota || !wallet) {
+      setApiPartnerQuota(null);
+      setApiMarketQuota(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [partnerRes, marketRes] = await Promise.all([
+          fetchPartnerSubsidyQuota(wallet, 'partner_subsidy'),
+          fetchPartnerSubsidyQuota(wallet, 'market_subsidy'),
+        ]);
+        if (!cancelled) {
+          setApiPartnerQuota(partnerRes.quota);
+          setApiMarketQuota(marketRes.quota);
+        }
+      } catch {
+        if (!cancelled) {
+          setApiPartnerQuota(null);
+          setApiMarketQuota(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet, useApiQuota, state.partnerSubsidyApplications.length, state.marketSubsidyApplications.length]);
+
+  const isMarketLeaderNode = useMemo(
+    () => (_nodeId: string) => false,
+    [],
+  );
+
+  const localPartnerQuota = useMemo(
+    () => partnerSubsidyQuota(state, subsidySettings.partnerSubsidyRatePct, teamNodes, isMarketLeaderNode),
+    [state, subsidySettings.partnerSubsidyRatePct, teamNodes, isMarketLeaderNode],
+  );
+  const localMarketQuota = useMemo(
+    () => marketSubsidyQuota(state, subsidySettings.marketSubsidyRatePct, teamNodes, isMarketLeaderNode),
+    [state, subsidySettings.marketSubsidyRatePct, teamNodes, isMarketLeaderNode],
+  );
 
   const partnerQuota = useMemo(
-    () => partnerSubsidyQuota(state, subsidySettings.partnerSubsidyRatePct, perfBase),
-    [state, subsidySettings.partnerSubsidyRatePct, perfBase],
+    () =>
+      apiPartnerQuota
+        ? apiQuotaToView(apiPartnerQuota, subsidySettings.partnerSubsidyRatePct)
+        : localPartnerQuota,
+    [apiPartnerQuota, localPartnerQuota, subsidySettings.partnerSubsidyRatePct],
   );
   const marketQuota = useMemo(
-    () => marketSubsidyQuota(state, subsidySettings.marketSubsidyRatePct, perfBase),
-    [state, subsidySettings.marketSubsidyRatePct, perfBase],
+    () =>
+      apiMarketQuota
+        ? apiQuotaToView(apiMarketQuota, subsidySettings.marketSubsidyRatePct)
+        : localMarketQuota,
+    [apiMarketQuota, localMarketQuota, subsidySettings.marketSubsidyRatePct],
   );
+
   const isLeader = state.marketLeaderStatus === 'approved';
 
   return (
@@ -149,25 +250,24 @@ export function PartnerSubsidyPanel({
             <div className={`text-[11px] mt-1 leading-relaxed ${isDark ? 'text-white/42' : 'text-[#160510]/45'}`}>
               {p('subsidy.partnerDesc', { pct: subsidySettings.partnerSubsidyRatePct })}
             </div>
+            {(partnerQuota.marketDeductionUsd ?? 0) > 0 && (
+              <div className={`text-[10px] mt-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700/90'}`}>
+                {p('subsidy.marketDeductionHint', {
+                  amount: (partnerQuota.marketDeductionUsd ?? 0).toLocaleString(),
+                })}
+              </div>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 mb-4 text-center text-[10px]">
-          <div className="partner-depth-inset p-2.5 rounded-xl">
-            <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.quota')}</div>
-            <div className="font-bold text-emerald-500 mt-0.5">${partnerQuota.remaining.toLocaleString()}</div>
-          </div>
-          <div className="partner-depth-inset p-2.5 rounded-xl">
-            <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.used')}</div>
-            <div className="font-bold mt-0.5">${partnerQuota.reserved.toLocaleString()}</div>
-          </div>
-          <div className="partner-depth-inset p-2.5 rounded-xl">
-            <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.cap')}</div>
-            <div className="font-bold mt-0.5">${partnerQuota.cap.toLocaleString()}</div>
-          </div>
-        </div>
+        <QuotaStatGrid
+          quota={partnerQuota}
+          p={p}
+          isDark={isDark}
+          accentClass="text-emerald-500"
+        />
         <GlassButton
           className="w-full !py-3 !text-xs"
-          disabled={partnerQuota.remaining <= 0}
+          disabled={partnerQuota.applicableRemainingUsd <= 0}
           onClick={() => setPartnerOpen(true)}
         >
           <Gift size={14} className="inline mr-1.5" />
@@ -206,23 +306,15 @@ export function PartnerSubsidyPanel({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-4 text-center text-[10px]">
-              <div className="partner-depth-inset p-2.5 rounded-xl">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.quota')}</div>
-                <div className="font-bold text-amber-500 mt-0.5">${marketQuota.remaining.toLocaleString()}</div>
-              </div>
-              <div className="partner-depth-inset p-2.5 rounded-xl">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.used')}</div>
-                <div className="font-bold mt-0.5">${marketQuota.reserved.toLocaleString()}</div>
-              </div>
-              <div className="partner-depth-inset p-2.5 rounded-xl">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.perf')}</div>
-                <div className="font-bold mt-0.5">${marketQuota.basePerformance.toLocaleString()}</div>
-              </div>
-            </div>
+            <QuotaStatGrid
+              quota={marketQuota}
+              p={p}
+              isDark={isDark}
+              accentClass={isDark ? 'text-amber-400' : 'text-[#d97706]'}
+            />
             <GlassButton
               className="w-full !py-3 !text-xs"
-              disabled={marketQuota.remaining <= 0}
+              disabled={marketQuota.applicableRemainingUsd <= 0}
               onClick={() => setMarketOpen(true)}
             >
               <Gift size={14} className="inline mr-1.5" />
@@ -246,7 +338,7 @@ export function PartnerSubsidyPanel({
         isDark={isDark}
         wallet={wallet}
         ratePct={partnerQuota.ratePct}
-        remainingUsd={partnerQuota.remaining}
+        remainingUsd={partnerQuota.applicableRemainingUsd}
         accentClass={isDark ? 'text-emerald-400' : 'text-emerald-600'}
         purposePlaceholder={p('subsidy.purposePlaceholder')}
         onSubmit={onPartnerSubsidy}
@@ -260,7 +352,7 @@ export function PartnerSubsidyPanel({
         isDark={isDark}
         wallet={wallet}
         ratePct={marketQuota.ratePct}
-        remainingUsd={marketQuota.remaining}
+        remainingUsd={marketQuota.applicableRemainingUsd}
         accentClass={isDark ? 'text-amber-400' : 'text-[#d97706]'}
         purposePlaceholder={p('subsidy.purposePlaceholderMarket')}
         onSubmit={onMarketSubsidy}

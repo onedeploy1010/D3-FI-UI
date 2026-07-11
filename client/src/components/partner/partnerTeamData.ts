@@ -149,7 +149,7 @@ export type PartnerAreaStats = {
   largeAreaNewUsd: number;
 };
 
-/** 大区 = 最大直推线业绩；小区 = 其余直推线合计。 */
+/** 大区 = 最大直推线业绩；小区 = 其余直推线合计（sD3 按小区业绩计算）。 */
 export function computePartnerAreaStats(
   nodes: Record<string, PartnerTeamNode>,
   rootId = 'me',
@@ -228,6 +228,33 @@ export function buildPartnerTeamNodes(
     bundle.profile?.short_address ||
     shortWallet(wallet);
   const partnerStats = bundle.partnerTeamStats;
+  const lineStatMap = new Map(
+    (bundle.partnerDirectLineStats ?? []).map((l) => [l.wallet.toLowerCase(), l]),
+  );
+  const lineStat = (addr: string) => lineStatMap.get(addr.toLowerCase());
+
+  const applyDirectLineStats = (map: Record<string, PartnerTeamNode>) => {
+    const me = map.me;
+    if (!me) return map;
+    const next = { ...map };
+    if (partnerStats) {
+      next.me = {
+        ...me,
+        dailyNewUsd: num(partnerStats.dailyNewPerformanceUsd),
+        teamUsd: num(partnerStats.teamPerformanceUsd ?? me.teamUsd),
+        personalUsd: num(partnerStats.personalPerformanceUsd ?? me.personalUsd),
+      };
+    }
+    for (const cid of me.childrenIds) {
+      const child = next[cid];
+      if (!child) continue;
+      const ls = lineStat(child.address);
+      if (ls) {
+        next[cid] = { ...child, teamUsd: ls.teamUsd, dailyNewUsd: ls.dailyNewUsd };
+      }
+    }
+    return next;
+  };
   const rows = bundle.lineTeamNodes ?? [];
   const walletLower = wallet.toLowerCase();
   const partnerSet = new Set(
@@ -291,7 +318,7 @@ export function buildPartnerTeamNodes(
     }
 
     if (map.me) map.me.parentId = null;
-    return map;
+    return applyDirectLineStats(map);
   }
 
   const partnerRefs = bundle.directReferrals.filter(
@@ -321,6 +348,7 @@ export function buildPartnerTeamNodes(
     const personalUsd = num((r as DirectReferral).personal_performance_usd ?? perf);
     const downlineTeamUsd = num((r as DirectReferral).team_performance_usd);
     const teamCount = num((r as DirectReferral).team_count);
+    const ls = lineStat(r.wallet_address);
     map[`d-${i}`] = {
       id: `d-${i}`,
       address: r.wallet_address,
@@ -328,8 +356,8 @@ export function buildPartnerTeamNodes(
       label: shortWallet(r.wallet_address),
       parentId: 'me',
       childrenIds: [],
-      teamUsd: downlineTeamUsd,
-      dailyNewUsd: 0,
+      teamUsd: ls?.teamUsd ?? downlineTeamUsd,
+      dailyNewUsd: ls?.dailyNewUsd ?? 0,
       personalUsd,
       directCount: 0,
       teamCount,
@@ -337,5 +365,5 @@ export function buildPartnerTeamNodes(
       isPartner: isPartnerWallet(r.wallet_address),
     };
   });
-  return map;
+  return applyDirectLineStats(map);
 }

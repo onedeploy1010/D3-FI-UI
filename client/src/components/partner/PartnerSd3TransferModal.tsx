@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Send } from 'lucide-react';
-import { PartnerModal } from '@/components/partner/PartnerModal';
+import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import type { AppLang } from '@/i18n/types';
@@ -87,7 +87,7 @@ export function PartnerSd3TransferModal({
       <div className={`p-3.5 rounded-2xl flex justify-between items-center mb-4 ${panelClass}`}>
         <span className={`text-xs font-semibold ${labelMuted}`}>{p('assets.canTransfer')}</span>
         <span className={`text-base font-bold ${isDark ? 'text-amber-400' : 'text-[#d97706]'}`}>
-          {transferQuota.toLocaleString()} sD3
+          <PartnerSd3Amount value={transferQuota} />
         </span>
       </div>
 

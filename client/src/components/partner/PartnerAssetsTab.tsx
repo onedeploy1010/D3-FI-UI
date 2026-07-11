@@ -17,6 +17,8 @@ import {
   type SubsidyApplicationType,
 } from '@/components/partner/partnerData';
 import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
+import { resolvePartnerSd3Metrics, sumSd3Transferred } from '@/components/partner/partnerSd3View';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
@@ -36,7 +38,8 @@ export function PartnerAssetsTab({
   state,
   teamStats,
   subsidySettings,
-  teamNodes: _teamNodes,
+  teamNodes = {},
+  pendingSd3Earned = 0,
   downlineWallets: _downlineWallets,
   onStakeSd3: _onStakeSd3,
   onTransferSd3: _onTransferSd3,
@@ -53,6 +56,7 @@ export function PartnerAssetsTab({
   teamStats: PartnerTeamStats;
   subsidySettings: PartnerProgramSettings;
   teamNodes?: Record<string, PartnerTeamNode>;
+  pendingSd3Earned?: number;
   downlineWallets?: string[];
   onStakeSd3: (amount: number) => void;
   onTransferSd3: (to: string, amount: number) => Promise<boolean>;
@@ -81,6 +85,11 @@ export function PartnerAssetsTab({
   const [flashOpen, setFlashOpen] = useState(false);
   const [flashAmount, setFlashAmount] = useState('');
   const quotas = getSd3Quotas(state);
+  const sd3Metrics = useMemo(
+    () => resolvePartnerSd3Metrics(state, teamNodes, teamStats, pendingSd3Earned),
+    [state, teamNodes, teamStats, pendingSd3Earned],
+  );
+  const transferredSd3 = useMemo(() => sumSd3Transferred(state), [state]);
   const yieldBalances = useMemo(() => resolveFlashYieldBalances(state), [state]);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
 
@@ -183,12 +192,14 @@ export function PartnerAssetsTab({
               </div>
               <div className="ios-glass-inset p-2.5">
                 <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.lifetimeSd3')}</div>
-                <div className="font-bold text-sm mt-0.5">{state.lifetimeSd3Earned.toLocaleString()} sD3</div>
+                <div className="font-bold text-sm mt-0.5">
+                  <PartnerSd3Amount value={sd3Metrics.lifetimeSd3} />
+                </div>
               </div>
               <div className="ios-glass-inset p-2.5">
                 <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.newSd3')}</div>
                 <div className="font-bold text-sm mt-0.5 text-[#E0568F]">
-                  {state.dailySd3Earned.toLocaleString()} sD3
+                  <PartnerSd3Amount value={transferredSd3} />
                 </div>
               </div>
             </div>
@@ -226,13 +237,13 @@ export function PartnerAssetsTab({
           </div>
 
           <div className={glassCardClass('default', 'p-5')}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <div className="site-stat-label">{p('assets.antibribe')}</div>
                 <div className="text-2xl font-black text-[#E0568F] mt-1">
-                  {quotas.transferQuota.toLocaleString()} sD3
+                  <PartnerSd3Amount value={quotas.transferQuota} />
                 </div>
-                <div className={`text-[10px] mt-1 ${muted}`}>
+                <div className={`text-[10px] mt-1 leading-relaxed ${muted}`}>
                   {p('assets.canTransfer')}
                 </div>
               </div>
@@ -245,9 +256,6 @@ export function PartnerAssetsTab({
                 {p('assets.goTransfer')}
               </GlassButton>
             </div>
-            <div className={`text-[10px] ${muted}`}>
-              {p('assets.antibribeDesc')} · {p('assets.available')}: {quotas.available.toLocaleString()} sD3
-            </div>
           </div>
         </>
       )}
@@ -258,7 +266,7 @@ export function PartnerAssetsTab({
           isDark={isDark}
           wallet={wallet}
           state={state}
-          teamStats={teamStats}
+          teamNodes={teamNodes ?? {}}
           subsidySettings={subsidySettings}
           onPartnerSubsidy={onPartnerSubsidy}
           onMarketSubsidy={onMarketSubsidy}

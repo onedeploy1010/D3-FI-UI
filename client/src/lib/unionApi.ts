@@ -200,6 +200,8 @@ export type PartnerSubsidyQuota = {
   cap: number;
   reserved: number;
   remaining: number;
+  dedupPerformanceUsd?: number;
+  marketDeductionUsd?: number;
 };
 
 export function fetchPartnerProgramSettings(wallet: string) {

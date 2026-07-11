@@ -13,7 +13,14 @@ import {
   isPrivyOnchainEnabled,
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
-import { fetchPartnerTeamStats, fetchPartnerMemberWallets, fetchPartnerReferralNodeStats, collectPartnerDownlineWallets } from '../_shared/partnerPerformance.ts';
+import {
+  collectPartnerDownlineWallets,
+  fetchPartnerDirectLineStats,
+  fetchPartnerMemberWallets,
+  fetchPartnerReferralNodeStats,
+  fetchPartnerTeamStats,
+} from '../_shared/partnerPerformance.ts';
+import { calcDailySd3DirectShare } from '../_shared/partnerSd3Rules.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
   addApplicantTicketMessage,
@@ -555,7 +562,13 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     personalPerformanceUsd: 0,
     teamPerformanceUsd: 0,
     dailyNewPerformanceUsd: 0,
+    smallAreaPerformanceUsd: 0,
+    smallAreaNewPerformanceUsd: 0,
+    largeAreaPerformanceUsd: 0,
+    largeAreaNewPerformanceUsd: 0,
   }));
+
+  const partnerDirectLineStats = await fetchPartnerDirectLineStats(sb, pk).catch(() => []);
 
   const partnerDirectReferrals = (directReferrals.data ?? []).filter(
     (r) => r.referral_type === 'partner' && r.status === 'active',
@@ -592,10 +605,20 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     account: null,
     stakePositions: [],
     sd3Settlements: [],
+    sd3Allocations: [],
     yieldSettlements: [],
     sd3Transfers: [],
   }));
   const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
+
+  const isPartner = Boolean(partnerBundle.account?.is_partner);
+  const pendingSd3Earned = isPartner
+    ? calcDailySd3DirectShare(
+        partnerTeamStats.smallAreaPerformanceUsd,
+        partnerTeamStats.smallAreaNewPerformanceUsd,
+        true,
+      )
+    : 0;
 
   return {
     profile,
@@ -615,10 +638,13 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     multisigSignatures: multisigSignatures ?? [],
     pocScore: pocScore.data,
     partnerTeamStats,
+    partnerDirectLineStats,
+    pendingSd3Earned,
     partnerMemberWallets,
     partnerAccount: partnerBundle.account,
     partnerStakePositions: partnerBundle.stakePositions,
     partnerSd3Settlements: partnerBundle.sd3Settlements,
+    partnerSd3Allocations: partnerBundle.sd3Allocations,
     partnerSd3Transfers: partnerBundle.sd3Transfers,
     partnerYieldSettlements: partnerBundle.yieldSettlements,
     partnerDownlineWallets,

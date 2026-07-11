@@ -10,10 +10,8 @@ import {
   applyPartnerJoin,
   applyPartnerSubsidy,
   applySd3Stake,
-  applySd3Transfer,
   resolveFlashYieldBalances,
   MIN_YIELD_WITHDRAW_USDT,
-  DEMO_PARTNER_STATE,
   GUEST_PARTNER_STATE,
   hydratePartnerStateFromApi,
   mapSubsidyTicketsToApplications,
@@ -25,21 +23,29 @@ import {
   type SubsidyApplicationType,
   storageKey,
 } from '@/components/partner/partnerData';
+import { getSd3Available } from '@/components/partner/partnerSd3View';
 import {
   buildPartnerTeamNodes,
   emptyPartnerTeamNodes,
-  findPartnerTeamNodeLabel,
   isPartnerDownlineMember,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
-import { getTeamAlias, loadTeamAliases } from '@/components/partner/partnerTeamAliases';
-import { createPartnerSubsidyTicket, fetchPartnerProgramSettings, fetchPartnerSubsidyTickets, fetchUnionProfile } from '@/lib/unionApi';
+import {
+  createPartnerSubsidyTicket,
+  fetchPartnerProgramSettings,
+  fetchPartnerSubsidyTickets,
+  fetchUnionProfile,
+} from '@/lib/unionApi';
 import { withdrawPartnerYield } from '@/lib/depositApi';
 
 const EMPTY_TEAM_STATS: PartnerTeamStats = {
   personalPerformanceUsd: 0,
   teamPerformanceUsd: 0,
   dailyNewPerformanceUsd: 0,
+  smallAreaPerformanceUsd: 0,
+  smallAreaNewPerformanceUsd: 0,
+  largeAreaPerformanceUsd: 0,
+  largeAreaNewPerformanceUsd: 0,
 };
 
 function loadState(wallet: string | null): PartnerState | null {
@@ -57,10 +63,22 @@ function saveState(wallet: string, state: PartnerState) {
   localStorage.setItem(storageKey(wallet), JSON.stringify(state));
 }
 
+function hydrateFromBundle(prev: PartnerState, bundle: Awaited<ReturnType<typeof fetchUnionProfile>>) {
+  return hydratePartnerStateFromApi(prev, {
+    partnerAccount: bundle.partnerAccount,
+    partnerStakePositions: bundle.partnerStakePositions,
+    partnerSd3Settlements: bundle.partnerSd3Settlements,
+    partnerSd3Allocations: bundle.partnerSd3Allocations,
+    partnerSd3Transfers: bundle.partnerSd3Transfers,
+    partnerYieldSettlements: bundle.partnerYieldSettlements,
+    pendingSd3Earned: bundle.pendingSd3Earned,
+  });
+}
+
 export function usePartnerProgram(wallet: string | null) {
   const [state, setState] = useState<PartnerState>(() => {
     if (!wallet) return GUEST_PARTNER_STATE;
-    return loadState(wallet) ?? (isDemoWallet(wallet) ? DEMO_PARTNER_STATE : GUEST_PARTNER_STATE);
+    return loadState(wallet) ?? GUEST_PARTNER_STATE;
   });
 
   useEffect(() => {
@@ -70,11 +88,12 @@ export function usePartnerProgram(wallet: string | null) {
     }
     const saved = loadState(wallet);
     if (saved) setState(saved);
-    else setState(isDemoWallet(wallet) ? DEMO_PARTNER_STATE : GUEST_PARTNER_STATE);
+    else setState(GUEST_PARTNER_STATE);
   }, [wallet]);
 
   const [teamNodes, setTeamNodes] = useState<Record<string, PartnerTeamNode>>({});
   const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
+  const [pendingSd3Earned, setPendingSd3Earned] = useState(0);
   const [downlineWallets, setDownlineWallets] = useState<string[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [subsidySettings, setSubsidySettings] = useState<PartnerProgramSettings>({
@@ -86,47 +105,46 @@ export function usePartnerProgram(wallet: string | null) {
     if (!wallet) {
       setTeamNodes({});
       setTeamStats(EMPTY_TEAM_STATS);
+      setPendingSd3Earned(0);
       setDownlineWallets([]);
       setTeamLoading(false);
       return;
     }
     setTeamLoading(true);
     try {
-      if (wallet && !isDemoWallet(wallet)) {
-        try {
-          const { settings } = await fetchPartnerProgramSettings(wallet);
-          setSubsidySettings(settings);
-        } catch {
-          /* keep defaults */
-        }
+      try {
+        const { settings } = await fetchPartnerProgramSettings(wallet);
+        setSubsidySettings(settings);
+      } catch {
+        /* keep defaults */
       }
       const bundle = await fetchUnionProfile(wallet);
       let subsidyPatch: Partial<PartnerState> = {};
-      if (!isDemoWallet(wallet)) {
-        try {
-          const { tickets } = await fetchPartnerSubsidyTickets(wallet);
-          const mapped = mapSubsidyTicketsToApplications(tickets ?? []);
-          subsidyPatch = {
-            ...mapped,
-            marketLeaderStatus:
-              (bundle.partnerAccount as { market_leader_status?: string } | null | undefined)
-                ?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
-          };
-        } catch {
-          /* keep local subsidy state */
-        }
+      try {
+        const { tickets } = await fetchPartnerSubsidyTickets(wallet);
+        const mapped = mapSubsidyTicketsToApplications(tickets ?? []);
+        subsidyPatch = {
+          ...mapped,
+          marketLeaderStatus:
+            (bundle.partnerAccount as { market_leader_status?: string } | null | undefined)
+              ?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
+        };
+      } catch {
+        /* keep local subsidy state */
       }
       setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
       setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
+      setPendingSd3Earned(bundle.pendingSd3Earned ?? 0);
       setDownlineWallets(bundle.partnerDownlineWallets ?? []);
       setState((prev) => {
-        const merged = { ...hydratePartnerStateFromApi(prev, bundle), ...subsidyPatch };
-        if (wallet) saveState(wallet, merged);
+        const merged = { ...hydrateFromBundle(prev, bundle), ...subsidyPatch };
+        saveState(wallet, merged);
         return merged;
       });
     } catch {
       setTeamNodes(emptyPartnerTeamNodes(wallet));
       setTeamStats(EMPTY_TEAM_STATS);
+      setPendingSd3Earned(0);
       setDownlineWallets([]);
     } finally {
       setTeamLoading(false);
@@ -169,7 +187,7 @@ export function usePartnerProgram(wallet: string | null) {
 
   const stakeSd3 = useCallback(
     (amount: number) => {
-      if (!state.isPartner || amount <= 0 || amount > state.sd3Balance) return;
+      if (!state.isPartner || amount <= 0 || amount > getSd3Available(state)) return;
       persist(applySd3Stake(state, amount));
     },
     [state, persist],
@@ -177,25 +195,9 @@ export function usePartnerProgram(wallet: string | null) {
 
   const transferSd3 = useCallback(
     async (toAddress: string, amount: number) => {
-      if (!state.isPartner || amount <= 0 || amount > state.sd3Balance) return false;
+      if (!state.isPartner || amount <= 0 || amount > getSd3Available(state)) return false;
       const normalized = toAddress.trim();
       if (!isPartnerDownlineMember(normalized, downlineWallets, teamNodes)) return false;
-
-      if (wallet && isDemoWallet(wallet)) {
-        const aliases = loadTeamAliases(wallet);
-        const label =
-          getTeamAlias(aliases, normalized) || findPartnerTeamNodeLabel(teamNodes, normalized);
-        persist(
-          applySd3Transfer(
-            state,
-            normalized,
-            amount,
-            label,
-          ),
-        );
-        return true;
-      }
-
       if (!wallet) return false;
       try {
         await transferPartnerSd3(wallet, normalized, amount);
@@ -205,7 +207,7 @@ export function usePartnerProgram(wallet: string | null) {
         return false;
       }
     },
-    [state, persist, teamNodes, downlineWallets, wallet, refreshTeamProfile],
+    [state, teamNodes, downlineWallets, wallet, refreshTeamProfile],
   );
 
   const [yieldWithdrawing, setYieldWithdrawing] = useState(false);
@@ -238,14 +240,12 @@ export function usePartnerProgram(wallet: string | null) {
       receiptPaths: string[];
     }) => {
       const { amountUsd, purpose, applicationType, receiptPaths } = input;
-      if (!state.isPartner || !purpose.trim() || !wallet || isDemoWallet(wallet)) {
-        if (!wallet || isDemoWallet(wallet)) {
-          const next = applyPartnerSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
-          if (next === state) return false;
-          persist(next);
-          return true;
-        }
-        return false;
+      if (!state.isPartner || !purpose.trim() || !wallet) return false;
+      if (isDemoWallet(wallet)) {
+        const next = applyPartnerSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
+        if (next === state) return false;
+        persist(next);
+        return true;
       }
       try {
         await createPartnerSubsidyTicket(wallet, {
@@ -272,14 +272,12 @@ export function usePartnerProgram(wallet: string | null) {
       receiptPaths: string[];
     }) => {
       const { amountUsd, purpose, applicationType, receiptPaths } = input;
-      if (!state.isPartner || !purpose.trim() || !wallet || isDemoWallet(wallet)) {
-        if (!wallet || isDemoWallet(wallet)) {
-          const next = applyMarketSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
-          if (next === state) return false;
-          persist(next);
-          return true;
-        }
-        return false;
+      if (!state.isPartner || !purpose.trim() || !wallet) return false;
+      if (isDemoWallet(wallet)) {
+        const next = applyMarketSubsidy(state, amountUsd, purpose, applicationType, receiptPaths);
+        if (next === state) return false;
+        persist(next);
+        return true;
       }
       try {
         await createPartnerSubsidyTicket(wallet, {
@@ -318,22 +316,12 @@ export function usePartnerProgram(wallet: string | null) {
 
   const hasStake = stats.orderCount > 0;
 
-  const resolvedTeamStats = useMemo((): PartnerTeamStats => {
-    if (isDemoWallet(wallet ?? '')) {
-      return {
-        personalPerformanceUsd: state.stakeOrders.reduce((s, o) => s + o.principalUsdt, 0),
-        teamPerformanceUsd: state.teamPerformanceUsd,
-        dailyNewPerformanceUsd: state.dailyNewPerformanceUsd,
-      };
-    }
-    return teamStats;
-  }, [wallet, state, teamStats]);
-
   return {
     state,
     stats,
     teamNodes,
-    teamStats: resolvedTeamStats,
+    teamStats,
+    pendingSd3Earned,
     downlineWallets,
     teamLoading,
     refreshTeamProfile,

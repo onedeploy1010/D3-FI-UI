@@ -55,6 +55,7 @@ export default function PartnerProgram() {
     state,
     teamNodes,
     teamStats,
+    pendingSd3Earned,
     teamLoading,
     downlineWallets,
     refreshTeamProfile,
@@ -231,6 +232,7 @@ export default function PartnerProgram() {
                   wallet={wallet}
                   state={state}
                   teamStats={teamStats}
+                  pendingSd3Earned={pendingSd3Earned}
                   subsidySettings={subsidySettings}
                   teamNodes={teamNodes}
                   downlineWallets={downlineWallets}
@@ -251,6 +253,7 @@ export default function PartnerProgram() {
                   wallet={wallet}
                   teamNodes={teamNodes}
                   teamStats={teamStats}
+                  pendingSd3Earned={pendingSd3Earned}
                   teamLoading={teamLoading}
                   onTransferSd3={handleTransferSd3}
                   transferGuideActive={teamTransferGuide}

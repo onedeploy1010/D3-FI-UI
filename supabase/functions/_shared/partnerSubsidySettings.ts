@@ -1,6 +1,10 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { fetchPartnerTeamStats } from './partnerPerformance.ts';
 import { HttpError } from './wallet.ts';
+import {
+  computeDedupMarketLeaderSubsidyPerformance,
+  computeDedupPartnerSubsidyPerformance,
+  sumDownlineMarketSubsidyPerformanceDeduction,
+} from './partnerSubsidyPerformance.ts';
 
 type Sb = SupabaseClient;
 
@@ -65,37 +69,74 @@ function activeTicketStatuses() {
   return ['open', 'pending_info', 'under_review', 'approved', 'paid'];
 }
 
+export type SubsidyQuotaResult = {
+  ratePct: number;
+  /** 可计算业绩 */
+  basePerformanceUsd: number;
+  /** 可申请额度上限 */
+  cap: number;
+  /** 已申请 */
+  reserved: number;
+  /** 剩余可申请 */
+  remaining: number;
+  dedupPerformanceUsd: number;
+  marketDeductionUsd?: number;
+};
+
 export async function computeSubsidyQuota(
   sb: Sb,
   wallet: string,
   kind: 'partner_subsidy' | 'market_subsidy',
-) {
-  const [settings, stats, tickets] = await Promise.all([
-    getPartnerProgramSettings(sb),
-    fetchPartnerTeamStats(sb, wallet),
+): Promise<SubsidyQuotaResult> {
+  const settings = await getPartnerProgramSettings(sb);
+  const ratePct =
+    kind === 'partner_subsidy' ? settings.partnerSubsidyRatePct : settings.marketSubsidyRatePct;
+  const rate = ratePct / 100;
+
+  const [tickets, dedupPartnerPerf, dedupLeaderPerf, marketDeductionPerf] = await Promise.all([
     sb
       .from('partner_subsidy_tickets')
       .select('kind, amount_usd, status')
       .ilike('wallet_address', wallet)
       .eq('kind', kind)
       .in('status', activeTicketStatuses()),
+    computeDedupPartnerSubsidyPerformance(sb, wallet),
+    computeDedupMarketLeaderSubsidyPerformance(sb, wallet),
+    sumDownlineMarketSubsidyPerformanceDeduction(sb, wallet, settings.marketSubsidyRatePct),
   ]);
 
-  const ratePct =
-    kind === 'partner_subsidy' ? settings.partnerSubsidyRatePct : settings.marketSubsidyRatePct;
-  const rate = ratePct / 100;
-  const base = stats.dailyNewPerformanceUsd;
-  const cap = Math.round(base * rate * 100) / 100;
   const reserved = (tickets.data ?? []).reduce((s, t) => s + Number(t.amount_usd ?? 0), 0);
-  const remaining = Math.max(0, Math.round((cap - reserved) * 100) / 100);
 
+  if (kind === 'partner_subsidy') {
+    const calculable = Math.max(0, round2(dedupPartnerPerf - marketDeductionPerf));
+    const cap = round2(calculable * rate);
+    const remaining = Math.max(0, round2(cap - reserved));
+    return {
+      ratePct,
+      basePerformanceUsd: calculable,
+      cap,
+      reserved: round2(reserved),
+      remaining,
+      dedupPerformanceUsd: dedupPartnerPerf,
+      marketDeductionUsd: marketDeductionPerf,
+    };
+  }
+
+  const calculable = dedupLeaderPerf;
+  const cap = round2(calculable * rate);
+  const remaining = Math.max(0, round2(cap - reserved));
   return {
     ratePct,
-    basePerformanceUsd: base,
+    basePerformanceUsd: calculable,
     cap,
-    reserved,
+    reserved: round2(reserved),
     remaining,
+    dedupPerformanceUsd: dedupLeaderPerf,
   };
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 export async function assertSubsidyAmountWithinQuota(
