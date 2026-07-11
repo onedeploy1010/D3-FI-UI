@@ -90,8 +90,16 @@ function finalizeDemoPartnerState(
   merged: PartnerState,
   session = loadDemoPartnerSession(),
 ): PartnerState {
+  const hasApiHistory = (merged.sd3SettlementHistory?.length ?? 0) > 0;
   const baseline = {
     ...merged,
+    sd3SettlementHistory: hasApiHistory
+      ? merged.sd3SettlementHistory
+      : DEMO_PARTNER_BASELINE.sd3SettlementHistory,
+    lifetimeSd3Earned:
+      merged.lifetimeSd3Earned > 0
+        ? merged.lifetimeSd3Earned
+        : DEMO_PARTNER_BASELINE.lifetimeSd3Earned,
     isPartner: false,
     joinedAt: null,
     stakeOrders: [],

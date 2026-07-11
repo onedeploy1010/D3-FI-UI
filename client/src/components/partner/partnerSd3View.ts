@@ -14,10 +14,19 @@ export function sumSd3Transferred(state: PartnerState): number {
   return round2((state.transfers ?? []).reduce((s, t) => s + t.amountSd3, 0));
 }
 
-/** Available sD3 — partner accounts use server sd3_balance. */
+/** Settled sD3 total — history sum, then lifetime, then balance (covers demo API gaps). */
+export function resolveSettledSd3Base(state: PartnerState): number {
+  const fromHistory = sumSettledSd3(state);
+  if (fromHistory > 0) return fromHistory;
+  if (state.lifetimeSd3Earned > 0) return round2(state.lifetimeSd3Earned);
+  if (state.sd3Balance > 0) return round2(state.sd3Balance);
+  return 0;
+}
+
+/** Available sD3 — partners use server balance; others deduct transfers/stakes from settled base. */
 export function getSd3Available(state: PartnerState): number {
   if (state.isPartner) return round2(state.sd3Balance);
-  const settled = sumSettledSd3(state);
+  const settled = resolveSettledSd3Base(state);
   const transferred = sumSd3Transferred(state);
   const staked = state.sd3StakedFromRewards ?? 0;
   return Math.max(0, round2(settled - transferred - staked));

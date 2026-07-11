@@ -7,7 +7,7 @@ import {
   type PartnerTransfer,
   type StakeOrderKind,
 } from '@/components/partner/partnerData';
-import { sumSettledSd3 } from '@/components/partner/partnerSd3View';
+import { resolveSettledSd3Base } from '@/components/partner/partnerSd3View';
 
 const SESSION_KEY = 'd3_demo_partner_session';
 
@@ -67,8 +67,7 @@ function sumMockTransferred(session: DemoPartnerSession): number {
 
 /** Settled sD3 baseline for demo — from performance/settlements, before session mock transfers. */
 export function demoSettledSd3Base(state: PartnerState): number {
-  if (state.lifetimeSd3Earned > 0) return round2(state.lifetimeSd3Earned);
-  return sumSettledSd3(state);
+  return resolveSettledSd3Base(state);
 }
 
 function mergeMockStakeOrders(baseOrders: PartnerStakeOrder[], session: DemoPartnerSession): PartnerStakeOrder[] {
