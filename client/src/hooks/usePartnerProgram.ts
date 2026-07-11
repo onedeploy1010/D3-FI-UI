@@ -26,8 +26,10 @@ import {
 import { getSd3Available } from '@/components/partner/partnerSd3View';
 import {
   buildPartnerTeamNodes,
+  buildDemoPartnerTeamFallback,
   emptyPartnerTeamNodes,
   findPartnerTeamNodeLabel,
+  isEmptyPartnerTeamData,
   isPartnerDownlineMember,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
@@ -172,10 +174,16 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       } catch {
         /* keep local subsidy state */
       }
-      setTeamNodes(buildPartnerTeamNodes(wallet, bundle));
-      setTeamStats(bundle.partnerTeamStats ?? EMPTY_TEAM_STATS);
+      let nodes = buildPartnerTeamNodes(wallet, bundle);
+      let stats = bundle.partnerTeamStats ?? EMPTY_TEAM_STATS;
+      let downlines = bundle.partnerDownlineWallets ?? [];
+      if (isDemoWallet(wallet) && isEmptyPartnerTeamData(nodes, stats)) {
+        ({ nodes, stats, downlineWallets: downlines } = buildDemoPartnerTeamFallback(wallet));
+      }
+      setTeamNodes(nodes);
+      setTeamStats(stats);
       setPendingSd3Earned(bundle.pendingSd3Earned ?? 0);
-      setDownlineWallets(bundle.partnerDownlineWallets ?? []);
+      setDownlineWallets(downlines);
       setState((prev) => {
         const hydrateBase = isDemoWallet(wallet) ? DEMO_PARTNER_BASELINE : prev;
         const merged = { ...hydrateFromBundle(hydrateBase, bundle), ...subsidyPatch };
@@ -184,12 +192,18 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         return next;
       });
     } catch {
-      setTeamNodes(emptyPartnerTeamNodes(wallet));
-      setTeamStats(EMPTY_TEAM_STATS);
-      setPendingSd3Earned(0);
-      setDownlineWallets([]);
       if (isDemoWallet(wallet)) {
+        const { nodes, stats, downlineWallets } = buildDemoPartnerTeamFallback(wallet);
+        setTeamNodes(nodes);
+        setTeamStats(stats);
+        setDownlineWallets(downlineWallets);
+        setPendingSd3Earned(0);
         setState(finalizeDemoPartnerState(DEMO_PARTNER_BASELINE));
+      } else {
+        setTeamNodes(emptyPartnerTeamNodes(wallet));
+        setTeamStats(EMPTY_TEAM_STATS);
+        setPendingSd3Earned(0);
+        setDownlineWallets([]);
       }
     } finally {
       setTeamLoading(false);

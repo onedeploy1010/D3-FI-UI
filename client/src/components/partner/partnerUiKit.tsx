@@ -89,18 +89,21 @@ export function PartnerRaisedButton({
   variant = 'primary',
   disabled,
   className = '',
+  'data-guide': dataGuide,
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
   className?: string;
+  'data-guide'?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
+      data-guide={dataGuide}
       className={`partner-raised-btn flex-1 py-2.5 px-3 rounded-xl text-[11px] font-bold ios-glass-pressable disabled:opacity-40 disabled:pointer-events-none ${
         variant === 'primary'
           ? 'partner-raised-btn-primary text-white'

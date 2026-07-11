@@ -1,4 +1,4 @@
-import type { DirectReferral, UnionProfileBundle } from '@/lib/d3fiTypes';
+import type { DirectReferral, PartnerTeamStats, UnionProfileBundle } from '@/lib/d3fiTypes';
 import { shortWallet } from '@/lib/wallet';
 
 export type PartnerTeamNode = {
@@ -15,7 +15,49 @@ export type PartnerTeamNode = {
   teamCount: number;
   isDirect: boolean;
   isPartner: boolean;
+  /** Shown only during transfer guide when user has no real downline. */
+  isGuideMock?: boolean;
 };
+
+export const GUIDE_MOCK_DOWNLINE_ID = 'guide-mock-d1';
+
+/** Inject a mock direct downline for transfer guide when the tree has no children. */
+export function mergeGuideMockDownline(
+  nodes: Record<string, PartnerTeamNode>,
+  mockLabel: string,
+): Record<string, PartnerTeamNode> {
+  const me = nodes.me;
+  if (!me || me.childrenIds.length > 0) return nodes;
+  const mock: PartnerTeamNode = {
+    id: GUIDE_MOCK_DOWNLINE_ID,
+    address: '0x0000000000000000000000000000000000000001',
+    short: '0x0000…0001',
+    label: mockLabel,
+    parentId: 'me',
+    childrenIds: [],
+    teamUsd: 1200,
+    dailyNewUsd: 300,
+    personalUsd: 500,
+    directCount: 0,
+    teamCount: 1,
+    isDirect: true,
+    isPartner: false,
+    isGuideMock: true,
+  };
+  return {
+    ...nodes,
+    me: { ...me, childrenIds: [GUIDE_MOCK_DOWNLINE_ID] },
+    [GUIDE_MOCK_DOWNLINE_ID]: mock,
+  };
+}
+
+/** First direct downline id for guide spotlight (prefers real nodes over mock). */
+export function pickGuideTransferTargetId(nodes: Record<string, PartnerTeamNode>): string | null {
+  const me = nodes.me;
+  if (!me) return null;
+  const child = me.childrenIds.map((id) => nodes[id]).find(Boolean);
+  return child?.id ?? null;
+}
 
 function num(v: unknown): number {
   return Number(v ?? 0) || 0;
@@ -129,6 +171,49 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     isPartner: true,
   },
 };
+
+/** Client-side demo fallback when Supabase profile/seed is unavailable. */
+export function buildDemoPartnerTeamFallback(wallet: string): {
+  nodes: Record<string, PartnerTeamNode>;
+  stats: PartnerTeamStats;
+  downlineWallets: string[];
+} {
+  const nodes: Record<string, PartnerTeamNode> = {};
+  for (const [id, node] of Object.entries(partnerTeamNodes)) {
+    nodes[id] =
+      id === 'me'
+        ? { ...node, address: wallet, short: shortWallet(wallet) }
+        : { ...node };
+  }
+  const me = nodes.me!;
+  const areas = computePartnerAreaStats(nodes);
+  const stats: PartnerTeamStats = {
+    personalPerformanceUsd: me.personalUsd,
+    teamPerformanceUsd: me.teamUsd,
+    dailyNewPerformanceUsd: me.dailyNewUsd,
+    smallAreaPerformanceUsd: areas.smallAreaUsd,
+    smallAreaNewPerformanceUsd: areas.smallAreaNewUsd,
+    largeAreaPerformanceUsd: areas.largeAreaUsd,
+    largeAreaNewPerformanceUsd: areas.largeAreaNewUsd,
+  };
+  const downlineWallets = Object.values(nodes)
+    .filter((n) => n.id !== 'me')
+    .map((n) => n.address);
+  return { nodes, stats, downlineWallets };
+}
+
+export function isEmptyPartnerTeamData(
+  nodes: Record<string, PartnerTeamNode>,
+  stats: PartnerTeamStats,
+): boolean {
+  const me = nodes.me;
+  const noDownline = !me || me.childrenIds.length === 0;
+  const noPerf =
+    (stats.teamPerformanceUsd ?? 0) === 0 &&
+    (stats.largeAreaPerformanceUsd ?? 0) === 0 &&
+    (stats.smallAreaPerformanceUsd ?? 0) === 0;
+  return noDownline && noPerf;
+}
 
 export function partnerTeamDepth(nodes: Record<string, PartnerTeamNode>, nodeId: string): number {
   let depth = 0;

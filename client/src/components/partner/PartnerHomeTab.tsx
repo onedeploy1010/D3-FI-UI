@@ -35,6 +35,7 @@ export function PartnerHomeTab({
   paying,
   lastDepositIntent,
   onHomeStake,
+  onGoTeamTransferGuide,
 }: {
   lang: AppLang;
   isDark: boolean;
@@ -46,6 +47,7 @@ export function PartnerHomeTab({
   paying: boolean;
   lastDepositIntent?: DepositIntent | null;
   onHomeStake: (amount: number, withPartnerJoin: boolean) => Promise<boolean>;
+  onGoTeamTransferGuide?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const [amount, setAmount] = useState(String(DEFAULT_HOME_STAKE_USDT));
@@ -287,7 +289,17 @@ export function PartnerHomeTab({
                     <PartnerSd3Amount value={sd3Balance} />
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                    {p('home.sd3QuotaHint')}
+                    {p('home.sd3QuotaHintBefore')}
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 text-[#E0568F] font-semibold mx-0.5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onGoTeamTransferGuide?.();
+                      }}
+                    >
+                      {p('home.sd3TransferDownlineLink')}
+                    </button>
                   </span>
                 </span>
               </button>

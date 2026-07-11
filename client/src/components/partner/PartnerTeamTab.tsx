@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { PartnerTeamTree } from '@/components/partner/PartnerTeamTree';
@@ -55,6 +55,11 @@ export function PartnerTeamTab({
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sort, setSort] = useState<Sd3Sort>('date_desc');
+  const [transferGuideStep, setTransferGuideStep] = useState(-1);
+
+  useEffect(() => {
+    if (transferGuideActive) setSub('tree');
+  }, [transferGuideActive]);
 
   const treeNodes = useMemo(() => {
     if (teamNodes.me) return teamNodes;
@@ -138,6 +143,8 @@ export function PartnerTeamTab({
           isPartner={isPartner}
           transferQuota={transferQuota}
           onTransferSd3={isPartner ? onTransferSd3 : undefined}
+          transferGuideActive={transferGuideActive}
+          transferGuideStep={transferGuideStep}
         />
       )}
 
@@ -243,7 +250,11 @@ export function PartnerTeamTab({
         lang={lang}
         isDark={isDark}
         active={Boolean(transferGuideActive)}
-        onComplete={() => onTransferGuideComplete?.()}
+        onStepChange={setTransferGuideStep}
+        onComplete={() => {
+          setTransferGuideStep(-1);
+          onTransferGuideComplete?.();
+        }}
       />
     </div>
   );

@@ -218,6 +218,7 @@ export default function PartnerProgram() {
                   paying={depositPaying}
                   lastDepositIntent={lastIntent}
                   onHomeStake={handleHomeStake}
+                  onGoTeamTransferGuide={handleGoTeamTransferGuide}
                 />
               )}
               {tab === 'stake' && (

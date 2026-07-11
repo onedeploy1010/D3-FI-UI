@@ -46,13 +46,6 @@ function useDemoWalletState() {
     clearDemoPartnerSession();
     writeDemoWalletSession();
     try {
-      await resetDemoPartnerSession(DEMO_LINE_LEADER_WALLET);
-    } catch {
-      // Supabase may be offline during UI-only dev
-    }
-    setDemoSessionKey((k) => k + 1);
-    setDemoWallet(DEMO_LINE_LEADER_WALLET);
-    try {
       await ensureUnionProfile(DEMO_LINE_LEADER_WALLET, {
         lang: 'zh',
         displayName: DEMO_PROFILE.displayNameZh,
@@ -62,9 +55,12 @@ function useDemoWalletState() {
       } catch {
         // 远程未 seed 时由 isReferralBoundForWallet 客户端兜底
       }
+      await resetDemoPartnerSession(DEMO_LINE_LEADER_WALLET);
     } catch {
-      // Supabase may be offline during UI-only dev
+      // Supabase may be offline during UI-only dev — client fallback covers team data
     }
+    setDemoWallet(DEMO_LINE_LEADER_WALLET);
+    setDemoSessionKey((k) => k + 1);
   }, []);
 
   const deactivateDemo = useCallback(() => {

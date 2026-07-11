@@ -4,7 +4,7 @@ import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
 import { partnerTreeLevelKey } from '@/components/partner/partnerData';
-import { partnerTeamDepth, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
   loadTeamAliases,
@@ -153,6 +153,8 @@ export function PartnerTeamTree({
   isPartner = false,
   transferQuota = 0,
   onTransferSd3,
+  transferGuideActive = false,
+  transferGuideStep = -1,
 }: {
   lang: AppLang;
   isDark: boolean;
@@ -162,6 +164,8 @@ export function PartnerTeamTree({
   isPartner?: boolean;
   transferQuota?: number;
   onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
+  transferGuideActive?: boolean;
+  transferGuideStep?: number;
 }) {
   const p = usePartnerTranslation(lang);
   const [focusId, setFocusId] = useState('me');
@@ -173,6 +177,13 @@ export function PartnerTeamTree({
     setAliases(loadTeamAliases(wallet));
   }, [wallet]);
 
+  useEffect(() => {
+    if (transferGuideActive) {
+      setFocusId('me');
+      setQ('');
+    }
+  }, [transferGuideActive]);
+
   const saveAlias = useCallback(
     (address: string, alias: string) => {
       if (!wallet || address.trim().toLowerCase() === wallet.trim().toLowerCase()) return;
@@ -183,14 +194,24 @@ export function PartnerTeamTree({
 
   const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferSd3);
 
-  const focus = nodes[focusId] ?? nodes.me;
-  const parent = focus?.parentId ? nodes[focus.parentId] : null;
-  const children = focus?.childrenIds.map((id) => nodes[id]).filter(Boolean) ?? [];
+  const displayNodes = useMemo(() => {
+    if (!transferGuideActive) return nodes;
+    return mergeGuideMockDownline(nodes, p('tree.guideMockLabel'));
+  }, [nodes, transferGuideActive, p]);
+
+  const guideTargetId = useMemo(
+    () => (transferGuideActive ? pickGuideTransferTargetId(displayNodes) : null),
+    [displayNodes, transferGuideActive],
+  );
+
+  const focus = displayNodes[focusId] ?? displayNodes.me;
+  const parent = focus?.parentId ? displayNodes[focus.parentId] : null;
+  const children = focus?.childrenIds.map((id) => displayNodes[id]).filter(Boolean) ?? [];
 
   const searchHits = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle || !focus) return [] as PartnerTeamNode[];
-    return Object.values(nodes).filter((n) => {
+    return Object.values(displayNodes).filter((n) => {
       if (n.id === 'me') return false;
       const alias = getTeamAlias(aliases, n.address).toLowerCase();
       return (
@@ -200,19 +221,30 @@ export function PartnerTeamTree({
         alias.includes(needle)
       );
     });
-  }, [q, nodes, focus, aliases]);
+  }, [q, displayNodes, focus, aliases]);
 
   const listNodes = q.trim() ? searchHits : children;
 
   function TreeNodeCard({ node }: { node: PartnerTeamNode }) {
     const levelKey = partnerTreeLevelKey(node.isPartner, node.teamUsd);
     const hasChildren = node.childrenIds.length > 0;
-    const nodeDepth = partnerTeamDepth(nodes, node.id);
+    const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
-    const canEditRemark = Boolean(wallet) && node.id !== 'me';
+    const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
+    const showTransferBtn =
+      node.id !== 'me' &&
+      ((canTransfer && !node.isGuideMock) ||
+        (transferGuideActive && node.id === guideTargetId));
+    const highlightTransfer =
+      transferGuideActive && transferGuideStep === 2 && node.id === guideTargetId;
 
     return (
-      <div className={`partner-elevated-card p-4 space-y-3 ${glassCardClass('default', '')}`}>
+      <div
+        className={cn(
+          `partner-elevated-card p-4 space-y-3 ${glassCardClass('default', '')}`,
+          node.isGuideMock && 'border border-dashed border-[#E0568F]/35',
+        )}
+      >
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="flex flex-wrap items-center gap-1.5">
           <PartnerLevelBadge label={p(levelKey)} />
@@ -231,6 +263,11 @@ export function PartnerTeamTree({
             p={p}
             onSave={(next) => saveAlias(node.address, next)}
           />
+          {node.isGuideMock && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20">
+              {p('tree.guideMockBadge')}
+            </span>
+          )}
         </div>
         <AddressBlock value={node.address} isDark={isDark} compact showCopy />
         <NodeStatGrid node={node} isDark={isDark} p={p} />
@@ -242,8 +279,18 @@ export function PartnerTeamTree({
           >
             {p('tree.viewDownline')}
           </PartnerRaisedButton>
-          {canTransfer && node.id !== 'me' && (
-            <PartnerRaisedButton onClick={() => setTransferTarget(node)}>
+          {showTransferBtn && (
+            <PartnerRaisedButton
+              data-guide={highlightTransfer ? 'tree-transfer-btn' : undefined}
+              className={cn(
+                highlightTransfer &&
+                  'ring-2 ring-[#E0568F] ring-offset-2 ring-offset-transparent shadow-[0_0_20px_rgba(224,86,143,0.45)] animate-pulse',
+              )}
+              onClick={() => {
+                if (node.isGuideMock) return;
+                setTransferTarget(node);
+              }}
+            >
               {p('tree.transferSd3')}
             </PartnerRaisedButton>
           )}
