@@ -12,6 +12,7 @@ import {
   requestPartnerYieldWithdraw,
 } from '../_shared/partnerYieldWithdraw.ts';
 import { transferPartnerSd3 } from '../_shared/partnerSd3Transfer.ts';
+import { stakePartnerSd3 } from '../_shared/partnerSd3Stake.ts';
 import { runTreasuryPipeline } from '../_shared/sweep.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { isTurnkeyConfigured, treasuryAddressFromEnv, treasuryWalletIdFromEnv, isTurnkeyConsensusError } from '../_shared/turnkey.ts';
@@ -81,6 +82,13 @@ Deno.serve(async (req) => {
       );
       const { runDailyPartnerSettlement } = await import('../_shared/partnerSettlement.ts');
       const result = await runDailyPartnerSettlement(sb, body.settlementDate);
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    if (req.method === 'POST' && path === '/internal/partner-demo-tick') {
+      requireCronSecret(req);
+      const { runDemoPartnerDailyTick } = await import('../_shared/demoPartnerDailyTick.ts');
+      const result = await runDemoPartnerDailyTick(sb);
       return jsonResponse({ ok: true, ...result });
     }
 
@@ -159,6 +167,15 @@ Deno.serve(async (req) => {
         throw new HttpError(400, 'amountSd3 required');
       }
       const result = await transferPartnerSd3(sb, wallet, body.toWallet.trim(), body.amountSd3);
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    if (req.method === 'POST' && path === '/partner/sd3-stake') {
+      const body = await readJson<{ amountSd3: number }>(req);
+      if (!body.amountSd3 || body.amountSd3 <= 0) {
+        throw new HttpError(400, 'amountSd3 required');
+      }
+      const result = await stakePartnerSd3(sb, wallet, body.amountSd3);
       return jsonResponse({ ok: true, ...result });
     }
 

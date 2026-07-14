@@ -59,7 +59,7 @@ export default function Portal() {
       cta: '进入应用',
     },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · USD3 / D3', badge: '节点站点', cta: '进入联盟' },
-    partner: { title: '合伙人计划', desc: '推荐绑定 · 众筹质押 · 受贿 sD3', badge: '已上线', cta: '进入' },
+    partner: { title: '合伙人计划', desc: '推荐绑定 · 众筹质押 · UD3', badge: '已上线', cta: '进入' },
     announcements: '协议公告',
     protocolPublic: '协议公共',
     epoch: '当前 Epoch',
@@ -86,7 +86,7 @@ export default function Portal() {
       cta: 'Enter App',
     },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · USD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
-    partner: { title: 'Partner Program', desc: 'Referral · Crowdfund · sD3', badge: 'Live', cta: 'Enter' },
+    partner: { title: 'Partner Program', desc: 'Referral · Crowdfund · UD3', badge: 'Live', cta: 'Enter' },
     announcements: 'Protocol Updates',
     protocolPublic: 'Protocol Public',
     epoch: 'Current Epoch',
@@ -123,8 +123,15 @@ export default function Portal() {
               </GlassChip>
             </div>
             <div className="flex items-center gap-2 min-w-0">
-              <div className={`font-mono text-[11px] sm:text-xs address-full min-w-0 flex-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{wallet ?? '—'}</div>
-              <GlassIconButton onClick={handleCopy} aria-label="Copy address">
+              <div
+                className={`font-mono text-[9px] sm:text-[10px] leading-none tracking-tight min-w-0 flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] ${
+                  isDark ? 'text-white' : 'text-[#160510]'
+                }`}
+                title={wallet ?? undefined}
+              >
+                {wallet ?? '—'}
+              </div>
+              <GlassIconButton onClick={handleCopy} aria-label="Copy address" className="shrink-0">
                 {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className={isDark ? 'text-white/40' : 'text-[#160510]/40'} />}
               </GlassIconButton>
             </div>

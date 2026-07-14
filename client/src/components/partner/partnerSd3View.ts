@@ -1,5 +1,6 @@
-import { calcDailySd3, type PartnerState, type Sd3SettlementRecord } from '@/components/partner/partnerData';
+import { type PartnerState, type Sd3SettlementRecord } from '@/components/partner/partnerData';
 import { computePartnerAreaStats, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { estimatePendingUd3ForMe } from '@/components/partner/ud3DemoSettle';
 import type { PartnerSd3AllocationRow, PartnerTeamStats } from '@/lib/d3fiTypes';
 
 function round2(n: number): number {
@@ -71,9 +72,10 @@ export function resolvePartnerSd3Metrics(
 ): PartnerSd3Metrics {
   const fromStats = areasFromTeamStats(teamStats);
   const areas = fromStats ?? computePartnerAreaStats(teamNodes);
+  /** Pending UD3：按各节点当日新增，直推 60% + 网体极差（与结算引擎一致）。 */
+  const pendingFromRules = estimatePendingUd3ForMe(teamNodes);
   const pendingSd3 =
-    pendingFromApi ??
-    calcDailySd3(areas.smallAreaUsd, areas.smallAreaNewUsd, state.isPartner);
+    pendingFromApi != null && pendingFromApi > 0 ? pendingFromApi : pendingFromRules;
   const settled = sumSettledSd3(state);
   const lifetimeSd3 =
     state.lifetimeSd3Earned > 0 ? state.lifetimeSd3Earned : settled > 0 ? settled : 0;

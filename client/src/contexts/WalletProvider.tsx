@@ -17,6 +17,7 @@ import {
   writeDemoWalletSession,
 } from '@/lib/demoWallet';
 import { clearDemoPartnerLocalStorage } from '@/components/partner/partnerData';
+import { clearLocalDemoSim, resetLocalDemoSim } from '@/components/partner/ud3DemoDailyTick';
 import { clearDemoPartnerSession } from '@/lib/demoPartnerSession';
 import { resetDemoPartnerSession } from '@/lib/unionApi';
 import { shortWallet } from '@/lib/wallet';
@@ -44,6 +45,7 @@ function useDemoWalletState() {
   const activateDemo = useCallback(async () => {
     clearDemoPartnerLocalStorage(DEMO_LINE_LEADER_WALLET);
     clearDemoPartnerSession();
+    resetLocalDemoSim();
     writeDemoWalletSession();
     try {
       await ensureUnionProfile(DEMO_LINE_LEADER_WALLET, {
@@ -66,6 +68,7 @@ function useDemoWalletState() {
   const deactivateDemo = useCallback(() => {
     clearDemoPartnerSession();
     clearDemoPartnerLocalStorage(DEMO_LINE_LEADER_WALLET);
+    clearLocalDemoSim();
     clearDemoWalletSession();
     setDemoWallet(null);
   }, []);

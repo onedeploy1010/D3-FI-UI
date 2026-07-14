@@ -3,7 +3,7 @@ import { ArrowUp, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
-import { partnerTreeLevelKey } from '@/components/partner/partnerData';
+import { getUd3Tier, resolveUd3VLevel } from '@/components/partner/ud3Rules';
 import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
@@ -226,11 +226,13 @@ export function PartnerTeamTree({
   const listNodes = q.trim() ? searchHits : children;
 
   function TreeNodeCard({ node }: { node: PartnerTeamNode }) {
-    const levelKey = partnerTreeLevelKey(node.isPartner, node.teamUsd);
     const hasChildren = node.childrenIds.length > 0;
     const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
     const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
+    const nodeTier = getUd3Tier(node.teamUsd);
+    // Tree cards lack small-area snap — approximate V with total only for V1/V2; V3+ needs server stats later.
+    const nodeV = resolveUd3VLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: 0 });
     const showTransferBtn =
       node.id !== 'me' &&
       ((canTransfer && !node.isGuideMock) ||
@@ -247,7 +249,25 @@ export function PartnerTeamTree({
       >
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="flex flex-wrap items-center gap-1.5">
-          <PartnerLevelBadge label={p(levelKey)} />
+          <PartnerLevelBadge
+            label={
+              nodeTier
+                ? `${p('ud3.tierBadge', { n: nodeTier.id })} · ${nodeTier.ratePct}%`
+                : p('ud3.tierNone')
+            }
+          />
+          {nodeV && (
+            <span
+              className={cn(
+                'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 border',
+                isDark
+                  ? 'text-[#F5D0A9] bg-[#F5D0A9]/10 border-[#F5D0A9]/25'
+                  : 'text-[#8A2B57] bg-[#8A2B57]/8 border-[#8A2B57]/20',
+              )}
+            >
+              {nodeV.label}
+            </span>
+          )}
           <span
             className={cn(
               'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',
@@ -355,7 +375,12 @@ export function PartnerTeamTree({
           lang={lang}
           isDark={isDark}
           toAddress={transferTarget.address}
-          levelLabel={p(partnerTreeLevelKey(transferTarget.isPartner, transferTarget.teamUsd))}
+          levelLabel={(() => {
+            const t = getUd3Tier(transferTarget.teamUsd);
+            return t
+              ? `${p('ud3.tierBadge', { n: t.id })} · ${t.ratePct}%`
+              : p('ud3.tierNone');
+          })()}
           layerLabel={
             transferTarget.isDirect
               ? p('tree.direct')

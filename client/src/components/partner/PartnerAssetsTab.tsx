@@ -8,6 +8,9 @@ import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { Search } from 'lucide-react';
 import {
   buildHistoryRecords,
+  CROWDFUND_UNIT_PRICE_USDT,
+  d3ToUsdt,
+  formatD3Amount,
   getSd3Quotas,
   MIN_YIELD_WITHDRAW_USDT,
   resolveFlashYieldBalances,
@@ -58,7 +61,7 @@ export function PartnerAssetsTab({
   teamNodes?: Record<string, PartnerTeamNode>;
   pendingSd3Earned?: number;
   downlineWallets?: string[];
-  onStakeSd3: (amount: number) => void;
+  onStakeSd3: (amount: number) => void | Promise<boolean>;
   onTransferSd3: (to: string, amount: number) => Promise<boolean>;
   onWithdrawYield: (amount: number) => Promise<boolean>;
   yieldWithdrawing?: boolean;
@@ -121,11 +124,12 @@ export function PartnerAssetsTab({
   const [flashSubmitting, setFlashSubmitting] = useState(false);
 
   const submitFlashSwap = async () => {
-    const n = clampAmount(flashAmount, yieldBalances.claimable);
-    if (n < MIN_YIELD_WITHDRAW_USDT || flashSubmitting || yieldWithdrawing) return;
+    const d3Amt = clampAmount(flashAmount, yieldBalances.claimableD3);
+    const usdtAmt = d3ToUsdt(d3Amt, yieldBalances.d3PriceUsdt);
+    if (usdtAmt < MIN_YIELD_WITHDRAW_USDT || flashSubmitting || yieldWithdrawing) return;
     setFlashSubmitting(true);
     try {
-      const ok = await onWithdrawYield(n);
+      const ok = await onWithdrawYield(usdtAmt);
       if (ok) {
         setFlashAmount('');
         setFlashOpen(false);
@@ -156,7 +160,9 @@ export function PartnerAssetsTab({
     { id: 'transfer', label: p('assets.transferHist') },
   ];
 
-  const quickFlashAmounts = [10, 50, 100].filter((v) => v <= yieldBalances.claimable);
+  const flashD3Preview = clampAmount(flashAmount, yieldBalances.claimableD3);
+  const flashUsdtPreview = d3ToUsdt(flashD3Preview, yieldBalances.d3PriceUsdt);
+  const quickFlashAmounts = [1, 5, 10, 50].filter((v) => v <= yieldBalances.claimableD3);
 
   const historyKindLabel = (kind: PartnerHistoryKind) => {
     if (kind === 'withdraw') return p('assets.withdrawHist');
@@ -187,7 +193,10 @@ export function PartnerAssetsTab({
               <div className="ios-glass-inset p-2.5">
                 <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.accumulatedYield')}</div>
                 <div className="font-bold text-sm mt-0.5 text-emerald-500">
-                  ${yieldBalances.accruedTotal.toLocaleString()}
+                  {formatD3Amount(yieldBalances.accruedD3)} D3
+                </div>
+                <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
+                  ≈ ${yieldBalances.accruedTotal.toLocaleString()}
                 </div>
               </div>
               <div className="ios-glass-inset p-2.5">
@@ -210,13 +219,22 @@ export function PartnerAssetsTab({
               <div>
                 <div className="site-stat-label">{p('assets.flashYield')}</div>
                 <div className="text-2xl font-black text-emerald-500 mt-1">
-                  ${yieldBalances.claimable.toLocaleString()}
+                  {formatD3Amount(yieldBalances.claimableD3)} D3
+                </div>
+                <div className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
+                  ≈ ${yieldBalances.claimableUsdt.toLocaleString()}
+                  <span className={`font-normal text-[10px] ml-1 ${muted}`}>
+                    ({p('assets.d3PriceHint', { price: yieldBalances.d3PriceUsdt })})
+                  </span>
                 </div>
                 <div className={`text-[10px] mt-1 ${muted}`}>
                   {p('assets.flashYieldAvailable')}
-                  {!yieldBalances.canWithdraw && yieldBalances.claimable > 0 && (
+                  {!yieldBalances.canWithdraw && yieldBalances.claimableD3 > 0 && (
                     <span className="block text-amber-500/90 mt-0.5">
-                      {p('assets.flashYieldMin', { min: MIN_YIELD_WITHDRAW_USDT })}
+                      {p('assets.flashYieldMinD3', {
+                        min: formatD3Amount(yieldBalances.minWithdrawD3),
+                        usdt: MIN_YIELD_WITHDRAW_USDT,
+                      })}
                     </span>
                   )}
                 </div>
@@ -231,8 +249,11 @@ export function PartnerAssetsTab({
               </GlassButton>
             </div>
             <div className={`text-[10px] ${muted}`}>
-              {p('assets.dailyUsdt')}: ${yieldBalances.dailyUsdtYield.toFixed(2)} · {p('assets.withdrawn')}: $
-              {yieldBalances.claimedYieldUsdt.toLocaleString()}
+              {p('assets.dailyD3')}: {formatD3Amount(yieldBalances.dailyD3)} D3
+              <span className="mx-1">·</span>
+              ≈ ${yieldBalances.dailyUsdtYield.toFixed(4)}
+              <span className="mx-1">·</span>
+              {p('assets.withdrawn')}: {formatD3Amount(yieldBalances.claimedD3)} D3
             </div>
           </div>
 
@@ -348,35 +369,43 @@ export function PartnerAssetsTab({
         title={p('assets.flashSwapTitle')}
         isDark={isDark}
       >
-        <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>{p('assets.flashSwapHint')}</p>
+        <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>{p('assets.flashSwapHintD3')}</p>
         <div className={`text-[10px] mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-          {p('assets.flashYieldMin', { min: MIN_YIELD_WITHDRAW_USDT })}
+          {p('assets.d3PriceHint', { price: yieldBalances.d3PriceUsdt ?? CROWDFUND_UNIT_PRICE_USDT })}
         </div>
         <div className="ios-glass-inset p-3 flex justify-between items-center text-xs mb-4">
           <span className={muted}>{p('assets.flashYield')}</span>
-          <span className="font-bold text-emerald-500">${yieldBalances.claimable.toLocaleString()}</span>
+          <span className="text-right">
+            <span className="block font-bold text-emerald-500">{formatD3Amount(yieldBalances.claimableD3)} D3</span>
+            <span className={muted}>≈ ${yieldBalances.claimableUsdt.toLocaleString()}</span>
+          </span>
         </div>
         <div>
-          <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.flashSwapAmount')}</div>
+          <div className={`text-xs font-semibold mb-2 ${muted}`}>{p('assets.flashSwapAmountD3')}</div>
           <div className="flex items-center gap-3 ios-glass-inset px-3 py-3">
             <input
               type="number"
               min={0}
-              max={yieldBalances.claimable}
+              max={yieldBalances.claimableD3}
               value={flashAmount}
               onChange={(e) => setFlashAmount(e.target.value)}
               placeholder="0"
               className={`flex-1 bg-transparent text-xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`}
             />
-            <span className={`text-sm shrink-0 ${muted}`}>USDT</span>
+            <span className={`text-sm shrink-0 ${muted}`}>D3</span>
             <button
               type="button"
               className="text-[#E0568F] text-xs font-bold shrink-0"
-              onClick={() => setFlashAmount(String(yieldBalances.claimable))}
+              onClick={() => setFlashAmount(String(yieldBalances.claimableD3))}
             >
               MAX
             </button>
           </div>
+          {flashD3Preview > 0 && (
+            <div className={`text-[11px] mt-2 text-right ${muted}`}>
+              {p('assets.flashSwapReceive')}: <span className="font-bold text-emerald-500">${flashUsdtPreview.toLocaleString()}</span> USDT
+            </div>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap mt-3 mb-5">
           {quickFlashAmounts.map((v) => (
@@ -386,7 +415,7 @@ export function PartnerAssetsTab({
               onClick={() => setFlashAmount(String(v))}
               className="text-[10px] px-2.5 py-1 rounded-lg ios-glass-inset ios-glass-pressable text-emerald-500 font-semibold"
             >
-              ${v}
+              {v} D3
             </button>
           ))}
         </div>

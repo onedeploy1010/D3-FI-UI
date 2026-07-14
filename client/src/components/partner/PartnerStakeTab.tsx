@@ -5,13 +5,16 @@ import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerListFilters } from '@/components/partner/partnerUiKit';
 import {
+  formatD3Amount,
   formatDailyYieldUsdt,
   aggregateStakeOrders,
   stakeOrderDaysLeft,
   stakeOrderProgress,
   STAKE_LOCK_DAYS,
   isPrincipalStakeKind,
+  getStakeExitMultiplier,
   buildStakeOrderYieldHistory,
+  usdtToD3,
   type PartnerStakeOrder,
   type PartnerState,
   type StakeOrderKind,
@@ -46,7 +49,7 @@ export function PartnerStakeTab({
 }) {
   const p = usePartnerTranslation(lang);
   const crowdfundOrders = useMemo(
-    () => state.stakeOrders.filter((o) => isPrincipalStakeKind(o.kind)),
+    () => state.stakeOrders.filter((o) => isPrincipalStakeKind(o.kind) || o.kind === 'sd3'),
     [state.stakeOrders],
   );
   const stats = aggregateStakeOrders(crowdfundOrders);
@@ -148,7 +151,12 @@ export function PartnerStakeTab({
           </div>
           <div className="partner-depth-inset p-3 rounded-xl">
             <div className="site-stat-label">{p('stake.daily')}</div>
-            <div className="site-stat-value-md text-emerald-500">${formatDailyYieldUsdt(stats.dailyUsdtYield)}</div>
+            <div className="site-stat-value-md text-emerald-500">
+              {formatD3Amount(usdtToD3(stats.dailyUsdtYield))} D3
+            </div>
+            <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+              ≈ ${formatDailyYieldUsdt(stats.dailyUsdtYield)}
+            </div>
           </div>
         </div>
       </div>
@@ -197,9 +205,16 @@ export function PartnerStakeTab({
               </div>
               <div className="flex justify-between mb-2">
                 <span className={`font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                  ${order.principalUsdt.toLocaleString()}
+                  {order.kind === 'sd3' ? '' : '$'}
+                  {order.principalUsdt.toLocaleString()}
+                  {order.kind === 'sd3' ? ' UD3' : ''}
                 </span>
-                <span className="text-[10px] text-emerald-500">${formatDailyYieldUsdt(order.dailyYieldUsdt)}/{p('stake.perDay')}</span>
+                <span className="text-[10px] text-emerald-500">
+                  {formatD3Amount(usdtToD3(order.dailyYieldUsdt))} D3/{p('stake.perDay')}
+                  <span className={`ml-1.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                    {getStakeExitMultiplier(order.kind)}×
+                  </span>
+                </span>
               </div>
               <div className="h-1 rounded-full overflow-hidden mb-1 partner-depth-inset">
                 <div className="h-full rounded-full" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }} />
@@ -239,7 +254,10 @@ export function PartnerStakeTab({
                 <div className="text-right shrink-0">
                   <div className={`text-[10px] ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.daily')}</div>
                   <div className="text-sm font-semibold text-emerald-400">
-                    ${formatDailyYieldUsdt(historyOrder.dailyYieldUsdt)}
+                    {formatD3Amount(usdtToD3(historyOrder.dailyYieldUsdt))} D3
+                  </div>
+                  <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                    ≈ ${formatDailyYieldUsdt(historyOrder.dailyYieldUsdt)}
                   </div>
                 </div>
               </div>
@@ -283,7 +301,7 @@ export function PartnerStakeTab({
                           row.source === 'settled' ? 'text-emerald-400' : 'text-emerald-600'
                         }`}
                       >
-                        +${formatDailyYieldUsdt(row.yieldUsdt)}
+                        +{formatD3Amount(usdtToD3(row.yieldUsdt))} D3
                       </span>
                       <span
                         className={`text-[10px] text-right min-w-[2.75rem] font-medium leading-tight ${
@@ -338,7 +356,9 @@ export function PartnerStakeTab({
 
             <div className={`flex justify-between items-center pt-3 border-t ${isDark ? 'border-white/15' : 'border-[#160510]/12'}`}>
               <span className={`text-xs font-medium ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>{p('stake.yieldHistoryTotal')}</span>
-              <span className="text-base font-bold text-emerald-400">+${formatDailyYieldUsdt(historyTotal)}</span>
+              <span className="text-base font-bold text-emerald-400">
+                +{formatD3Amount(usdtToD3(historyTotal))} D3
+              </span>
             </div>
           </>
         )}

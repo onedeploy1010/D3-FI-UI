@@ -8,11 +8,22 @@ import type {
   PartnerYieldSettlementRow,
 } from '@/lib/d3fiTypes';
 import type { PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { partnerTeamNodes } from '@/components/partner/partnerTeamData';
+import {
+  buildDemoUd3SettlementHistory,
+  getDemoPendingDepositTotalUsd,
+  sumDemoUd3History,
+  DEMO_UD3_LAST_SETTLED,
+} from '@/components/partner/ud3DemoSettle';
 import {
   computeMarketSubsidyQuotaFromTree,
   computePartnerSubsidyQuotaFromTree,
   type SubsidyQuotaView,
 } from '@/components/partner/partnerSubsidyQuota';
+
+const DEMO_UD3_HISTORY = buildDemoUd3SettlementHistory(partnerTeamNodes);
+const DEMO_UD3_LIFETIME = sumDemoUd3History(DEMO_UD3_HISTORY);
+const DEMO_PENDING_NEW_USD = getDemoPendingDepositTotalUsd();
 
 /** Fixed USDT amount to become a partner (single partner_join stake). */
 export const PARTNER_ENTRY_USDT = 5000;
@@ -22,12 +33,28 @@ export const MIN_CROWDFUND_STAKE_USDT = 0.01;
 export const DEFAULT_HOME_STAKE_USDT = PARTNER_ENTRY_USDT;
 export const REGULAR_STAKE_STEP_USDT = 100;
 export const REGULAR_STAKE_MIN_USDT = 100;
+/** UD3 stake amounts must be whole multiples of 100. */
+export const SD3_STAKE_STEP = 100;
+export const SD3_STAKE_MIN = 100;
+/** USDT / crowdfund / partner-join 540d orders exit at 6× principal accrued yield. */
+export const STAKE_EXIT_MULTIPLIER_DEFAULT = 6;
+/** UD3 stake orders exit at 2× principal accrued yield (no bribe/UD3 re-generation). */
+export const STAKE_EXIT_MULTIPLIER_SD3 = 2;
 
 export function isValidRegularStakeAmount(amount: number): boolean {
   return (
     Number.isFinite(amount) &&
     amount >= REGULAR_STAKE_MIN_USDT &&
     amount % REGULAR_STAKE_STEP_USDT === 0
+  );
+}
+
+export function isValidSd3StakeAmount(amount: number, availableSd3: number): boolean {
+  return (
+    Number.isFinite(amount) &&
+    amount >= SD3_STAKE_MIN &&
+    amount % SD3_STAKE_STEP === 0 &&
+    amount <= availableSd3 + 1e-9
   );
 }
 /** Minimum USDT yield flash-withdraw (1 USDT @ 0.4%/day = 0.004). */
@@ -37,13 +64,46 @@ export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;
 export const CROWDFUND_TARGET_USDT = 20_000_000;
 export const CROWDFUND_TOKEN_SUPPLY = 1_050_000;
-/** Current DT crowdfund unit price (USDT per DT). */
+/** Current D3 crowdfund unit price (USDT per D3). */
 export const CROWDFUND_UNIT_PRICE_USDT = 5;
 
-/** Convert stake USDT into DT quantity at the crowdfund unit price. */
-export function usdtToDt(amountUsdt: number): number {
-  if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || CROWDFUND_UNIT_PRICE_USDT <= 0) return 0;
-  return Math.round((amountUsdt / CROWDFUND_UNIT_PRICE_USDT) * 100) / 100;
+/** Convert stake USDT into D3 quantity at the crowdfund unit price. */
+export function usdtToD3(amountUsdt: number, priceUsdt = CROWDFUND_UNIT_PRICE_USDT): number {
+  if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || priceUsdt <= 0) return 0;
+  return Math.round((amountUsdt / priceUsdt) * 1e6) / 1e6;
+}
+
+/** @deprecated Use usdtToD3 */
+export const usdtToDt = usdtToD3;
+
+/** Convert D3 quantity to USDT value at current crowdfund price. */
+export function d3ToUsdt(amountD3: number, priceUsdt = CROWDFUND_UNIT_PRICE_USDT): number {
+  if (!Number.isFinite(amountD3) || amountD3 <= 0 || priceUsdt <= 0) return 0;
+  return Math.round(amountD3 * priceUsdt * 1e6) / 1e6;
+}
+
+/** Daily USDT interest on gold-standard principal (0.4%/day). */
+export function calcDailyUsdtYield(stakedUsdt: number): number {
+  return stakedUsdt * DAILY_YIELD_RATE;
+}
+
+/**
+ * Daily D3 release: (principal × 0.4% USDT interest) / D3 price.
+ * Example: 1000 USDT → 4 USDT / 5 = 0.8 D3 per day.
+ */
+export function calcDailyD3Release(
+  stakedUsdt: number,
+  priceUsdt = CROWDFUND_UNIT_PRICE_USDT,
+): number {
+  return usdtToD3(calcDailyUsdtYield(stakedUsdt), priceUsdt);
+}
+
+export function formatD3Amount(amount: number, digits = 4): string {
+  if (!Number.isFinite(amount) || amount < 0) return (0).toFixed(digits);
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  });
 }
 export const PARTNER_SUBSIDY_RATE = 0.1;
 export const MARKET_SUBSIDY_RATE = 0.05;
@@ -124,7 +184,7 @@ export function partnerTreeLevelKey(
   return keys[idx >= 0 ? idx : 0];
 }
 
-/** 小区新增业绩(USDT)÷DT众筹价 → DT数量 × 等级受贿比例 × 直推分成。 */
+/** 小区新增业绩(USDT)÷D3众筹价 → D3数量 × 等级受贿比例 × 直推分成。 */
 export function calcDailySd3(
   smallAreaPerformanceUsd: number,
   smallAreaNewPerformanceUsd: number,
@@ -134,8 +194,8 @@ export function calcDailySd3(
   const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return 0;
   const split = getBribeTierSplit(tier);
-  const dtAmount = usdtToDt(smallAreaNewPerformanceUsd);
-  const gross = dtAmount * tier.rate;
+  const d3Amount = usdtToD3(smallAreaNewPerformanceUsd);
+  const gross = d3Amount * tier.rate;
   return Math.round(gross * split.directShare * 100) / 100;
 }
 
@@ -150,17 +210,13 @@ export function calcDailySd3Gross(
   const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return { grossSd3: 0, tierRatePct: 0, directSharePct: 0, uplineSharePct: 0 };
   const split = getBribeTierSplit(tier);
-  const grossSd3 = Math.round(usdtToDt(smallAreaNewPerformanceUsd) * tier.rate * 100) / 100;
+  const grossSd3 = Math.round(usdtToD3(smallAreaNewPerformanceUsd) * tier.rate * 100) / 100;
   return {
     grossSd3,
     tierRatePct: tier.ratePct,
     directSharePct: Math.round(split.directShare * 100),
     uplineSharePct: Math.round(split.uplineShare * 100),
   };
-}
-
-export function calcDailyUsdtYield(stakedUsdt: number): number {
-  return stakedUsdt * DAILY_YIELD_RATE;
 }
 
 /** 展示用：日返息固定 4 位小数。 */
@@ -189,6 +245,17 @@ export function normalizeStakeOrderKind(kind: string): StakeOrderKind {
 export function isPrincipalStakeKind(kind: StakeOrderKind | string): boolean {
   const k = normalizeStakeOrderKind(kind);
   return k === 'crowdfund' || k === 'partner_join';
+}
+
+export function getStakeExitMultiplier(kind: StakeOrderKind | string): number {
+  return normalizeStakeOrderKind(kind) === 'sd3'
+    ? STAKE_EXIT_MULTIPLIER_SD3
+    : STAKE_EXIT_MULTIPLIER_DEFAULT;
+}
+
+/** Max accrued yield before order exits (principal × exit multiple). */
+export function getStakeExitYieldCap(order: { kind: StakeOrderKind | string; principalUsdt: number }): number {
+  return Math.round(order.principalUsdt * getStakeExitMultiplier(order.kind) * 100) / 100;
 }
 
 function toDateLabel(iso: string): string {
@@ -238,7 +305,7 @@ export type PartnerHistoryRecord = {
   kind: PartnerHistoryKind;
   at: string;
   amount: number;
-  unit: 'USDT' | 'sD3';
+  unit: 'USDT' | 'UD3';
   stakeKind?: StakeOrderKind;
   toAddress?: string;
   toLabel?: string;
@@ -254,12 +321,20 @@ export type Sd3SettlementRecord = {
   dailyNewPerformanceUsd: number;
   tierRatePct: number;
   sd3Amount: number;
-  /** 直推 / 间推（上级分成） */
+  /** 直推 60% / 网体极差 */
   role?: Sd3RewardRole;
-  /** 该角色分成比例，如 50 表示 50% */
+  /** 直推=60；极差=本次 gap% */
   rewardSharePct?: number;
+  /** 网体极差实际差距（与 rewardSharePct 同值时可省略） */
+  gapPct?: number;
+  /** 收款人当时 V 级，如 V2 */
+  vLabel?: string;
+  /** 入金地址相对本人的层数：1=直推，2=二层… */
+  sourceDepth?: number;
   sourceAddress?: string;
   sourceLabel?: string;
+  /** Demo / 列表：已结算 vs 当日未结算 */
+  settlementStatus?: 'settled' | 'pending';
 };
 
 export type PartnerState = {
@@ -311,16 +386,21 @@ export function buildStakeOrderYieldHistory(
   const unlock = new Date(`${order.unlockAt}T23:59:59`);
   if (Number.isNaN(start.getTime()) || order.dailyYieldUsdt <= 0) return [];
 
+  const exitCap = getStakeExitYieldCap(order);
   const accrued: YieldReleaseRecord[] = [];
   const cursor = new Date(start);
-  while (cursor <= end && cursor <= unlock) {
+  let running = 0;
+  while (cursor <= end && cursor <= unlock && running < exitCap - 1e-9) {
     const date = cursor.toISOString().slice(0, 10);
+    const dayYield = Math.min(order.dailyYieldUsdt, Math.round((exitCap - running) * 100) / 100);
+    if (dayYield <= 0) break;
     accrued.push({
       id: `accrued-${order.id}-${date}`,
       date,
-      yieldUsdt: order.dailyYieldUsdt,
+      yieldUsdt: dayYield,
       source: 'accrued',
     });
+    running = Math.round((running + dayYield) * 100) / 100;
     cursor.setDate(cursor.getDate() + 1);
   }
   return accrued.sort((a, b) => b.date.localeCompare(a.date));
@@ -367,9 +447,11 @@ export function aggregateStakeOrders(orders: PartnerStakeOrder[]) {
 export function computeOrderYield(order: PartnerStakeOrder, now = Date.now()) {
   const start = new Date(order.startedAt).getTime();
   const days = Math.max(0, Math.floor((now - start) / 86400000));
-  const accrued = Math.round(days * order.dailyYieldUsdt * 100) / 100;
+  const uncapped = Math.round(days * order.dailyYieldUsdt * 100) / 100;
+  const exitCap = getStakeExitYieldCap(order);
+  const accrued = Math.min(uncapped, exitCap);
   const claimable = Math.max(0, Math.round((accrued - order.claimedYieldUsdt) * 100) / 100);
-  return { accrued, claimable };
+  return { accrued, claimable, exitCap, exited: uncapped >= exitCap };
 }
 
 export function computeYieldBalances(orders: PartnerStakeOrder[], now = Date.now()) {
@@ -390,17 +472,31 @@ export function computeYieldBalances(orders: PartnerStakeOrder[], now = Date.now
   };
 }
 
-/** Flash-withdraw balances: server pending yield is source of truth when settled. */
-export function resolveFlashYieldBalances(state: PartnerState, now = Date.now()) {
+/** Flash-withdraw balances: USDT interest is source of truth; D3 is displayed via price conversion. */
+export function resolveFlashYieldBalances(
+  state: PartnerState,
+  now = Date.now(),
+  d3PriceUsdt = CROWDFUND_UNIT_PRICE_USDT,
+) {
   const computed = computeYieldBalances(state.stakeOrders, now);
   const serverPending = Number(state.pendingUsdtYield ?? 0);
-  const claimable = serverPending > 0 ? serverPending : computed.claimable;
+  const claimableUsdt = serverPending > 0 ? serverPending : computed.claimable;
+  const accruedUsdt = Math.max(computed.accruedTotal, Number(state.lifetimeUsdtYield ?? 0));
+  const claimedUsdt = computed.claimedYieldUsdt;
+  const dailyUsdtYield = computed.dailyUsdtYield;
   return {
     ...computed,
-    claimable,
-    accruedTotal: Math.max(computed.accruedTotal, Number(state.lifetimeUsdtYield ?? 0)),
+    claimable: claimableUsdt,
+    claimableUsdt,
+    accruedTotal: accruedUsdt,
+    d3PriceUsdt,
+    claimableD3: usdtToD3(claimableUsdt, d3PriceUsdt),
+    accruedD3: usdtToD3(accruedUsdt, d3PriceUsdt),
+    claimedD3: usdtToD3(claimedUsdt, d3PriceUsdt),
+    dailyD3: usdtToD3(dailyUsdtYield, d3PriceUsdt),
     minWithdrawUsdt: MIN_YIELD_WITHDRAW_USDT,
-    canWithdraw: claimable >= MIN_YIELD_WITHDRAW_USDT,
+    minWithdrawD3: usdtToD3(MIN_YIELD_WITHDRAW_USDT, d3PriceUsdt),
+    canWithdraw: claimableUsdt >= MIN_YIELD_WITHDRAW_USDT,
   };
 }
 
@@ -424,7 +520,7 @@ export function buildHistoryRecords(state: PartnerState): PartnerHistoryRecord[]
     kind: 'stake',
     at: o.startedAt,
     amount: o.principalUsdt,
-    unit: o.kind === 'sd3' ? 'sD3' : 'USDT',
+    unit: o.kind === 'sd3' ? 'UD3' : 'USDT',
     stakeKind: o.kind,
     unlockAt: o.unlockAt,
   }));
@@ -433,7 +529,7 @@ export function buildHistoryRecords(state: PartnerState): PartnerHistoryRecord[]
     kind: 'transfer',
     at: tr.at,
     amount: tr.amountSd3,
-    unit: 'sD3',
+    unit: 'UD3',
     toAddress: tr.toAddress,
     toLabel: tr.toLabel,
   }));
@@ -477,13 +573,17 @@ function sd3AvailableForState(state: PartnerState): number {
 }
 
 export function applySd3Stake(prev: PartnerState, amount: number): PartnerState {
-  if (!prev.isPartner || amount <= 0 || amount > sd3AvailableForState(prev)) return prev;
-  const nextStaked = prev.sd3StakedFromRewards + amount;
-  const next = { ...prev, sd3StakedFromRewards: nextStaked };
+  const available = prev.isPartner
+    ? round2(prev.sd3Balance)
+    : sd3AvailableForState(prev);
+  if (!prev.isPartner || !isValidSd3StakeAmount(amount, available)) return prev;
+  const nextStaked = round2((prev.sd3StakedFromRewards ?? 0) + amount);
   return {
-    ...next,
-    sd3Balance: sd3AvailableForState(next),
+    ...prev,
+    sd3StakedFromRewards: nextStaked,
+    sd3Balance: Math.max(0, round2(prev.sd3Balance - amount)),
     stakeOrders: [createStakeOrder(amount, 'sd3'), ...prev.stakeOrders],
+    dtPreorderEligible: true,
   };
 }
 
@@ -568,14 +668,15 @@ export const DEMO_PARTNER_STATE: PartnerState = {
       claimedYieldUsdt: 8,
     },
   ],
-  sd3Balance: 4960,
+  sd3Balance: DEMO_UD3_LIFETIME,
   sd3StakedFromRewards: 0,
-  teamPerformanceUsd: 86_400,
-  dailyNewPerformanceUsd: 1800,
-  totalNewPerformanceUsd: 52_000,
-  lastSettlementDate: '2026-07-08',
+  /** Demo 总业绩 = 伞下个人质押合计（见 partnerTeamNodes）。 */
+  teamPerformanceUsd: 5700,
+  dailyNewPerformanceUsd: DEMO_PENDING_NEW_USD,
+  totalNewPerformanceUsd: 18_600,
+  lastSettlementDate: DEMO_UD3_LAST_SETTLED,
   dailySd3Earned: 0,
-  lifetimeSd3Earned: 4960,
+  lifetimeSd3Earned: DEMO_UD3_LIFETIME,
   lifetimeUsdtYield: 296,
   transfers: [],
   yieldWithdrawals: [
@@ -613,62 +714,8 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   marketSubsidyPerformanceUsed: 16_000,
-  sd3SettlementHistory: [
-    {
-      id: 'demo-sd3-1',
-      settledAt: '2026-07-08',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1800,
-      tierRatePct: 100,
-      rewardSharePct: 50,
-      role: 'direct',
-      sourceAddress: '0xaaaabbbbccccddddeeeeffff0011223344556677',
-      sd3Amount: 900,
-    },
-    {
-      id: 'demo-sd3-2',
-      settledAt: '2026-07-07',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1728,
-      tierRatePct: 100,
-      rewardSharePct: 50,
-      role: 'direct',
-      sourceAddress: '0xbb11223344556677889900aabbccddeeff001122',
-      sd3Amount: 864,
-    },
-    {
-      id: 'demo-sd3-3',
-      settledAt: '2026-07-06',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1656,
-      tierRatePct: 100,
-      sd3Amount: 928,
-    },
-    {
-      id: 'demo-sd3-4',
-      settledAt: '2026-07-05',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1584,
-      tierRatePct: 100,
-      sd3Amount: 792,
-    },
-    {
-      id: 'demo-sd3-5',
-      settledAt: '2026-07-04',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1512,
-      tierRatePct: 100,
-      sd3Amount: 756,
-    },
-    {
-      id: 'demo-sd3-6',
-      settledAt: '2026-07-03',
-      teamPerformanceUsd: 45000,
-      dailyNewPerformanceUsd: 1440,
-      tierRatePct: 100,
-      sd3Amount: 720,
-    },
-  ],
+  /** Demo UD3：直推 60% + 下层网体极差（由 settleUd3DepositEvent 生成）。 */
+  sd3SettlementHistory: DEMO_UD3_HISTORY,
   pendingUsdtYield: 0,
   yieldSettlementsByPosition: {},
 };
@@ -682,7 +729,7 @@ export const DEMO_PARTNER_BASELINE: PartnerState = {
   transfers: [],
   yieldWithdrawals: [],
   dtPreorderEligible: false,
-  sd3Balance: 4960,
+  sd3Balance: DEMO_UD3_LIFETIME,
   sd3StakedFromRewards: 0,
   lifetimeUsdtYield: 0,
   pendingUsdtYield: 0,
@@ -917,13 +964,6 @@ export function getSd3Quotas(state: PartnerState) {
     transferQuota: available,
   };
 }
-
-import type { PartnerTeamNode } from '@/components/partner/partnerTeamData';
-import {
-  computeMarketSubsidyQuotaFromTree,
-  computePartnerSubsidyQuotaFromTree,
-  type SubsidyQuotaView,
-} from '@/components/partner/partnerSubsidyQuota';
 
 export type { SubsidyQuotaView };
 

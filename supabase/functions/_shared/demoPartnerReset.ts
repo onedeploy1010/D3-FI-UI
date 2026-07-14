@@ -56,5 +56,12 @@ export async function resetDemoPartnerSession(sb: Sb): Promise<{ ok: true }> {
     .ilike('wallet_address', DEMO_WALLET)
     .ilike('sponsor_wallet_address', DEMO_SPONSOR);
 
+  try {
+    const { resetDemoPartnerSimState } = await import('./demoPartnerDailyTick.ts');
+    await resetDemoPartnerSimState(sb);
+  } catch (e) {
+    console.warn('[demo-reset] sim state reset skipped:', e instanceof Error ? e.message : e);
+  }
+
   return { ok: true };
 }

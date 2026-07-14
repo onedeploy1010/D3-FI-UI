@@ -14,7 +14,7 @@ type AddressBlockProps = {
   surface?: 'default' | 'solid' | 'inset';
   onTransfer?: () => void;
   transferAriaLabel?: string;
-  /** Visible caption under transfer icon, e.g. "sD3". */
+  /** Visible caption under transfer icon, e.g. "UD3". */
   transferLabel?: string;
 };
 

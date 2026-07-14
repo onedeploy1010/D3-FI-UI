@@ -124,7 +124,7 @@ export function PartnerSd3TransferModal({
             }`}
           />
           <span className={`text-sm font-semibold shrink-0 ${isDark ? 'text-white/60' : 'text-[#160510]/65'}`}>
-            sD3
+            UD3
           </span>
           <button
             type="button"

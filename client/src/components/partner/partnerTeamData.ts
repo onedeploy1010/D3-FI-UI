@@ -21,6 +21,42 @@ export type PartnerTeamNode = {
 
 export const GUIDE_MOCK_DOWNLINE_ID = 'guide-mock-d1';
 
+/** Personal stake display / demo amounts must be multiples of 100 USDT. */
+export function snapPersonalStakeUsd(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.round(amount / 100) * 100;
+}
+
+/** 伞下总业绩 = 全部下级 personalUsd 合计（不含本人）。 */
+export function sumDownlinePersonalUsd(
+  nodes: Record<string, PartnerTeamNode>,
+  rootId: string,
+): number {
+  const root = nodes[rootId];
+  if (!root) return 0;
+  let sum = 0;
+  for (const cid of root.childrenIds) {
+    const child = nodes[cid];
+    if (!child) continue;
+    sum += snapPersonalStakeUsd(child.personalUsd) + sumDownlinePersonalUsd(nodes, cid);
+  }
+  return sum;
+}
+
+/** Recompute each node's teamUsd from downline personal stakes (100-step). */
+export function recomputePartnerTeamVolumes(
+  nodes: Record<string, PartnerTeamNode>,
+): Record<string, PartnerTeamNode> {
+  const next: Record<string, PartnerTeamNode> = {};
+  for (const [id, node] of Object.entries(nodes)) {
+    next[id] = { ...node, personalUsd: snapPersonalStakeUsd(node.personalUsd) };
+  }
+  for (const id of Object.keys(next)) {
+    next[id] = { ...next[id]!, teamUsd: sumDownlinePersonalUsd(next, id) };
+  }
+  return next;
+}
+
 /** Inject a mock direct downline for transfer guide when the tree has no children. */
 export function mergeGuideMockDownline(
   nodes: Record<string, PartnerTeamNode>,
@@ -35,7 +71,7 @@ export function mergeGuideMockDownline(
     label: mockLabel,
     parentId: 'me',
     childrenIds: [],
-    teamUsd: 1200,
+    teamUsd: 0,
     dailyNewUsd: 300,
     personalUsd: 500,
     directCount: 0,
@@ -44,11 +80,11 @@ export function mergeGuideMockDownline(
     isPartner: false,
     isGuideMock: true,
   };
-  return {
+  return recomputePartnerTeamVolumes({
     ...nodes,
     me: { ...me, childrenIds: [GUIDE_MOCK_DOWNLINE_ID] },
     [GUIDE_MOCK_DOWNLINE_ID]: mock,
-  };
+  });
 }
 
 /** First direct downline id for guide spotlight (prefers real nodes over mock). */
@@ -63,8 +99,12 @@ function num(v: unknown): number {
   return Number(v ?? 0) || 0;
 }
 
-/** @deprecated Demo-only seed tree; use buildPartnerTeamNodes for connected wallets. */
-export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
+/**
+ * Demo seed tree — personalUsd always ×100.
+ * teamUsd filled by recomputePartnerTeamVolumes (伞下合计).
+ * Line volumes: d1=2600, d2=1500, d3=1600 → me 总业绩=5700.
+ */
+const partnerTeamNodesSeed: Record<string, PartnerTeamNode> = {
   me: {
     id: 'me',
     address: '0x1234567890abcdef1234567890abcdef12345678',
@@ -72,11 +112,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: '我',
     parentId: null,
     childrenIds: ['d1', 'd2', 'd3'],
-    teamUsd: 86_400,
-    dailyNewUsd: 3000,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 6500,
     directCount: 3,
-    teamCount: 12,
+    teamCount: 6,
     isDirect: false,
     isPartner: true,
   },
@@ -87,11 +127,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'Direct A3',
     parentId: 'me',
     childrenIds: ['d1a'],
-    teamUsd: 41_400,
-    dailyNewUsd: 1200,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 2100,
     directCount: 1,
-    teamCount: 5,
+    teamCount: 1,
     isDirect: true,
     isPartner: true,
   },
@@ -102,11 +142,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'Downline B1',
     parentId: 'me',
     childrenIds: [],
-    teamUsd: 28_000,
-    dailyNewUsd: 900,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 1500,
     directCount: 0,
-    teamCount: 4,
+    teamCount: 0,
     isDirect: true,
     isPartner: true,
   },
@@ -117,11 +157,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'Downline B2',
     parentId: 'me',
     childrenIds: ['d3a', 'd3b'],
-    teamUsd: 17_000,
-    dailyNewUsd: 900,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 800,
     directCount: 2,
-    teamCount: 3,
+    teamCount: 2,
     isDirect: true,
     isPartner: false,
   },
@@ -132,11 +172,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'A3-1',
     parentId: 'd1',
     childrenIds: [],
-    teamUsd: 12_000,
-    dailyNewUsd: 400,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 500,
     directCount: 0,
-    teamCount: 2,
+    teamCount: 0,
     isDirect: false,
     isPartner: false,
   },
@@ -147,11 +187,11 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'B2-1',
     parentId: 'd3',
     childrenIds: [],
-    teamUsd: 8000,
-    dailyNewUsd: 300,
+    teamUsd: 0,
+    dailyNewUsd: 0,
     personalUsd: 400,
     directCount: 0,
-    teamCount: 1,
+    teamCount: 0,
     isDirect: false,
     isPartner: true,
   },
@@ -162,45 +202,19 @@ export const partnerTeamNodes: Record<string, PartnerTeamNode> = {
     label: 'B2-2',
     parentId: 'd3',
     childrenIds: [],
-    teamUsd: 8200,
-    dailyNewUsd: 350,
-    personalUsd: 350,
+    teamUsd: 0,
+    dailyNewUsd: 0,
+    personalUsd: 400,
     directCount: 0,
-    teamCount: 1,
+    teamCount: 0,
     isDirect: false,
     isPartner: true,
   },
 };
 
-/** Client-side demo fallback when Supabase profile/seed is unavailable. */
-export function buildDemoPartnerTeamFallback(wallet: string): {
-  nodes: Record<string, PartnerTeamNode>;
-  stats: PartnerTeamStats;
-  downlineWallets: string[];
-} {
-  const nodes: Record<string, PartnerTeamNode> = {};
-  for (const [id, node] of Object.entries(partnerTeamNodes)) {
-    nodes[id] =
-      id === 'me'
-        ? { ...node, address: wallet, short: shortWallet(wallet) }
-        : { ...node };
-  }
-  const me = nodes.me!;
-  const areas = computePartnerAreaStats(nodes);
-  const stats: PartnerTeamStats = {
-    personalPerformanceUsd: me.personalUsd,
-    teamPerformanceUsd: me.teamUsd,
-    dailyNewPerformanceUsd: me.dailyNewUsd,
-    smallAreaPerformanceUsd: areas.smallAreaUsd,
-    smallAreaNewPerformanceUsd: areas.smallAreaNewUsd,
-    largeAreaPerformanceUsd: areas.largeAreaUsd,
-    largeAreaNewPerformanceUsd: areas.largeAreaNewUsd,
-  };
-  const downlineWallets = Object.values(nodes)
-    .filter((n) => n.id !== 'me')
-    .map((n) => n.address);
-  return { nodes, stats, downlineWallets };
-}
+/** @deprecated Demo-only seed tree; use buildPartnerTeamNodes for connected wallets. */
+export const partnerTeamNodes: Record<string, PartnerTeamNode> =
+  recomputePartnerTeamVolumes(partnerTeamNodesSeed);
 
 export function isEmptyPartnerTeamData(
   nodes: Record<string, PartnerTeamNode>,
@@ -234,7 +248,12 @@ export type PartnerAreaStats = {
   largeAreaNewUsd: number;
 };
 
-/** 大区 = 最大直推线业绩；小区 = 其余直推线合计（sD3 按小区业绩计算）。 */
+/** 直推线业绩 = 该直推 personal + 其伞下 teamUsd。 */
+export function linePerformanceUsd(node: PartnerTeamNode): number {
+  return snapPersonalStakeUsd(node.personalUsd) + (node.teamUsd || 0);
+}
+
+/** 大区 = 最大直推线业绩；小区 = 其余直推线合计。 */
 export function computePartnerAreaStats(
   nodes: Record<string, PartnerTeamNode>,
   rootId = 'me',
@@ -247,10 +266,10 @@ export function computePartnerAreaStats(
   if (children.length === 0) {
     return { smallAreaUsd: 0, smallAreaNewUsd: 0, largeAreaUsd: 0, largeAreaNewUsd: 0 };
   }
-  const sorted = [...children].sort((a, b) => b.teamUsd - a.teamUsd);
-  const largeAreaUsd = sorted[0]?.teamUsd ?? 0;
+  const sorted = [...children].sort((a, b) => linePerformanceUsd(b) - linePerformanceUsd(a));
+  const largeAreaUsd = sorted[0] ? linePerformanceUsd(sorted[0]) : 0;
   const largeAreaNewUsd = sorted[0]?.dailyNewUsd ?? 0;
-  const smallAreaUsd = sorted.slice(1).reduce((s, c) => s + c.teamUsd, 0);
+  const smallAreaUsd = sorted.slice(1).reduce((s, c) => s + linePerformanceUsd(c), 0);
   const smallAreaNewUsd = sorted.slice(1).reduce((s, c) => s + c.dailyNewUsd, 0);
   return { smallAreaUsd, smallAreaNewUsd, largeAreaUsd, largeAreaNewUsd };
 }

@@ -60,6 +60,7 @@ export async function syncStakePositionOnCredit(sb: Sb, intentId: string): Promi
     started_at: startedAt,
     unlock_at: unlockAt,
     status: 'active',
+    exit_multiplier: 6,
   });
 
   if (intent.intent_type === 'partner_join') {
@@ -140,7 +141,22 @@ export async function runDailyPartnerSettlement(
         .maybeSingle();
       if (dup) continue;
 
-      const yieldUsdt = round4(Number(pos.daily_yield_usdt ?? 0));
+      const principal = Number(pos.principal_usdt ?? 0);
+      const accruedSoFar = Number(pos.accrued_yield_usdt ?? 0);
+      const exitMult = Number(pos.exit_multiplier ?? (pos.kind === 'sd3' ? 2 : 6));
+      const exitCap = round4(principal * exitMult);
+      if (accruedSoFar >= exitCap - 1e-9) {
+        if (pos.status === 'active') {
+          await sb
+            .from('partner_stake_positions')
+            .update({ status: 'closed', updated_at: new Date().toISOString() })
+            .eq('id', pos.id);
+        }
+        continue;
+      }
+
+      const dailyFull = round4(Number(pos.daily_yield_usdt ?? 0));
+      const yieldUsdt = round4(Math.min(dailyFull, exitCap - accruedSoFar));
       if (yieldUsdt <= 0) continue;
 
       const wallet = pos.wallet_address as string;
@@ -173,7 +189,8 @@ export async function runDailyPartnerSettlement(
       await sb
         .from('partner_stake_positions')
         .update({
-          accrued_yield_usdt: round4(Number(pos.accrued_yield_usdt ?? 0) + yieldUsdt),
+          accrued_yield_usdt: round4(accruedSoFar + yieldUsdt),
+          status: accruedSoFar + yieldUsdt >= exitCap - 1e-9 ? 'closed' : 'active',
           updated_at: new Date().toISOString(),
         })
         .eq('id', pos.id);
@@ -276,6 +293,14 @@ export async function runDailyPartnerSettlement(
       })
       .eq('settlement_date', dateStr);
     throw e;
+  }
+
+  /** After real settlement, advance demo umbrella (new members + settle prior pending). */
+  try {
+    const { runDemoPartnerDailyTick } = await import('./demoPartnerDailyTick.ts');
+    await runDemoPartnerDailyTick(sb);
+  } catch (e) {
+    console.warn('[partner-settlement] demo tick skipped:', e instanceof Error ? e.message : e);
   }
 
   return { settlementDate: dateStr, yieldRows, sd3Rows, skipped: false };

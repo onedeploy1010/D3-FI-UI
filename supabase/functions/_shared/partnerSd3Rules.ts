@@ -1,14 +1,17 @@
 /** Partner sD3 (bribe) rules — small-area basis + upline split.
- *  sD3 is based on DT quantity: stakeUsdt / CROWDFUND_UNIT_PRICE_USDT.
+ *  sD3 is based on D3 quantity: stakeUsdt / CROWDFUND_UNIT_PRICE_USDT.
  */
 
-/** Current DT crowdfund unit price (USDT per DT). */
+/** Current D3 crowdfund unit price (USDT per D3). */
 export const CROWDFUND_UNIT_PRICE_USDT = 5;
 
-export function usdtToDt(amountUsdt: number): number {
+export function usdtToD3(amountUsdt: number): number {
   if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || CROWDFUND_UNIT_PRICE_USDT <= 0) return 0;
-  return Math.round((amountUsdt / CROWDFUND_UNIT_PRICE_USDT) * 100) / 100;
+  return Math.round((amountUsdt / CROWDFUND_UNIT_PRICE_USDT) * 1e6) / 1e6;
 }
+
+/** @deprecated Use usdtToD3 */
+export const usdtToDt = usdtToD3;
 
 export const BRIBE_TIER_MIN_USD = 100;
 

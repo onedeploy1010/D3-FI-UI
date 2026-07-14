@@ -42,7 +42,7 @@ export function PartnerTagChip({
   );
 }
 
-/** Numeric sD3 with smaller unit suffix. */
+/** Numeric UD3 with smaller unit suffix. */
 export function PartnerSd3Amount({
   value,
   className = '',
@@ -55,7 +55,7 @@ export function PartnerSd3Amount({
   return (
     <span className={className}>
       {value.toLocaleString()}
-      <span className={unitClassName}>sD3</span>
+      <span className={unitClassName}>UD3</span>
     </span>
   );
 }

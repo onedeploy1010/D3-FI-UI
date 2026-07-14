@@ -149,10 +149,23 @@ export default function PartnerProgram() {
       joinPartner,
       crowdfundStake,
       notifyPayError,
-      refreshTeamProfile,
       isDemo,
       p,
     ],
+  );
+
+  const handleStakeSd3 = useCallback(
+    async (amount: number) => {
+      if (!hasReferralBound) return false;
+      const ok = await stakeSd3(amount);
+      if (ok) {
+        toast.success(isDemo ? p('stake.demoPaySuccess') : p('home.sd3StakeSuccess'));
+      } else {
+        toast.error(p('home.sd3StakeFailed'));
+      }
+      return ok;
+    },
+    [hasReferralBound, stakeSd3, isDemo, p],
   );
 
   const handleGoTeamTransferGuide = useCallback(() => {
@@ -218,6 +231,7 @@ export default function PartnerProgram() {
                   paying={depositPaying}
                   lastDepositIntent={lastIntent}
                   onHomeStake={handleHomeStake}
+                  onStakeSd3={handleStakeSd3}
                   onGoTeamTransferGuide={handleGoTeamTransferGuide}
                 />
               )}

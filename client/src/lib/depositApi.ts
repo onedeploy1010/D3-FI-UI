@@ -135,6 +135,21 @@ export function transferPartnerSd3(wallet: string, toWallet: string, amountSd3: 
   });
 }
 
+export type Sd3StakeResponse = {
+  ok: boolean;
+  positionId: string;
+  amountSd3: number;
+  sd3Balance: number;
+  unlockAt: string;
+};
+
+export function stakePartnerSd3(wallet: string, amountSd3: number) {
+  return treasuryFetch<Sd3StakeResponse>(wallet, '/partner/sd3-stake', {
+    method: 'POST',
+    body: JSON.stringify({ amountSd3 }),
+  });
+}
+
 export async function waitForDepositCredited(
   wallet: string,
   intentId: string,

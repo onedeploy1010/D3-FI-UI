@@ -87,7 +87,12 @@ export function applyDemoSessionOverlay(
 ): PartnerState {
   const settledBase = demoSettledSd3Base(base);
   const mockTransferred = sumMockTransferred(session);
-  const staked = base.sd3StakedFromRewards ?? 0;
+  const mockSd3Staked = round2(
+    session.mockStakeOrders
+      .filter((o) => o.kind === 'sd3')
+      .reduce((s, o) => s + o.principalUsdt, 0),
+  );
+  const staked = round2((base.sd3StakedFromRewards ?? 0) + mockSd3Staked);
   const available = Math.max(0, round2(settledBase - mockTransferred - staked));
   const today = new Date().toISOString().slice(0, 10);
 
@@ -99,10 +104,11 @@ export function applyDemoSessionOverlay(
 
   return {
     ...base,
-    isPartner: session.mockPartnerJoined,
-    joinedAt: session.mockPartnerJoined ? (base.joinedAt ?? today) : null,
+    isPartner: session.mockPartnerJoined || base.isPartner,
+    joinedAt: session.mockPartnerJoined || base.isPartner ? (base.joinedAt ?? today) : null,
     stakeOrders,
     transfers: [...session.mockTransfers],
+    sd3StakedFromRewards: staked,
     sd3Balance: available,
     dtPreorderEligible:
       session.mockStakeOrders.length > 0 || session.mockPartnerJoined || base.dtPreorderEligible,
