@@ -28,7 +28,6 @@
   "home.joinAndStakeTotal": "합계",
   "home.isPartner": "파트너 활성",
   "home.tagDays": "{days}일",
-  "home.tagDoubleExit": "2배 출局",
   "home.tagDailyYield": "일 {pct}%",
   "home.estDailyYield": "예상 일일 수익",
   "home.sd3QuotaLabel": "sD3 한도",
@@ -238,11 +237,11 @@
   "team.referralDesc": "링크로 연결·바인딩 후 직추천 하선으로 참여합니다.",
   "team.copyLink": "추천 링크 복사",
   "team.copied": "복사됨",
-  "team.sd3PartnerOnly": "파트너 가입 후 sD3 보상을 받을 수 있습니다",
+  "team.sd3PartnerOnly": "뇌물 sD3는 DT 기준: 소구역 신규 USDT÷가격({price})=DT, ×등급 비율, 직추/상위 배분.",
   "team.bribeTierLine": "{rate}% · {tier} · 예상 {sd3} sD3",
   "team.bribeBelowMin": "하선 실적 {min} USDT 이상 시 반뇌물 등급 해제",
   "team.estimatedSd3": "예상 반뇌물 sD3",
-  "team.estimatedSd3Hint": "당일 하선 신규 실적과 등급 비율 기준 추정",
+  "team.estimatedSd3Hint": "소구역 신규 DT·등급 비율·직추 배분 기준 추정(상위 배분 제외)",
   "tree.title": "추천 트리",
   "tree.teamPerf": "傘하 실적",
   "tree.up": "위로",
@@ -290,5 +289,7 @@
   "guide.next": "다음",
   "guide.skip": "건너뛰기",
   "guide.done": "확인",
-  "subsidy.purposePlaceholderMarket": "장소 / 식비 / 회의 상세"
+  "subsidy.purposePlaceholderMarket": "장소 / 식비 / 회의 상세",
+  "home.dtCrowdfundPrice": "현재 DT 크라우드펀딩 가격: {price} USDT",
+  "home.estDtAmount": "스테이킹 금액/{price} USDT"
 }

@@ -3,7 +3,7 @@ import { fetchUnionProfile } from '@/lib/unionApi';
 
 export function usePartnerMembership(wallet: string | null) {
   const [isPartner, setIsPartner] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(wallet));
 
   const refetch = useCallback(async () => {
     if (!wallet) {

@@ -28,7 +28,8 @@
       "bannerHint": "파트너 활성화 후 무제한 이용",
       "expiredTitle": "체험 종료",
       "expiredBody": "체험 기간이 만료되었습니다. 파트너 자격을 활성화해 주세요.",
-      "activatePartner": "파트너 자격 활성화"
+      "activatePartner": "파트너 자격 활성화",
+      "loading": "로딩 중…"
     }
   },
   "lang": {

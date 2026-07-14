@@ -8,6 +8,7 @@ import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoad
 import { PartnerTagChip } from '@/components/partner/partnerUiKit';
 import {
   calcDailyUsdtYield,
+  CROWDFUND_UNIT_PRICE_USDT,
   DEFAULT_HOME_STAKE_USDT,
   DAILY_YIELD_PCT,
   formatDailyYieldUsdt,
@@ -16,6 +17,7 @@ import {
   REGULAR_STAKE_MIN_USDT,
   REGULAR_STAKE_STEP_USDT,
   STAKE_LOCK_DAYS,
+  usdtToDt,
   type PartnerState,
 } from '@/components/partner/partnerData';
 import { getSd3Available } from '@/components/partner/partnerSd3View';
@@ -69,6 +71,7 @@ export function PartnerHomeTab({
 
   const quickIncrements = [100, 500, 1000, 5000];
   const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(stakeAmount) : 0;
+  const dtAmount = isValidAmount ? usdtToDt(stakeAmount) : 0;
   const sd3Balance = getSd3Available(state);
 
   const addAmount = (delta: number) => {
@@ -169,9 +172,11 @@ export function PartnerHomeTab({
             <h2 className={`text-lg font-bold tracking-tight mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
               {p('home.stakeTitle')}
             </h2>
+            <p className={`text-[11px] mb-2 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+              {p('home.dtCrowdfundPrice', { price: CROWDFUND_UNIT_PRICE_USDT })}
+            </p>
             <div className="flex flex-wrap justify-center gap-1.5 mb-1">
               <PartnerTagChip accent>{p('home.tagDays', { days: STAKE_LOCK_DAYS })}</PartnerTagChip>
-              <PartnerTagChip accent>{p('home.tagDoubleExit')}</PartnerTagChip>
               <PartnerTagChip>{p('home.tagDailyYield', { pct: DAILY_YIELD_PCT })}</PartnerTagChip>
             </div>
           </div>
@@ -264,6 +269,12 @@ export function PartnerHomeTab({
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 space-y-2"
             >
+              <div className="partner-depth-inset rounded-xl px-3 py-2.5 flex justify-between items-center">
+                <span className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                  {p('home.estDtAmount', { amount: stakeAmount.toLocaleString(), price: CROWDFUND_UNIT_PRICE_USDT })}
+                </span>
+                <span className="text-sm font-bold text-[#E0568F]">{dtAmount.toLocaleString()} DT</span>
+              </div>
               <div className="partner-depth-inset rounded-xl px-3 py-2.5 flex justify-between items-center">
                 <span className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{p('home.estDailyYield')}</span>
                 <span className="text-sm font-bold text-emerald-500">${formatDailyYieldUsdt(dailyYieldUsdt)}</span>

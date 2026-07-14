@@ -10,7 +10,7 @@ import {
   emptyPartnerTeamNodes,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
-import { getSd3Quotas, type PartnerState } from '@/components/partner/partnerData';
+import { CROWDFUND_UNIT_PRICE_USDT, getSd3Quotas, type PartnerState } from '@/components/partner/partnerData';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import { buildReferralLink } from '@/lib/referral';
@@ -117,7 +117,7 @@ export function PartnerTeamTab({
 
       {!isPartner && (
         <div className={`text-center text-xs py-3 px-4 rounded-xl ${isDark ? 'bg-white/5 text-white/45' : 'bg-black/[0.03] text-[#160510]/50'}`}>
-          {p('team.sd3PartnerOnly')}
+          {p('team.sd3PartnerOnly', { price: CROWDFUND_UNIT_PRICE_USDT })}
         </div>
       )}
 
@@ -152,7 +152,7 @@ export function PartnerTeamTab({
         <div className="space-y-3">
           {!isPartner ? (
             <div className={`text-center py-12 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-              {p('team.sd3PartnerOnly')}
+              {p('team.sd3PartnerOnly', { price: CROWDFUND_UNIT_PRICE_USDT })}
             </div>
           ) : (
             <>

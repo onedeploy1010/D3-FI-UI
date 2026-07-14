@@ -28,7 +28,6 @@
   "home.joinAndStakeTotal": "合计",
   "home.isPartner": "已是合伙人",
   "home.tagDays": "{days}天",
-  "home.tagDoubleExit": "2倍出局",
   "home.tagDailyYield": "每日{pct}%",
   "home.estDailyYield": "預估日收益",
   "home.sd3QuotaLabel": "sD3 額度",
@@ -246,11 +245,11 @@
   "team.referralDesc": "对方通过链接連接錢包并绑定后，将作为您的直推下线，可参与众筹与入盟。",
   "team.copyLink": "複製推薦連結",
   "team.copied": "已複製",
-  "team.sd3PartnerOnly": "受賄金（sD3）僅獎勵給已入盟合伙人：傘下新增業績 × 等級比例",
+  "team.sd3PartnerOnly": "受賄金（sD3）按 DT 結算：小區新增 USDT÷眾籌價({price})＝DT，再×等級比例，直推/上級按級別分成。",
   "team.bribeTierLine": "{rate}% · {tier} · 預估 {sd3} sD3",
   "team.bribeBelowMin": "傘下業績滿 {min} USDT 後解鎖受賄金等級",
   "team.estimatedSd3": "預估受賄 sD3",
-  "team.estimatedSd3Hint": "按當日傘下新增業績與等級比例估算",
+  "team.estimatedSd3Hint": "按小區新增折合 DT、等級比例及直推分成估算（不含上級分成）",
   "tree.title": "推荐树",
   "tree.teamPerf": "伞下业绩",
   "tree.up": "上一层",
@@ -298,5 +297,7 @@
   "guide.next": "下一步",
   "guide.skip": "跳過",
   "guide.done": "知道了",
-  "subsidy.purposePlaceholderMarket": "場地 / 餐補 / 會議及明細"
+  "subsidy.purposePlaceholderMarket": "場地 / 餐補 / 會議及明細",
+  "home.dtCrowdfundPrice": "當前DT眾籌價：{price} USDT",
+  "home.estDtAmount": "質押金額/{price} USDT"
 }

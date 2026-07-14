@@ -28,7 +28,8 @@
       "bannerHint": "激活合伙人後可無限使用",
       "expiredTitle": "試用已結束",
       "expiredBody": "已過試用天數，請激活合伙人資格後繼續使用 AI 智能體功能。",
-      "activatePartner": "前往激活合伙人"
+      "activatePartner": "前往激活合伙人",
+      "loading": "正在載入…"
     }
   },
   "lang": {

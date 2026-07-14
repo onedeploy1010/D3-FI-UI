@@ -37,7 +37,14 @@ export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;
 export const CROWDFUND_TARGET_USDT = 20_000_000;
 export const CROWDFUND_TOKEN_SUPPLY = 1_050_000;
+/** Current DT crowdfund unit price (USDT per DT). */
 export const CROWDFUND_UNIT_PRICE_USDT = 5;
+
+/** Convert stake USDT into DT quantity at the crowdfund unit price. */
+export function usdtToDt(amountUsdt: number): number {
+  if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || CROWDFUND_UNIT_PRICE_USDT <= 0) return 0;
+  return Math.round((amountUsdt / CROWDFUND_UNIT_PRICE_USDT) * 100) / 100;
+}
 export const PARTNER_SUBSIDY_RATE = 0.1;
 export const MARKET_SUBSIDY_RATE = 0.05;
 
@@ -117,7 +124,7 @@ export function partnerTreeLevelKey(
   return keys[idx >= 0 ? idx : 0];
 }
 
-/** 小区新增业绩 × 等级受贿比例 × 直推合伙人分成。 */
+/** 小区新增业绩(USDT)÷DT众筹价 → DT数量 × 等级受贿比例 × 直推分成。 */
 export function calcDailySd3(
   smallAreaPerformanceUsd: number,
   smallAreaNewPerformanceUsd: number,
@@ -127,7 +134,8 @@ export function calcDailySd3(
   const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return 0;
   const split = getBribeTierSplit(tier);
-  const gross = smallAreaNewPerformanceUsd * tier.rate;
+  const dtAmount = usdtToDt(smallAreaNewPerformanceUsd);
+  const gross = dtAmount * tier.rate;
   return Math.round(gross * split.directShare * 100) / 100;
 }
 
@@ -142,7 +150,7 @@ export function calcDailySd3Gross(
   const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return { grossSd3: 0, tierRatePct: 0, directSharePct: 0, uplineSharePct: 0 };
   const split = getBribeTierSplit(tier);
-  const grossSd3 = Math.round(smallAreaNewPerformanceUsd * tier.rate * 100) / 100;
+  const grossSd3 = Math.round(usdtToDt(smallAreaNewPerformanceUsd) * tier.rate * 100) / 100;
   return {
     grossSd3,
     tierRatePct: tier.ratePct,

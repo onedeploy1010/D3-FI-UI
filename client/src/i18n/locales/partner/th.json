@@ -28,7 +28,6 @@
   "home.joinAndStakeTotal": "รวม",
   "home.isPartner": "เป็นพาร์ทเนอร์แล้ว",
   "home.tagDays": "{days} วัน",
-  "home.tagDoubleExit": "ออก 2 เท่า",
   "home.tagDailyYield": "รายวัน {pct}%",
   "home.estDailyYield": "ผลตอบแทนรายวันโดยประมาณ",
   "home.sd3QuotaLabel": "โควต้า sD3",
@@ -238,11 +237,11 @@
   "team.referralDesc": "เชื่อมกระเป๋าและผูกผ่านลิงก์นี้ จะเป็นสายล่างตรงของคุณ",
   "team.copyLink": "คัดลอกลิงก์แนะนำ",
   "team.copied": "คัดลอกแล้ว",
-  "team.sd3PartnerOnly": "เป็นพาร์ทเนอร์เพื่อรับรางวัล sD3",
+  "team.sd3PartnerOnly": "sD3 คิดจาก DT: ผลงานใหม่อ่อน USDT÷ราคา({price})=DT แล้ว×อัตราชั้น แบ่งผู้แนะนำตรง/ต้นสาย",
   "team.bribeTierLine": "{rate}% · {tier} · ประมาณ {sd3} sD3",
   "team.bribeBelowMin": "ปลดล็อกระดับเมื่อผลงานสายล่างถึง {min} USDT",
   "team.estimatedSd3": "ประมาณ sD3 ต่อต้านสินบน",
-  "team.estimatedSd3Hint": "ประมาณจากผลงานใหม่วันนี้และอัตราระดับ",
+  "team.estimatedSd3Hint": "ประมาณจาก DT ใหม่ พื้นที่ย่อย อัตราชั้น และส่วนแบ่งแนะนำตรง (ไม่รวมต้นสาย)",
   "tree.title": "ต้นไม้แนะนำ",
   "tree.teamPerf": "ผลงานสายล่าง",
   "tree.up": "ขึ้น",
@@ -290,5 +289,7 @@
   "guide.next": "ถัดไป",
   "guide.skip": "ข้าม",
   "guide.done": "เข้าใจแล้ว",
-  "subsidy.purposePlaceholderMarket": "สถานที่ / อาหาร / ประชุม รายละเอียด"
+  "subsidy.purposePlaceholderMarket": "สถานที่ / อาหาร / ประชุม รายละเอียด",
+  "home.dtCrowdfundPrice": "ราคาคราวด์ฟันด์ DT ปัจจุบัน: {price} USDT",
+  "home.estDtAmount": "จำนวนสเตค/{price} USDT"
 }

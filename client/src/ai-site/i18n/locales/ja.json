@@ -28,7 +28,8 @@
       "bannerHint": "パートナー有効化後は無制限",
       "expiredTitle": "試用期間終了",
       "expiredBody": "試用期間が終了しました。パートナー資格を有効化してください。",
-      "activatePartner": "パートナー資格を有効化"
+      "activatePartner": "パートナー資格を有効化",
+      "loading": "読み込み中…"
     }
   },
   "lang": {

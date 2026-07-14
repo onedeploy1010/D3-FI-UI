@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { useWallet } from '@/contexts/wallet-context';
 import { usePartnerMembership } from '@/hooks/usePartnerMembership';
 import {
@@ -59,9 +60,15 @@ export function AiTrialBanner() {
 }
 
 function TrialLoading() {
+  const { t } = useTranslation();
   return (
-    <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">
-      …
+    <div
+      className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center"
+      role="status"
+      aria-live="polite"
+    >
+      <Spinner className="size-8 text-primary" />
+      <p className="text-sm text-muted-foreground">{t('aiSite.trial.loading')}</p>
     </div>
   );
 }
@@ -175,7 +182,7 @@ export function AiTrialGate({ children }: { children: ReactNode }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        <TrialLoading />
+        <div className="min-h-[60vh]" aria-hidden />
       </>
     );
   }

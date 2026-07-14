@@ -28,7 +28,6 @@
   "home.joinAndStakeTotal": "合計",
   "home.isPartner": "パートナー有効",
   "home.tagDays": "{days}日",
-  "home.tagDoubleExit": "2倍アウト",
   "home.tagDailyYield": "日次 {pct}%",
   "home.estDailyYield": "推定日次収益",
   "home.sd3QuotaLabel": "sD3 枠",
@@ -238,11 +237,11 @@
   "team.referralDesc": "リンクから接続・紐付け後、直紹介の傘下として参加できます。",
   "team.copyLink": "紹介リンクをコピー",
   "team.copied": "コピーしました",
-  "team.sd3PartnerOnly": "パートナー入盟後に sD3 報酬を獲得できます",
+  "team.sd3PartnerOnly": "受賄sD3はDT基準：小区新規USDT÷価格({price})＝DT、×等級比率、直接/上位で分配。",
   "team.bribeTierLine": "{rate}% · {tier} · 推定 {sd3} sD3",
   "team.bribeBelowMin": "傘下業績 {min} USDT 以上で受賄金ティア解放",
   "team.estimatedSd3": "推定受賄 sD3",
-  "team.estimatedSd3Hint": "当日の傘下新規業績とティア率に基づく推定",
+  "team.estimatedSd3Hint": "小区新規のDT換算・等級比率・直推分配で概算（上位分配は含まない）",
   "tree.title": "紹介ツリー",
   "tree.teamPerf": "傘下業績",
   "tree.up": "上へ",
@@ -290,5 +289,7 @@
   "guide.next": "次へ",
   "guide.skip": "スキップ",
   "guide.done": "了解",
-  "subsidy.purposePlaceholderMarket": "会場 / 食事 / 会議の詳細"
+  "subsidy.purposePlaceholderMarket": "会場 / 食事 / 会議の詳細",
+  "home.dtCrowdfundPrice": "現在のDTクラウドファンディング価格：{price} USDT",
+  "home.estDtAmount": "ステーク金額/{price} USDT"
 }

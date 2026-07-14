@@ -8,7 +8,6 @@ const en = JSON.parse(fs.readFileSync(path.join(dir, 'en.json'), 'utf8'));
 const supplements = {
   'zh-TW': {
     'home.tagDays': '{days}天',
-    'home.tagDoubleExit': '2倍出局',
     'home.tagDailyYield': '每日{pct}%',
     'home.estDailyYield': '預估日收益',
     'home.sd3QuotaLabel': 'sD3 額度',
@@ -65,7 +64,6 @@ const supplements = {
     'home.confirmStakeTitle': 'ステーク確認',
     'home.joinAndStakeTotal': '合計',
     'home.tagDays': '{days}日',
-    'home.tagDoubleExit': '2倍アウト',
     'home.tagDailyYield': '日次 {pct}%',
     'home.estDailyYield': '推定日次収益',
     'home.sd3QuotaLabel': 'sD3 枠',
@@ -135,7 +133,6 @@ const supplements = {
     'home.confirmStakeTitle': '스테이킹 확인',
     'home.joinAndStakeTotal': '합계',
     'home.tagDays': '{days}일',
-    'home.tagDoubleExit': '2배 출局',
     'home.tagDailyYield': '일 {pct}%',
     'home.estDailyYield': '예상 일일 수익',
     'home.sd3QuotaLabel': 'sD3 한도',
@@ -205,7 +202,6 @@ const supplements = {
     'home.confirmStakeTitle': 'ยืนยันสเตค',
     'home.joinAndStakeTotal': 'รวม',
     'home.tagDays': '{days} วัน',
-    'home.tagDoubleExit': 'ออก 2 เท่า',
     'home.tagDailyYield': 'รายวัน {pct}%',
     'home.estDailyYield': 'ผลตอบแทนรายวันโดยประมาณ',
     'home.sd3QuotaLabel': 'โควต้า sD3',

@@ -1,4 +1,14 @@
-/** Partner sD3 (bribe) rules — small-area basis + upline split. */
+/** Partner sD3 (bribe) rules — small-area basis + upline split.
+ *  sD3 is based on DT quantity: stakeUsdt / CROWDFUND_UNIT_PRICE_USDT.
+ */
+
+/** Current DT crowdfund unit price (USDT per DT). */
+export const CROWDFUND_UNIT_PRICE_USDT = 5;
+
+export function usdtToDt(amountUsdt: number): number {
+  if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || CROWDFUND_UNIT_PRICE_USDT <= 0) return 0;
+  return Math.round((amountUsdt / CROWDFUND_UNIT_PRICE_USDT) * 100) / 100;
+}
 
 export const BRIBE_TIER_MIN_USD = 100;
 
@@ -64,7 +74,7 @@ export function calcDailySd3Gross(
   const tier = getBribeTier(smallAreaPerformanceUsd);
   if (!tier) return { grossSd3: 0, tierRatePct: 0, directSharePct: 0, uplineSharePct: 0 };
   const split = getBribeTierSplit(tier);
-  const grossSd3 = Math.round(smallAreaNewPerformanceUsd * tier.rate * 100) / 100;
+  const grossSd3 = Math.round(usdtToDt(smallAreaNewPerformanceUsd) * tier.rate * 100) / 100;
   return {
     grossSd3,
     tierRatePct: tier.ratePct,
@@ -100,7 +110,7 @@ export function splitEventSd3(
     return { grossSd3: 0, directSd3: 0, uplineSd3: 0, tierRatePct: 0 };
   }
   const split = getBribeTierSplit(tier);
-  const grossSd3 = Math.round(amountUsd * tier.rate * 100) / 100;
+  const grossSd3 = Math.round(usdtToDt(amountUsd) * tier.rate * 100) / 100;
   return {
     grossSd3,
     directSd3: Math.round(grossSd3 * split.directShare * 100) / 100,

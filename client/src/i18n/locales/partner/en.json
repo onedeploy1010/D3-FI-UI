@@ -28,7 +28,6 @@
   "home.joinAndStakeTotal": "Total",
   "home.isPartner": "Partner active",
   "home.tagDays": "{days} days",
-  "home.tagDoubleExit": "2× exit",
   "home.tagDailyYield": "{pct}% daily",
   "home.estDailyYield": "Est. daily yield",
   "home.sd3QuotaLabel": "sD3 balance",
@@ -247,11 +246,11 @@
   "team.referralDesc": "When they connect via this link and bind, they join as your direct downline for crowdfund and membership.",
   "team.copyLink": "Copy referral link",
   "team.copied": "Copied",
-  "team.sd3PartnerOnly": "Bribe rewards (sD3) use small-area volume: small-area new × tier rate, split between direct and upline partners.",
+  "team.sd3PartnerOnly": "Bribe sD3 is based on DT: small-area new USDT ÷ crowdfund price ({price}) = DT, then × tier rate, split by direct/upline.",
   "team.bribeTierLine": "{rate}% · {tier} · est. {sd3} sD3",
   "team.bribeBelowMin": "Reach {min} USDT small-area volume to unlock bribe tiers",
   "team.estimatedSd3": "Est. bribe sD3",
-  "team.estimatedSd3Hint": "Est. from small-area new volume, tier rate, and direct-partner share (excludes upline share)",
+  "team.estimatedSd3Hint": "Estimated from small-area new DT, tier rate, and direct share (excludes upline share)",
   "tree.title": "Referral tree",
   "tree.teamPerf": "Team perf.",
   "tree.up": "Up",
@@ -300,5 +299,7 @@
   "guide.next": "Next",
   "guide.skip": "Skip",
   "guide.done": "Got it",
-  "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details"
+  "subsidy.purposePlaceholderMarket": "Venue / meals / meeting details",
+  "home.dtCrowdfundPrice": "Current DT crowdfund price: {price} USDT",
+  "home.estDtAmount": "Stake / {price} USDT"
 }
