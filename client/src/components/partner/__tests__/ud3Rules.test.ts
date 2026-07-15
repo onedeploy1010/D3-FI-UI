@@ -94,7 +94,9 @@ describe('network differential', () => {
     );
     expect(r.payouts[0].gapPct).toBe(0);
     expect(r.payouts[0].ud3Amount).toBe(0);
-    expect(r.remainingPct).toBe(80);
+    // Floor 20% of pool not paid again (guide already took 60% direct) → reserve 80%
+    expect(r.remainingUd3).toBe(400);
+    expect(r.remainingPct).toBe(100);
   });
 
   it('引路人 S1 floor → upline S2 takes 20% gap of pool', () => {
@@ -105,7 +107,26 @@ describe('network differential', () => {
     );
     expect(r.payouts[0].gapPct).toBe(20);
     expect(r.payouts[0].ud3Amount).toBe(80);
-    expect(r.remainingPct).toBe(60);
+    // Paid 20% of pool; unpaid includes floor 20% + above-S2 60% = 80% → 320
+    expect(r.remainingUd3).toBe(320);
+    expect(r.remainingPct).toBe(80);
+  });
+
+  it('引路人 S1 floor + S6 tops out: unpaid floor slice → remainingPct from UD3', () => {
+    const r = allocateNetworkDifferential(
+      400,
+      [
+        { wallet: 'a', vSharePct: 20, vLabel: 'S1' },
+        { wallet: 'b', vSharePct: 100, vLabel: 'S6' },
+      ],
+      20,
+    );
+    expect(r.payouts.map((p) => p.gapPct)).toEqual([0, 80]);
+    expect(r.payouts[1].ud3Amount).toBe(320);
+    expect(r.allocatedPct).toBe(100);
+    // 20% of pool (=80) reserved for floor, not double-paid to guide
+    expect(r.remainingUd3).toBe(80);
+    expect(r.remainingPct).toBe(20);
   });
 
   it('skips levels and still fills gaps', () => {

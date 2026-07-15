@@ -217,12 +217,13 @@ export function allocateNetworkDifferential(
   }
 
   if (chainBottomToTop.length === 0) {
+    // No uplines: entire 40% pool is unpaid (floor only blocks same-level claims later).
     return {
       payouts: [],
       allocatedPct: maxEmitted,
       allocatedUd3: 0,
-      remainingPct: Math.max(0, 100 - maxEmitted),
-      remainingUd3: round6((networkPoolUd3 * Math.max(0, 100 - maxEmitted)) / 100),
+      remainingPct: 100,
+      remainingUd3: round6(networkPoolUd3),
     };
   }
 
@@ -243,13 +244,22 @@ export function allocateNetworkDifferential(
   }
 
   const allocatedUd3 = round6(payouts.reduce((s, p) => s + p.ud3Amount, 0));
+  const remainingUd3 = round6(Math.max(0, networkPoolUd3 - allocatedUd3));
+  /** Peak cumulative share reached on the path (incl. 引路人 floor). */
   const allocatedPct = maxEmitted;
+  /**
+   * Unpaid slice of the 40% pool. Includes the 引路人 floor share of the pool
+   * (already compensated via the separate 60% direct) plus any gap above the
+   * highest S on the chain. Derive % from UD3 so it stays consistent when floor>0.
+   */
+  const remainingPct =
+    networkPoolUd3 > 0 ? round6((remainingUd3 / networkPoolUd3) * 100) : Math.max(0, 100 - allocatedPct);
   return {
     payouts,
     allocatedPct,
     allocatedUd3,
-    remainingPct: Math.max(0, 100 - allocatedPct),
-    remainingUd3: round6(Math.max(0, networkPoolUd3 - allocatedUd3)),
+    remainingPct,
+    remainingUd3,
   };
 }
 
