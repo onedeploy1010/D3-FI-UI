@@ -59,6 +59,21 @@ export function isValidSd3StakeAmount(amount: number, availableSd3: number): boo
 }
 /** Minimum USDT yield flash-withdraw (1 USDT @ 0.4%/day = 0.004). */
 export const MIN_YIELD_WITHDRAW_USDT = 0.001;
+/** Flash-swap (yield withdraw) protocol fee. */
+export const FLASH_SWAP_FEE_PCT = 3;
+
+export function calcFlashSwapAmounts(grossUsdt: number): {
+  grossUsdt: number;
+  feeUsdt: number;
+  netUsdt: number;
+  feePct: number;
+} {
+  const gross = Number.isFinite(grossUsdt) && grossUsdt > 0 ? Math.round(grossUsdt * 1e6) / 1e6 : 0;
+  const feeUsdt = Math.round(gross * (FLASH_SWAP_FEE_PCT / 100) * 1e6) / 1e6;
+  const netUsdt = Math.round((gross - feeUsdt) * 1e6) / 1e6;
+  return { grossUsdt: gross, feeUsdt, netUsdt, feePct: FLASH_SWAP_FEE_PCT };
+}
+
 export const DAILY_YIELD_PCT = 0.4;
 export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;

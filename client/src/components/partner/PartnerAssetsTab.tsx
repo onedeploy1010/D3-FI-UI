@@ -8,8 +8,10 @@ import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { Search } from 'lucide-react';
 import {
   buildHistoryRecords,
+  calcFlashSwapAmounts,
   CROWDFUND_UNIT_PRICE_USDT,
   d3ToUsdt,
+  FLASH_SWAP_FEE_PCT,
   formatD3Amount,
   getSd3Quotas,
   MIN_YIELD_WITHDRAW_USDT,
@@ -161,7 +163,9 @@ export function PartnerAssetsTab({
   ];
 
   const flashD3Preview = clampAmount(flashAmount, yieldBalances.claimableD3);
-  const flashUsdtPreview = d3ToUsdt(flashD3Preview, yieldBalances.d3PriceUsdt);
+  const flashGrossUsdt = d3ToUsdt(flashD3Preview, yieldBalances.d3PriceUsdt);
+  const flashSplit = calcFlashSwapAmounts(flashGrossUsdt);
+  const flashUsdtPreview = flashSplit.netUsdt;
   const quickFlashAmounts = [1, 5, 10, 50].filter((v) => v <= yieldBalances.claimableD3);
 
   const historyKindLabel = (kind: PartnerHistoryKind) => {
@@ -369,7 +373,9 @@ export function PartnerAssetsTab({
         title={p('assets.flashSwapTitle')}
         isDark={isDark}
       >
-        <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>{p('assets.flashSwapHintD3')}</p>
+        <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>
+          {p('assets.flashSwapHintD3', { pct: FLASH_SWAP_FEE_PCT })}
+        </p>
         <div className={`text-[10px] mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
           {p('assets.d3PriceHint', { price: yieldBalances.d3PriceUsdt ?? CROWDFUND_UNIT_PRICE_USDT })}
         </div>
@@ -402,8 +408,17 @@ export function PartnerAssetsTab({
             </button>
           </div>
           {flashD3Preview > 0 && (
-            <div className={`text-[11px] mt-2 text-right ${muted}`}>
-              {p('assets.flashSwapReceive')}: <span className="font-bold text-emerald-500">${flashUsdtPreview.toLocaleString()}</span> USDT
+            <div className={`mt-2 space-y-1 text-[11px] text-right ${muted}`}>
+              <div>
+                {p('assets.flashSwapGross')}: ${flashSplit.grossUsdt.toLocaleString()} USDT
+              </div>
+              <div>
+                {p('assets.flashSwapFee', { pct: FLASH_SWAP_FEE_PCT })}: −${flashSplit.feeUsdt.toLocaleString()} USDT
+              </div>
+              <div>
+                {p('assets.flashSwapReceive')}:{' '}
+                <span className="font-bold text-emerald-500">${flashUsdtPreview.toLocaleString()}</span> USDT
+              </div>
             </div>
           )}
         </div>

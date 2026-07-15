@@ -107,6 +107,8 @@ export type YieldWithdrawResponse = {
   ok: boolean;
   withdrawalId: string;
   amountUsdt: number;
+  feeUsdt?: number;
+  netAmountUsdt?: number;
   status: string;
   txHash?: string | null;
 };
