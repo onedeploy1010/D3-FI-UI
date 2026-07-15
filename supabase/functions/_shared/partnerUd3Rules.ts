@@ -1,14 +1,15 @@
 /**
  * D³ UD3 (反向金) reward engine.
  *
- * TWO SEPARATE SYSTEMS (never mix):
- * ① 档位 S1~S6 — how many UD3 a deposit generates (based on 引路人 total performance).
- *    Rate: S1 100% → S2 110% → … → S6 150% (+10% each).
- * ② S-level (S1~S6) — how the 40% network pool is shared by differential (极差).
+ * Same S1–S6 ladder, two roles:
+ * ① As 引路人 — 档位 rate (S1 100% → S6 150%) generates bribe from deposit.
+ * ② As 上线 — cumulative gap share of the 40% pool (S1 20% → S6 100%).
  *
  * Flow per credited deposit:
  *   generated = amountUsdt × tierRate(引路人)
- *   引路人 gets 60%; network pool gets 40% (allocated by S differential up the chain).
+ *   引路人 gets 60%; remaining 40% walks UP by 极差:
+ *     gap% = max(ownShare − max(引路人 share, shares already claimed below), 0)
+ *   Same level as someone already on the path → gap 0 (no reward); remainder waits for higher S.
  */
 
 export const UD3_DIRECT_SHARE = 0.6;
@@ -71,16 +72,18 @@ export type Ud3SLevel = {
 export type Ud3VLevel = Ud3SLevel;
 
 /**
- * S1~S2: 总业绩; S3~S6: 小区业绩.
- * Thresholds are admin-configurable defaults.
+ * Cumulative share of the 40% network pool by S id (same id as 档位).
+ * S1 20% · S2 40% · S3 55% · S4 70% · S5 85% · S6 100%.
+ * `metric` / `minPerfUsdt` kept for admin display; qualification uses 档位 brackets
+ * after clearing the S1 entry floor (1000 USDT total).
  */
 export const UD3_S_LEVELS: Ud3SLevel[] = [
   { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 1_000 },
-  { id: 2, label: 'S2', sharePct: 40, metric: 'total', minPerfUsdt: 5_000 },
-  { id: 3, label: 'S3', sharePct: 55, metric: 'small', minPerfUsdt: 10_000 },
-  { id: 4, label: 'S4', sharePct: 70, metric: 'small', minPerfUsdt: 50_000 },
-  { id: 5, label: 'S5', sharePct: 85, metric: 'small', minPerfUsdt: 100_000 },
-  { id: 6, label: 'S6', sharePct: 100, metric: 'small', minPerfUsdt: 300_000 },
+  { id: 2, label: 'S2', sharePct: 40, metric: 'total', minPerfUsdt: 100_000 },
+  { id: 3, label: 'S3', sharePct: 55, metric: 'total', minPerfUsdt: 200_000 },
+  { id: 4, label: 'S4', sharePct: 70, metric: 'total', minPerfUsdt: 300_000 },
+  { id: 5, label: 'S5', sharePct: 85, metric: 'total', minPerfUsdt: 500_000 },
+  { id: 6, label: 'S6', sharePct: 100, metric: 'total', minPerfUsdt: 800_000 },
 ];
 
 /** @deprecated Use UD3_S_LEVELS */
@@ -89,18 +92,20 @@ export const UD3_V_LEVELS = UD3_S_LEVELS;
 export type Ud3PerfSnapshot = {
   /** 伞下总业绩（含直推线合计，不含本人入金时可自定） */
   totalPerfUsdt: number;
-  /** 小区业绩（直推线中除最大线以外合计） */
+  /** 小区业绩（展示用；级差级别与档位共用总业绩区间） */
   smallAreaPerfUsdt: number;
 };
 
-/** Highest S the member currently qualifies for (null if below S1). */
+/**
+ * Gap level = same S1–S6 as 档位 (总业绩区间).
+ * Demo 7600 → S1 → 20% of network pool. Below 1000 total → no level.
+ */
 export function resolveUd3SLevel(perf: Ud3PerfSnapshot): Ud3SLevel | null {
-  let best: Ud3SLevel | null = null;
-  for (const level of UD3_S_LEVELS) {
-    const value = level.metric === 'total' ? perf.totalPerfUsdt : perf.smallAreaPerfUsdt;
-    if (value >= level.minPerfUsdt) best = level;
-  }
-  return best;
+  const total = perf.totalPerfUsdt;
+  if (!Number.isFinite(total) || total < UD3_S_LEVELS[0].minPerfUsdt) return null;
+  const tier = getUd3Tier(total);
+  if (!tier) return null;
+  return UD3_S_LEVELS[tier.id - 1] ?? null;
 }
 
 /** @deprecated Use resolveUd3SLevel */
@@ -191,47 +196,50 @@ export type Ud3DifferentialResult = {
  * `chainBottomToTop`: closest upline first (excluding direct 引路人 who already got 60%),
  * then parents up to root.
  *
- * gap = max(ownSShare − maxEmittedBelow, 0)
+ * `floorSharePct`: 引路人已占用的累计份额（同级以上不可再拿：S1 后遇到 S1 → 20−20=0）.
+ * gap = max(ownShare − maxEmitted, 0); remainder stays for higher S further up.
  */
 export function allocateNetworkDifferential(
   networkPoolUd3: number,
   chainBottomToTop: Ud3UplineNode[],
+  floorSharePct = 0,
 ): Ud3DifferentialResult {
-  if (networkPoolUd3 <= 0 || chainBottomToTop.length === 0) {
+  let maxEmitted = Math.max(0, Math.min(100, Number(floorSharePct) || 0));
+
+  if (networkPoolUd3 <= 0) {
     return {
       payouts: [],
-      allocatedPct: 0,
+      allocatedPct: maxEmitted,
       allocatedUd3: 0,
-      remainingPct: 100,
-      remainingUd3: round6(Math.max(0, networkPoolUd3)),
+      remainingPct: Math.max(0, 100 - maxEmitted),
+      remainingUd3: 0,
     };
   }
 
-  let maxEmitted = 0;
+  if (chainBottomToTop.length === 0) {
+    return {
+      payouts: [],
+      allocatedPct: maxEmitted,
+      allocatedUd3: 0,
+      remainingPct: Math.max(0, 100 - maxEmitted),
+      remainingUd3: round6((networkPoolUd3 * Math.max(0, 100 - maxEmitted)) / 100),
+    };
+  }
+
   const payouts: Ud3DifferentialPayout[] = [];
 
   for (const node of chainBottomToTop) {
     const own = Math.max(0, Math.min(100, Number(node.vSharePct) || 0));
     const gapPct = Math.max(own - maxEmitted, 0);
     const ud3Amount = gapPct > 0 ? round6((networkPoolUd3 * gapPct) / 100) : 0;
-    if (gapPct > 0) {
-      payouts.push({
-        wallet: node.wallet,
-        vSharePct: own,
-        vLabel: node.vLabel,
-        gapPct,
-        ud3Amount,
-      });
-      maxEmitted = own;
-    } else {
-      payouts.push({
-        wallet: node.wallet,
-        vSharePct: own,
-        vLabel: node.vLabel,
-        gapPct: 0,
-        ud3Amount: 0,
-      });
-    }
+    payouts.push({
+      wallet: node.wallet,
+      vSharePct: own,
+      vLabel: node.vLabel,
+      gapPct,
+      ud3Amount,
+    });
+    if (gapPct > 0) maxEmitted = own;
   }
 
   const allocatedUd3 = round6(payouts.reduce((s, p) => s + p.ud3Amount, 0));
@@ -250,14 +258,27 @@ export function settleUd3DepositEvent(input: {
   depositUsdt: number;
   referrerWallet: string;
   referrerTotalPerfUsdt: number;
+  /** Override 引路人 gap floor; default = resolve from referrerTotalPerfUsdt. */
+  referrerNetworkSharePct?: number;
   /** Upline ABOVE referrer, bottom→top. */
   networkChainAboveReferrer: Ud3UplineNode[];
 }) {
   const gen = generateUd3FromDeposit(input.depositUsdt, input.referrerTotalPerfUsdt);
-  const network = allocateNetworkDifferential(gen.networkPoolUd3, input.networkChainAboveReferrer);
+  const floorSharePct =
+    input.referrerNetworkSharePct ??
+    (resolveUd3SLevel({
+      totalPerfUsdt: input.referrerTotalPerfUsdt,
+      smallAreaPerfUsdt: 0,
+    })?.sharePct ?? 0);
+  const network = allocateNetworkDifferential(
+    gen.networkPoolUd3,
+    input.networkChainAboveReferrer,
+    floorSharePct,
+  );
   return {
     ...gen,
     referrerWallet: input.referrerWallet,
+    referrerNetworkSharePct: floorSharePct,
     network,
   };
 }

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { glassCardClass } from '@/components/ui/GlassSurface';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { PartnerTeamTree } from '@/components/partner/PartnerTeamTree';
 import { PartnerTeamDashboard } from '@/components/partner/PartnerTeamDashboard';
 import { PartnerReferralCard } from '@/components/partner/PartnerReferralCard';
 import { PartnerTransferGuide } from '@/components/partner/PartnerTransferGuide';
-import { PartnerListFilters } from '@/components/partner/partnerUiKit';
+import { PartnerUd3RewardRow } from '@/components/partner/PartnerUd3RewardRow';
 import {
   emptyPartnerTeamNodes,
   type PartnerTeamNode,
@@ -13,16 +12,32 @@ import {
 import { getSd3Quotas, type PartnerState } from '@/components/partner/partnerData';
 import { buildDemoUd3PendingRows } from '@/components/partner/ud3DemoSettle';
 import { ensureDemoSimCaughtUp } from '@/components/partner/ud3DemoDailyTick';
-import { AddressBlock } from '@/components/ui/AddressBlock';
 import { isDemoWallet } from '@/lib/demoWallet';
+import { walletEquals } from '@/lib/wallet';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import { buildReferralLink } from '@/lib/referral';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
 type TeamSub = 'tree' | 'sd3';
+type StatusFilter = 'all' | 'settled' | 'pending';
+type RoleFilter = 'all' | 'direct' | 'upline';
 
-type Sd3Sort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc';
+function findNodeIdByAddress(
+  nodes: Record<string, PartnerTeamNode>,
+  address: string,
+): string | null {
+  const raw = address.trim();
+  if (!raw) return null;
+  const hit = Object.values(nodes).find(
+    (n) =>
+      walletEquals(n.address, raw) ||
+      n.address.toLowerCase() === raw.toLowerCase() ||
+      n.short?.toLowerCase() === raw.toLowerCase() ||
+      n.label?.toLowerCase() === raw.toLowerCase(),
+  );
+  return hit?.id ?? null;
+}
 
 export function PartnerTeamTab({
   lang,
@@ -54,11 +69,11 @@ export function PartnerTeamTab({
   const isPartner = state.isPartner;
   const transferQuota = getSd3Quotas(state).transferQuota;
   const [sub, setSub] = useState<TeamSub>('tree');
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [sort, setSort] = useState<Sd3Sort>('date_desc');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [transferGuideStep, setTransferGuideStep] = useState(-1);
+  /** token bumps every click so tree re-applies even for the same node. */
+  const [jumpReq, setJumpReq] = useState<{ id: string; token: number } | null>(null);
 
   useEffect(() => {
     if (transferGuideActive) setSub('tree');
@@ -82,50 +97,36 @@ export function PartnerTeamTab({
   const allRows = useMemo(() => [...pendingRows, ...history], [pendingRows, history]);
 
   const filteredHistory = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let rows = allRows.filter((row) => {
-      if (dateFrom && row.settledAt < dateFrom) return false;
-      if (dateTo && row.settledAt > dateTo) return false;
-      if (!q) return true;
-      const hay = [
-        row.id,
-        row.settledAt,
-        String(row.sd3Amount),
-        String(row.teamPerformanceUsd),
-        row.role ?? '',
-        row.sourceAddress ?? '',
-        row.sourceLabel ?? '',
-        String(row.rewardSharePct ?? ''),
-        String(row.tierRatePct),
-        row.settlementStatus ?? '',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(q);
+    const rows = allRows.filter((row) => {
+      if (statusFilter === 'settled' && row.settlementStatus === 'pending') return false;
+      if (statusFilter === 'pending' && row.settlementStatus !== 'pending') return false;
+      if (roleFilter === 'direct' && row.role === 'upline') return false;
+      if (roleFilter === 'upline' && row.role !== 'upline') return false;
+      return true;
     });
-    rows = [...rows].sort((a, b) => {
-      /** Pending always before settled when sorting by date. */
+    return [...rows].sort((a, b) => {
       const pa = a.settlementStatus === 'pending' ? 1 : 0;
       const pb = b.settlementStatus === 'pending' ? 1 : 0;
       if (pa !== pb) return pb - pa;
-      if (sort === 'date_asc') return a.settledAt.localeCompare(b.settledAt);
-      if (sort === 'amount_desc') return b.sd3Amount - a.sd3Amount;
-      if (sort === 'amount_asc') return a.sd3Amount - b.sd3Amount;
       return b.settledAt.localeCompare(a.settledAt);
     });
-    return rows;
-  }, [allRows, search, dateFrom, dateTo, sort]);
+  }, [allRows, statusFilter, roleFilter]);
+
+  const jumpToAddress = useCallback(
+    (address: string) => {
+      const id = findNodeIdByAddress(treeNodes, address);
+      if (!id) return;
+      setSub('tree');
+      setJumpReq({ id, token: Date.now() });
+    },
+    [treeNodes],
+  );
+
+  const clearJumpReq = useCallback(() => setJumpReq(null), []);
 
   const subs = [
     { id: 'tree', label: p('team.referralDetail') },
     { id: 'sd3', label: p('team.ud3Rewards') },
-  ];
-
-  const sortOptions = [
-    { id: 'date_desc', label: p('filters.sortDateDesc') },
-    { id: 'date_asc', label: p('filters.sortDateAsc') },
-    { id: 'amount_desc', label: p('filters.sortAmountDesc') },
-    { id: 'amount_asc', label: p('filters.sortAmountAsc') },
   ];
 
   return (
@@ -144,7 +145,8 @@ export function PartnerTeamTab({
 
       <SectionTabBar tabs={subs} active={sub} onChange={(id) => setSub(id as TeamSub)} isDark={isDark} />
 
-      {sub === 'tree' && (
+      {/* Keep mounted so jump-from-rewards does not lose focus across tab remounts. */}
+      <div className={sub === 'tree' ? 'contents' : 'hidden'} aria-hidden={sub !== 'tree'}>
         <PartnerTeamTree
           lang={lang}
           isDark={isDark}
@@ -156,144 +158,81 @@ export function PartnerTeamTab({
           onTransferSd3={isPartner ? onTransferSd3 : undefined}
           transferGuideActive={transferGuideActive}
           transferGuideStep={transferGuideStep}
+          jumpFocusId={jumpReq?.id ?? null}
+          jumpToken={jumpReq?.token ?? 0}
+          onJumpFocusConsumed={clearJumpReq}
         />
-      )}
+      </div>
 
       {sub === 'sd3' && (
-        <div className="space-y-3">
-          {!isPartner ? (
-            <div className={`text-center py-12 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-              {p('team.sd3PartnerOnly', { price: CROWDFUND_UNIT_PRICE_USDT })}
+        <div className="space-y-2.5">
+          <div
+            className={`flex flex-wrap gap-1 p-1 rounded-xl ${
+              isDark ? 'bg-white/[0.04]' : 'bg-[#160510]/[0.04]'
+            }`}
+          >
+            {(
+              [
+                ['all', p('team.ud3FilterAll')],
+                ['settled', p('team.settledBadge')],
+                ['pending', p('team.unsettledBadge')],
+                ['direct', p('team.sd3RoleDirect')],
+                ['upline', p('team.sd3RoleUpline')],
+              ] as const
+            ).map(([id, label]) => {
+              const active =
+                id === 'all'
+                  ? statusFilter === 'all' && roleFilter === 'all'
+                  : id === 'settled' || id === 'pending'
+                    ? statusFilter === id && roleFilter === 'all'
+                    : roleFilter === id && statusFilter === 'all';
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    if (id === 'all') {
+                      setStatusFilter('all');
+                      setRoleFilter('all');
+                    } else if (id === 'settled' || id === 'pending') {
+                      setStatusFilter(id);
+                      setRoleFilter('all');
+                    } else {
+                      setRoleFilter(id);
+                      setStatusFilter('all');
+                    }
+                  }}
+                  className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
+                    active
+                      ? 'text-[#E0568F] bg-[#E0568F]/14 shadow-sm'
+                      : isDark
+                        ? 'text-white/40 hover:text-white/60'
+                        : 'text-[#160510]/40 hover:text-[#160510]/60'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredHistory.length === 0 ? (
+            <div className={`text-center text-sm py-10 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+              {allRows.length === 0 ? p('team.sd3HistoryEmpty') : p('filters.noResults')}
             </div>
           ) : (
-            <>
-              <PartnerListFilters
-                isDark={isDark}
-                p={p}
-                search={search}
-                onSearchChange={setSearch}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-                sortLabel={p('filters.sort')}
-                sortValue={sort}
-                sortOptions={sortOptions}
-                onSortChange={(v) => setSort(v as Sd3Sort)}
-              />
-
-              {filteredHistory.length === 0 ? (
-                <div className={`text-center text-sm py-10 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-                  {allRows.length === 0 ? p('team.sd3HistoryEmpty') : p('filters.noResults')}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredHistory.map((row) => {
-                    const isPending = row.settlementStatus === 'pending';
-                    const isNetwork = row.role === 'upline';
-                    const roleLabel = isNetwork ? p('team.sd3RoleUpline') : p('team.sd3RoleDirect');
-                    const roleCls = isNetwork
-                      ? 'text-violet-500 bg-violet-500/10 border-violet-500/20'
-                      : 'text-sky-500 bg-sky-500/10 border-sky-500/20';
-                    return (
-                    <div key={row.id} className={`partner-elevated-card p-4 ${glassCardClass('default', '')}`}>
-                      <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                isPending
-                                  ? isDark
-                                    ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
-                                    : 'text-amber-800 bg-amber-500/15 border-amber-600/25'
-                                  : isDark
-                                    ? 'text-emerald-300/90 bg-emerald-500/10 border-emerald-500/25'
-                                    : 'text-emerald-800 bg-emerald-500/10 border-emerald-600/20'
-                              }`}
-                            >
-                              {isPending ? p('team.unsettledBadge') : p('team.settledBadge')}
-                            </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${roleCls}`}>
-                              {roleLabel}
-                            </span>
-                            {row.sourceDepth != null && row.sourceDepth > 0 && (
-                              <span
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  isDark ? 'bg-white/[0.06] text-white/55' : 'bg-[#160510]/5 text-[#160510]/60'
-                                }`}
-                              >
-                                {p('team.ud3FromLayer', { n: row.sourceDepth })}
-                              </span>
-                            )}
-                            {isNetwork && row.vLabel ? (
-                              <span
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  isDark ? 'bg-[#F5D0A9]/10 text-[#F5D0A9]' : 'bg-[#8A2B57]/10 text-[#8A2B57]'
-                                }`}
-                              >
-                                {row.vLabel}
-                              </span>
-                            ) : null}
-                            {!isNetwork && row.tierRatePct > 0 && (
-                              <span
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  isDark ? 'bg-white/[0.06] text-white/55' : 'bg-[#160510]/5 text-[#160510]/60'
-                                }`}
-                              >
-                                {p('team.ud3TierRate', { pct: row.tierRatePct })}
-                              </span>
-                            )}
-                            {isNetwork && (row.gapPct ?? row.rewardSharePct) != null && (row.gapPct ?? row.rewardSharePct)! > 0 ? (
-                              <span
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-500/10 text-amber-700'
-                                }`}
-                              >
-                                {p('team.ud3RewardGap', { pct: row.gapPct ?? row.rewardSharePct })}
-                              </span>
-                            ) : !isNetwork && row.rewardSharePct != null && row.rewardSharePct > 0 ? (
-                              <span
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                  isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-500/10 text-amber-700'
-                                }`}
-                              >
-                                {p('team.sd3RewardShare', { pct: row.rewardSharePct })}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#160510]'}`}>{row.settledAt}</div>
-                          {row.sourceAddress && (
-                            <div className="mt-2">
-                              <div className={`text-[10px] mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                                {p('team.sd3FromAddress')}
-                              </div>
-                              <AddressBlock
-                                label={row.sourceLabel}
-                                value={row.sourceAddress}
-                                isDark={isDark}
-                                compact
-                                dense
-                                surface="inset"
-                              />
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-bold text-[#E0568F]">
-                            {p('team.ud3AmountCredit', { amount: row.sd3Amount.toLocaleString() })}
-                          </div>
-                          <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                            {p('team.sd3HistoryNewPerf', { amount: row.dailyNewPerformanceUsd.toLocaleString() })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+            <div className="space-y-2.5">
+              {filteredHistory.map((row) => (
+                <PartnerUd3RewardRow
+                  key={row.id}
+                  row={row}
+                  lang={lang}
+                  isDark={isDark}
+                  onOpenDepositor={jumpToAddress}
+                  onOpenGuide={jumpToAddress}
+                />
+              ))}
+            </div>
           )}
         </div>
       )}

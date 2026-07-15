@@ -7,9 +7,7 @@ import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import { resolvePartnerSd3Metrics } from '@/components/partner/partnerSd3View';
 import {
   getUd3Tier,
-  isUd3PlanEligible,
   resolveUd3SLevel,
-  UD3_PLAN_MIN_STAKE_USDT,
 } from '@/components/partner/ud3Rules';
 import { PartnerDualAnimatedBar, PartnerLevelBadge } from '@/components/partner/partnerUiKit';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
@@ -39,12 +37,20 @@ export function PartnerTeamDashboard({
     [state, teamNodes, teamStats, pendingSd3Earned],
   );
   const areas = metrics.areas;
-  const totalPerf = teamStats.teamPerformanceUsd ?? 0;
-  const totalNew = teamStats.dailyNewPerformanceUsd ?? 0;
-  const personalStake = teamStats.personalPerformanceUsd ?? 0;
-  const planEligible = isUd3PlanEligible(personalStake) || state.isPartner;
+  /** Prefer tree-derived demo/total performance — API stats can be 0 and falsely show「未达级」. */
+  const totalPerf = Math.max(
+    teamNodes.me?.teamUsd ?? 0,
+    teamStats.teamPerformanceUsd ?? 0,
+    state.teamPerformanceUsd ?? 0,
+  );
+  const totalNew = Math.max(
+    teamNodes.me?.dailyNewUsd ?? 0,
+    teamStats.dailyNewPerformanceUsd ?? 0,
+    state.dailyNewPerformanceUsd ?? 0,
+  );
 
-  const tier = getUd3Tier(totalPerf);
+  /** S1–S6 档位 = 级别：作引路人时定受贿金比例；作上线时再按层级取级差。 */
+  const level = getUd3Tier(totalPerf);
   const sLevel = resolveUd3SLevel({
     totalPerfUsdt: totalPerf,
     smallAreaPerfUsdt: areas.smallAreaUsd,
@@ -63,39 +69,14 @@ export function PartnerTeamDashboard({
 
       <div className="relative px-4 pt-3.5 pb-3 border-b border-[#E0568F]/10 dark:border-white/[0.06]">
         <div className="flex flex-wrap items-center gap-1.5 mb-2">
-          {tier ? (
+          {level ? (
             <PartnerLevelBadge
-              label={`${tier.label} · ${tier.ratePct}%`}
+              label={p('ud3.levelBadge', { level: level.label, pct: level.ratePct })}
             />
           ) : (
             <PartnerLevelBadge label={p('ud3.tierNone')} />
           )}
-          {sLevel ? (
-            <span
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                isDark
-                  ? 'text-[#F5D0A9] bg-[#F5D0A9]/10 border-[#F5D0A9]/25'
-                  : 'text-[#8A2B57] bg-[#8A2B57]/8 border-[#8A2B57]/20'
-              }`}
-            >
-              {sLevel.label}
-              <span className="ml-1 opacity-70">{sLevel.sharePct}%</span>
-            </span>
-          ) : (
-            <span
-              className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border border-dashed ${
-                isDark ? 'text-white/35 border-white/15' : 'text-[#160510]/40 border-[#160510]/15'
-              }`}
-            >
-              {p('ud3.sNone')}
-            </span>
-          )}
         </div>
-        {!planEligible && (
-          <p className={`text-[10px] mb-2 ${isDark ? 'text-amber-200/70' : 'text-amber-800/70'}`}>
-            {p('ud3.planMinHint', { min: UD3_PLAN_MIN_STAKE_USDT })}
-          </p>
-        )}
         {wallet && (
           <AddressBlock value={wallet} isDark={isDark} compact dense showCopy surface="inset" />
         )}

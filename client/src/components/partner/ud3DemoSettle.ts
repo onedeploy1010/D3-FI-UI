@@ -9,6 +9,7 @@ import {
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
 import {
+  getUd3Tier,
   resolveUd3SLevel,
   settleUd3DepositEvent,
   type Ud3UplineNode,
@@ -108,6 +109,7 @@ export function creditRowsForDeposits(
     });
 
     const depth = partnerTeamDepth(nodes, dep.sourceId);
+    const guideTier = getUd3Tier(referrer.teamUsd);
     const base = {
       settledAt: dep.settledAt,
       teamPerformanceUsd: me.teamUsd,
@@ -115,6 +117,11 @@ export function creditRowsForDeposits(
       sourceAddress: source.address,
       sourceLabel: source.label,
       sourceDepth: depth,
+      guideAddress: referrer.address,
+      guideLabel: referrer.label,
+      guideTierLabel: guideTier?.label ?? event.tier?.label,
+      generatedUd3: round2(event.generatedUd3),
+      networkPoolUd3: round2(event.networkPoolUd3),
       settlementStatus: status,
     } as const;
 

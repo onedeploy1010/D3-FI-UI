@@ -45,12 +45,19 @@ describe('UD3 tier S1–S6 (generation)', () => {
   });
 });
 
-describe('UD3 S network levels', () => {
-  it('S1–S2 use total; S3–S6 use small area', () => {
+describe('UD3 gap level = same ladder as 档位', () => {
+  it('demo-scale 7600 is S1 at 20% pool share', () => {
+    expect(resolveUd3SLevel({ totalPerfUsdt: 7_600, smallAreaPerfUsdt: 0 })?.label).toBe('S1');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 7_600, smallAreaPerfUsdt: 0 })?.sharePct).toBe(20);
+  });
+
+  it('requires ≥1000 total; higher 档位 unlocks higher gap share', () => {
+    expect(resolveUd3SLevel({ totalPerfUsdt: 500, smallAreaPerfUsdt: 0 })).toBeNull();
     expect(resolveUd3SLevel({ totalPerfUsdt: 2_000, smallAreaPerfUsdt: 0 })?.label).toBe('S1');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 6_000, smallAreaPerfUsdt: 0 })?.label).toBe('S2');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 6_000, smallAreaPerfUsdt: 12_000 })?.label).toBe('S3');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 1_000, smallAreaPerfUsdt: 350_000 })?.label).toBe('S6');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 150_000, smallAreaPerfUsdt: 0 })?.label).toBe('S2');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 150_000, smallAreaPerfUsdt: 0 })?.sharePct).toBe(40);
+    expect(resolveUd3SLevel({ totalPerfUsdt: 250_000, smallAreaPerfUsdt: 0 })?.label).toBe('S3');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 900_000, smallAreaPerfUsdt: 0 })?.label).toBe('S6');
   });
 });
 
@@ -77,6 +84,28 @@ describe('network differential', () => {
     ]);
     expect(r.payouts.map((p) => p.gapPct)).toEqual([55, 0, 30, 15]);
     expect(r.allocatedPct).toBe(100);
+  });
+
+  it('引路人 S1 floor → upline S1 gap is 0', () => {
+    const r = allocateNetworkDifferential(
+      400,
+      [{ wallet: 'demo', vSharePct: 20, vLabel: 'S1' }],
+      20, // 引路人 already S1
+    );
+    expect(r.payouts[0].gapPct).toBe(0);
+    expect(r.payouts[0].ud3Amount).toBe(0);
+    expect(r.remainingPct).toBe(80);
+  });
+
+  it('引路人 S1 floor → upline S2 takes 20% gap of pool', () => {
+    const r = allocateNetworkDifferential(
+      400,
+      [{ wallet: 'up', vSharePct: 40, vLabel: 'S2' }],
+      20,
+    );
+    expect(r.payouts[0].gapPct).toBe(20);
+    expect(r.payouts[0].ud3Amount).toBe(80);
+    expect(r.remainingPct).toBe(60);
   });
 
   it('skips levels and still fills gaps', () => {
@@ -115,7 +144,7 @@ describe('full settle event', () => {
     const event = settleUd3DepositEvent({
       depositUsdt: 1000,
       referrerWallet: 'ref',
-      referrerTotalPerfUsdt: 150_000, // S2 → 1100 UD3
+      referrerTotalPerfUsdt: 150_000, // S2 → 1100 UD3, floor 40%
       networkChainAboveReferrer: [
         { wallet: 'u1', vSharePct: 40, vLabel: 'S2' },
         { wallet: 'u2', vSharePct: 100, vLabel: 'S6' },
@@ -124,7 +153,22 @@ describe('full settle event', () => {
     expect(event.generatedUd3).toBe(1100);
     expect(event.directUd3).toBe(660);
     expect(event.networkPoolUd3).toBe(440);
-    expect(event.network.payouts[0].ud3Amount).toBe(176); // 40% of 440
-    expect(event.network.payouts[1].ud3Amount).toBe(264); // 60% of 440
+    expect(event.referrerNetworkSharePct).toBe(40);
+    // u1 same S2 as 引路人 → 0; u2 takes 100−40=60
+    expect(event.network.payouts[0].ud3Amount).toBe(0);
+    expect(event.network.payouts[1].gapPct).toBe(60);
+    expect(event.network.payouts[1].ud3Amount).toBe(264);
+  });
+
+  it('S1 引路人 → S1 demo upline gets no gap', () => {
+    const event = settleUd3DepositEvent({
+      depositUsdt: 1000,
+      referrerWallet: 'guide',
+      referrerTotalPerfUsdt: 7_600, // S1
+      networkChainAboveReferrer: [{ wallet: 'demo', vSharePct: 20, vLabel: 'S1' }],
+    });
+    expect(event.referrerNetworkSharePct).toBe(20);
+    expect(event.network.payouts[0].gapPct).toBe(0);
+    expect(event.network.payouts[0].ud3Amount).toBe(0);
   });
 });

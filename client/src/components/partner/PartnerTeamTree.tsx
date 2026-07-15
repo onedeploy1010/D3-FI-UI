@@ -3,7 +3,7 @@ import { ArrowUp, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
-import { getUd3Tier, resolveUd3SLevel } from '@/components/partner/ud3Rules';
+import { getUd3Tier } from '@/components/partner/ud3Rules';
 import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
@@ -155,6 +155,9 @@ export function PartnerTeamTree({
   onTransferSd3,
   transferGuideActive = false,
   transferGuideStep = -1,
+  jumpFocusId = null,
+  jumpToken = 0,
+  onJumpFocusConsumed,
 }: {
   lang: AppLang;
   isDark: boolean;
@@ -166,12 +169,19 @@ export function PartnerTeamTree({
   onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
   transferGuideActive?: boolean;
   transferGuideStep?: number;
+  /** External jump from UD3 rewards → focus this node id once. */
+  jumpFocusId?: string | null;
+  /** Changes on every jump click (same node can be jumped to repeatedly). */
+  jumpToken?: number;
+  onJumpFocusConsumed?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const [focusId, setFocusId] = useState('me');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [aliases, setAliases] = useState<Record<string, string>>({});
   const [transferTarget, setTransferTarget] = useState<PartnerTeamNode | null>(null);
+  const lastJumpTokenRef = useRef(0);
 
   useEffect(() => {
     setAliases(loadTeamAliases(wallet));
@@ -181,8 +191,42 @@ export function PartnerTeamTree({
     if (transferGuideActive) {
       setFocusId('me');
       setQ('');
+      setHighlightId(null);
     }
   }, [transferGuideActive]);
+
+  useEffect(() => {
+    if (!jumpFocusId || !jumpToken || jumpToken === lastJumpTokenRef.current) return;
+    lastJumpTokenRef.current = jumpToken;
+    const target = nodes[jumpFocusId];
+    if (!target) {
+      onJumpFocusConsumed?.();
+      return;
+    }
+    /** Focus parent so the target appears as a listed card. */
+    const parentFocus =
+      target.id === 'me' ? 'me' : target.parentId && nodes[target.parentId] ? target.parentId : 'me';
+    setFocusId(parentFocus);
+    setHighlightId(target.id);
+    setQ('');
+
+    const scrollTimer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-team-node-id="${target.id}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    const clearTimer = window.setTimeout(() => onJumpFocusConsumed?.(), 120);
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [jumpFocusId, jumpToken, nodes, onJumpFocusConsumed]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = window.setTimeout(() => setHighlightId(null), 2800);
+    return () => window.clearTimeout(t);
+  }, [highlightId]);
 
   const saveAlias = useCallback(
     (address: string, alias: string) => {
@@ -230,9 +274,7 @@ export function PartnerTeamTree({
     const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
     const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
-    const nodeTier = getUd3Tier(node.teamUsd);
-    // Tree cards lack small-area snap — approximate S with total only for S1/S2; S3+ needs server stats later.
-    const nodeS = resolveUd3SLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: 0 });
+    const nodeLevel = getUd3Tier(node.teamUsd);
     const showTransferBtn =
       node.id !== 'me' &&
       ((canTransfer && !node.isGuideMock) ||
@@ -242,32 +284,22 @@ export function PartnerTeamTree({
 
     return (
       <div
+        data-team-node-id={node.id}
         className={cn(
           `partner-elevated-card p-4 space-y-3 ${glassCardClass('default', '')}`,
           node.isGuideMock && 'border border-dashed border-[#E0568F]/35',
+          highlightId === node.id && 'ring-2 ring-[#E0568F]/55 shadow-[0_0_0_1px_rgba(224,86,143,0.35)]',
         )}
       >
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="flex flex-wrap items-center gap-1.5">
           <PartnerLevelBadge
             label={
-              nodeTier
-                ? `${nodeTier.label} · ${nodeTier.ratePct}%`
+              nodeLevel
+                ? p('ud3.levelBadge', { level: nodeLevel.label, pct: nodeLevel.ratePct })
                 : p('ud3.tierNone')
             }
           />
-          {nodeS && (
-            <span
-              className={cn(
-                'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 border',
-                isDark
-                  ? 'text-[#F5D0A9] bg-[#F5D0A9]/10 border-[#F5D0A9]/25'
-                  : 'text-[#8A2B57] bg-[#8A2B57]/8 border-[#8A2B57]/20',
-              )}
-            >
-              {nodeS.label}
-            </span>
-          )}
           <span
             className={cn(
               'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',

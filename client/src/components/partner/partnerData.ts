@@ -333,7 +333,9 @@ export type Sd3SettlementRecord = {
   id: string;
   settledAt: string;
   teamPerformanceUsd: number;
+  /** 触发奖励的下线入金 USDT */
   dailyNewPerformanceUsd: number;
+  /** 引路人（入金者直推上级）档位百分比，如 S1=100 */
   tierRatePct: number;
   sd3Amount: number;
   /** 直推 60% / 网体极差 */
@@ -342,12 +344,22 @@ export type Sd3SettlementRecord = {
   rewardSharePct?: number;
   /** 网体极差实际差距（与 rewardSharePct 同值时可省略） */
   gapPct?: number;
-  /** 收款人当时 S 级，如 S2 */
+  /** 收款人当时网体 S 级，如 S2（用于极差） */
   vLabel?: string;
   /** 入金地址相对本人的层数：1=直推，2=二层… */
   sourceDepth?: number;
+  /** 入金成员 */
   sourceAddress?: string;
   sourceLabel?: string;
+  /** 该笔入金的引路人（直推上级）；极差奖励来源 */
+  guideAddress?: string;
+  guideLabel?: string;
+  /** 引路人档位标签，如 S1 */
+  guideTierLabel?: string;
+  /** 入金 × 引路人档位 = 总受贿金 */
+  generatedUd3?: number;
+  /** 总受贿金 × 40% 网体池 */
+  networkPoolUd3?: number;
   /** Demo / 列表：已结算 vs 当日未结算 */
   settlementStatus?: 'settled' | 'pending';
 };

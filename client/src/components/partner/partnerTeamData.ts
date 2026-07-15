@@ -102,7 +102,7 @@ function num(v: unknown): number {
 /**
  * Demo seed tree — personalUsd always ×100.
  * teamUsd filled by recomputePartnerTeamVolumes (伞下合计).
- * Line volumes: d1=2600, d2=1500, d3=1600 → me 总业绩=5700.
+ * Line volumes: d1=2600, d2=1500, d3=1600 → me 总业绩=5700（档位/极差均为 S1 · 20%）.
  */
 const partnerTeamNodesSeed: Record<string, PartnerTeamNode> = {
   me: {
