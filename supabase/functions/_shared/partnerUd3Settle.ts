@@ -1,27 +1,56 @@
 /**
- * Allocate UD3 when a stake intent is credited.
- * Wire from partnerSettlement / treasury after deposit credit.
+ * Allocate UD3 when a USDT stake intent is credited
+ * (partner_join / crowdfund_stake — not SD3 re-stake).
+ *
+ * Call after rollupPartnerPerformance so 引路人 total perf includes the new volume.
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
+  getUd3Tier,
+  resolveUd3SLevel,
   settleUd3DepositEvent,
   type Ud3UplineNode,
 } from './partnerUd3Rules.ts';
+import { sumReferralTreePerformance } from './partnerPerformance.ts';
 
 type Sb = SupabaseClient;
+
+const UD3_STAKE_INTENT_TYPES = new Set(['partner_join', 'crowdfund_stake']);
 
 function round6(n: number): number {
   return Math.round(n * 1e6) / 1e6;
 }
 
-async function fetchUplineChainAbove(
+function parseSLevelId(label?: string): number | null {
+  if (!label) return null;
+  const m = /^[SVs]?(\d+)$/.exec(label.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n <= 6 ? n : null;
+}
+
+async function cacheAccountLevels(
   sb: Sb,
-  referrerWallet: string,
-): Promise<Ud3UplineNode[]> {
-  // Walk sponsor_wallet chain upward from referrer's sponsor.
+  wallet: string,
+  teamPerfUsdt: number,
+): Promise<void> {
+  const tier = getUd3Tier(teamPerfUsdt);
+  const level = resolveUd3SLevel({ totalPerfUsdt: teamPerfUsdt, smallAreaPerfUsdt: 0 });
+  await sb.from('partner_accounts').upsert(
+    {
+      wallet_address: wallet,
+      ud3_tier_id: tier?.id ?? null,
+      ud3_v_level: level?.id ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'wallet_address' },
+  );
+}
+
+async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud3UplineNode[]> {
   const chain: Ud3UplineNode[] = [];
   let current = referrerWallet;
-  const seen = new Set<string>();
+  const seen = new Set<string>([referrerWallet.trim().toLowerCase()]);
 
   for (let depth = 0; depth < 32; depth++) {
     const { data: ref } = await sb
@@ -38,26 +67,15 @@ async function fetchUplineChainAbove(
     if (seen.has(key)) break;
     seen.add(key);
 
-    const { data: acct } = await sb
-      .from('partner_accounts')
-      .select('ud3_v_level')
-      .ilike('wallet_address', sponsor)
-      .maybeSingle();
-
-    const vLevel = Number(acct?.ud3_v_level ?? 0);
-    const sharePct =
-      vLevel === 1 ? 20 :
-      vLevel === 2 ? 40 :
-      vLevel === 3 ? 55 :
-      vLevel === 4 ? 70 :
-      vLevel === 5 ? 85 :
-      vLevel === 6 ? 100 : 0;
-
+    const teamPerf = await sumReferralTreePerformance(sb, sponsor);
+    const level = resolveUd3SLevel({ totalPerfUsdt: teamPerf, smallAreaPerfUsdt: 0 });
     chain.push({
       wallet: sponsor,
-      vSharePct: sharePct,
-      vLabel: vLevel >= 1 && vLevel <= 6 ? `V${vLevel}` : undefined,
+      vSharePct: level?.sharePct ?? 0,
+      vLabel: level?.label,
     });
+    await cacheAccountLevels(sb, sponsor, teamPerf).catch(() => {});
+
     current = sponsor;
   }
 
@@ -75,12 +93,18 @@ export async function allocateUd3ForCreditedIntent(
     referrerTotalPerfUsdt: number;
   },
 ): Promise<{ ok: boolean; skipped?: boolean; eventId?: string }> {
+  if (!Number.isFinite(input.depositUsdt) || input.depositUsdt <= 0) {
+    return { ok: true, skipped: true };
+  }
+
   const { data: existing } = await sb
     .from('partner_ud3_events')
     .select('id')
     .eq('intent_id', input.intentId)
     .maybeSingle();
   if (existing) return { ok: true, skipped: true, eventId: existing.id as string };
+
+  await cacheAccountLevels(sb, input.referrerWallet, input.referrerTotalPerfUsdt).catch(() => {});
 
   const networkChain = await fetchUplineChainAbove(sb, input.referrerWallet);
   const settled = settleUd3DepositEvent({
@@ -89,6 +113,10 @@ export async function allocateUd3ForCreditedIntent(
     referrerTotalPerfUsdt: input.referrerTotalPerfUsdt,
     networkChainAboveReferrer: networkChain,
   });
+
+  if (settled.generatedUd3 <= 0) {
+    return { ok: true, skipped: true };
+  }
 
   const { data: event, error: eventErr } = await sb
     .from('partner_ud3_events')
@@ -120,9 +148,9 @@ export async function allocateUd3ForCreditedIntent(
       event_id: eventId,
       recipient_wallet: input.referrerWallet,
       role: 'direct',
-      v_level: null,
-      v_share_pct: null,
-      gap_pct: null,
+      v_level: settled.tier?.id ?? null,
+      v_share_pct: null as number | null,
+      gap_pct: null as number | null,
       ud3_amount: settled.directUd3,
     },
     ...settled.network.payouts
@@ -131,7 +159,7 @@ export async function allocateUd3ForCreditedIntent(
         event_id: eventId,
         recipient_wallet: p.wallet,
         role: 'differential' as const,
-        v_level: p.vLabel ? Number(p.vLabel.replace('V', '')) : null,
+        v_level: parseSLevelId(p.vLabel),
         v_share_pct: p.vSharePct,
         gap_pct: p.gapPct,
         ud3_amount: p.ud3Amount,
@@ -164,13 +192,16 @@ export async function allocateUd3ForCreditedIntent(
       referrerWallet: input.referrerWallet,
       referrerTotalPerfUsdt: input.referrerTotalPerfUsdt,
       networkChain,
+      referrerNetworkSharePct: settled.referrerNetworkSharePct,
     },
     output: settled,
   });
 
-  // Credit balances
+  // Credit UD3 balances for referrer + differential winners
   const creditMap = new Map<string, number>();
-  creditMap.set(input.referrerWallet.toLowerCase(), settled.directUd3);
+  if (settled.directUd3 > 0) {
+    creditMap.set(input.referrerWallet.toLowerCase(), settled.directUd3);
+  }
   for (const p of settled.network.payouts) {
     if (p.ud3Amount <= 0) continue;
     const k = p.wallet.toLowerCase();
@@ -199,9 +230,62 @@ export async function allocateUd3ForCreditedIntent(
       .update({
         ud3_balance: round6(Number(acct.ud3_balance ?? 0) + amount),
         lifetime_ud3_earned: round6(Number(acct.lifetime_ud3_earned ?? 0) + amount),
+        updated_at: new Date().toISOString(),
       })
       .eq('wallet_address', acct.wallet_address as string);
   }
 
   return { ok: true, eventId };
+}
+
+/**
+ * Full credit-path entry: resolve 引路人 + tier perf, then settle UD3.
+ * Safe to call from every deposit credit path; no-ops when ineligible.
+ */
+export async function tryAllocateUd3ForCreditedIntent(
+  sb: Sb,
+  intentId: string,
+): Promise<{ ok: boolean; skipped?: boolean; reason?: string; eventId?: string }> {
+  const { data: intent, error } = await sb
+    .from('stake_intents')
+    .select('id, wallet_address, intent_type, amount_usdt, status')
+    .eq('id', intentId)
+    .maybeSingle();
+  if (error || !intent) return { ok: false, reason: 'intent_missing' };
+
+  const intentType = String(intent.intent_type ?? '');
+  if (!UD3_STAKE_INTENT_TYPES.has(intentType)) {
+    return { ok: true, skipped: true, reason: 'intent_type_excluded' };
+  }
+
+  const depositUsdt = Number(intent.amount_usdt ?? 0);
+  if (!Number.isFinite(depositUsdt) || depositUsdt <= 0) {
+    return { ok: true, skipped: true, reason: 'zero_amount' };
+  }
+
+  const depositorWallet = String(intent.wallet_address ?? '').trim();
+  if (!depositorWallet) return { ok: false, reason: 'depositor_missing' };
+
+  const { data: ref } = await sb
+    .from('referrals')
+    .select('sponsor_wallet_address')
+    .ilike('wallet_address', depositorWallet)
+    .eq('referral_type', 'partner')
+    .eq('status', 'active')
+    .maybeSingle();
+
+  const referrerWallet = (ref?.sponsor_wallet_address as string | undefined)?.trim();
+  if (!referrerWallet) {
+    return { ok: true, skipped: true, reason: 'no_referrer' };
+  }
+
+  const referrerTotalPerfUsdt = await sumReferralTreePerformance(sb, referrerWallet);
+
+  return allocateUd3ForCreditedIntent(sb, {
+    intentId,
+    depositorWallet,
+    referrerWallet,
+    depositUsdt,
+    referrerTotalPerfUsdt,
+  });
 }

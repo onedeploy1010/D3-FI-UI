@@ -83,7 +83,8 @@ export async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Pro
   return out;
 }
 
-async function sumReferralTreePerformance(sb: Sb, wallet: string): Promise<number> {
+/** Umbrella total performance (downline referral performance_weight sum). */
+export async function sumReferralTreePerformance(sb: Sb, wallet: string): Promise<number> {
   const downline = await collectPartnerDownlineWallets(sb, wallet);
   if (!downline.length) return 0;
 
@@ -94,7 +95,7 @@ async function sumReferralTreePerformance(sb: Sb, wallet: string): Promise<numbe
     .eq('referral_type', 'partner')
     .eq('status', 'active');
 
-  return (refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0);
+  return Math.round((refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0) * 100) / 100;
 }
 
 async function sumPersonalPerformance(sb: Sb, wallet: string): Promise<number> {

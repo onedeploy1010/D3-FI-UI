@@ -9,6 +9,7 @@ import {
 } from './turnkey.ts';
 import { rollupPartnerPerformance } from './partnerPerformance.ts';
 import { syncStakePositionOnCredit } from './partnerSettlement.ts';
+import { tryAllocateUd3ForCreditedIntent } from './partnerUd3Settle.ts';
 import type { Hash } from 'npm:viem@2';
 
 type Sb = SupabaseClient;
@@ -101,6 +102,9 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
       await syncStakePositionOnCredit(sb, dep.intent_id as string).catch((e) => {
         console.error('[monitor] stake position sync:', e instanceof Error ? e.message : e);
       });
+      await tryAllocateUd3ForCreditedIntent(sb, dep.intent_id as string).catch((e) => {
+        console.error('[monitor] UD3 allocate:', e instanceof Error ? e.message : e);
+      });
     }
 
     await postLedgerEntry(sb, {
@@ -189,6 +193,9 @@ export async function promoteDetectedDeposits(sb: Sb, limit = 20): Promise<numbe
       });
       await syncStakePositionOnCredit(sb, dep.intent_id as string).catch((e) => {
         console.error('[monitor] stake position sync:', e instanceof Error ? e.message : e);
+      });
+      await tryAllocateUd3ForCreditedIntent(sb, dep.intent_id as string).catch((e) => {
+        console.error('[monitor] UD3 allocate:', e instanceof Error ? e.message : e);
       });
     }
 

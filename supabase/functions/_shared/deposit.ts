@@ -16,6 +16,7 @@ import {
 } from './turnkey.ts';
 import { rollupPartnerPerformance } from './partnerPerformance.ts';
 import { syncStakePositionOnCredit } from './partnerSettlement.ts';
+import { tryAllocateUd3ForCreditedIntent } from './partnerUd3Settle.ts';
 import {
   claimDepositWalletFromPool,
   createOnDemandDepositWallet,
@@ -218,6 +219,10 @@ export async function creditDepositDemo(sb: Sb, walletAddress: string, intentId:
     console.error('[deposit] demo stake position sync:', e instanceof Error ? e.message : e);
   });
 
+  await tryAllocateUd3ForCreditedIntent(sb, intentId).catch((e) => {
+    console.error('[deposit] demo UD3 allocate:', e instanceof Error ? e.message : e);
+  });
+
   await postLedgerEntry(sb, {
     ledgerType: 'deposit_credit',
     walletAddress,
@@ -314,6 +319,10 @@ export async function reportDepositTx(
 
   await syncStakePositionOnCredit(sb, intentId).catch((e) => {
     console.error('[deposit] stake position sync:', e instanceof Error ? e.message : e);
+  });
+
+  await tryAllocateUd3ForCreditedIntent(sb, intentId).catch((e) => {
+    console.error('[deposit] UD3 allocate:', e instanceof Error ? e.message : e);
   });
 
   await postLedgerEntry(sb, {
