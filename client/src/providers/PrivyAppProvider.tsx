@@ -23,7 +23,17 @@ export function PrivyAppProvider({ children }: { children: ReactNode }) {
         appearance: {
           theme: 'light',
           accentColor: '#8A2B57',
-          walletList: ['metamask', 'coinbase_wallet', 'okx_wallet', 'detected_wallets'],
+          // TokenPocket has no dedicated Privy entry — use WalletConnect (registry + QR)
+          // and detected EIP-6963 / in-app browsers so TP extension & TP app browser work.
+          walletList: [
+            'metamask',
+            'okx_wallet',
+            'coinbase_wallet',
+            'bitget_wallet',
+            'detected_ethereum_wallets',
+            'wallet_connect',
+            'wallet_connect_qr',
+          ],
         },
         loginMethods: ['wallet', 'email'],
         defaultChain: d3DefaultChain,

@@ -7,7 +7,7 @@ import { DEMO_WALLET_ADDRESS } from './demo.ts';
 import { toSgtDateString, addSgtDays } from './partnerTimezone.ts';
 import {
   settleUd3DepositEvent,
-  resolveUd3VLevel,
+  resolveUd3SLevel,
   type Ud3UplineNode,
 } from './partnerUd3Rules.ts';
 
@@ -145,11 +145,11 @@ function areasOf(nodes: Record<string, DemoNode>, rootId: string) {
 function nodeUpline(nodes: Record<string, DemoNode>, nodeId: string): Ud3UplineNode {
   const node = nodes[nodeId]!;
   const areas = areasOf(nodes, nodeId);
-  const v = resolveUd3VLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: areas.small });
+  const s = resolveUd3SLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: areas.small });
   return {
     wallet: node.address,
-    vSharePct: v?.sharePct ?? 0,
-    vLabel: v?.label,
+    vSharePct: s?.sharePct ?? 0,
+    vLabel: s?.label,
   };
 }
 

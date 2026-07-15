@@ -18,8 +18,8 @@ export function WalletGate({
   children,
   titleZh = '连接 Privy 钱包',
   titleEn = 'Connect with Privy',
-  descZh = '通过 Privy 登录并连接以太坊钱包（0x 地址）。账户数据与您的钱包地址绑定。',
-  descEn = 'Sign in with Privy and connect your Ethereum wallet (0x address). All data is bound to your wallet.',
+  descZh = '通过 Privy 登录并连接钱包（MetaMask、OKX、TokenPocket 等，支持 WalletConnect）。账户与 0x 地址绑定。',
+  descEn = 'Sign in with Privy and connect a wallet (MetaMask, OKX, TokenPocket via WalletConnect, etc.). Accounts bind to your 0x address.',
   lang = 'zh',
 }: WalletGateProps) {
   const { isConnected, isPrivyReady, privyInitFailed, isConnecting, connect, connectDemo, error } = useWallet();

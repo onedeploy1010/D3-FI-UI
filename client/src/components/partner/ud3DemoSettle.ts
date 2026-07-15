@@ -9,7 +9,7 @@ import {
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
 import {
-  resolveUd3VLevel,
+  resolveUd3SLevel,
   settleUd3DepositEvent,
   type Ud3UplineNode,
 } from '@/components/partner/ud3Rules';
@@ -25,14 +25,14 @@ export const DEMO_UD3_LAST_SETTLED = '2026-07-08';
 function nodeUpline(nodes: Record<string, PartnerTeamNode>, nodeId: string): Ud3UplineNode {
   const node = nodes[nodeId]!;
   const areas = computePartnerAreaStats(nodes, nodeId);
-  const v = resolveUd3VLevel({
+  const s = resolveUd3SLevel({
     totalPerfUsdt: node.teamUsd,
     smallAreaPerfUsdt: areas.smallAreaUsd,
   });
   return {
     wallet: node.address,
-    vSharePct: v?.sharePct ?? 0,
-    vLabel: v?.label,
+    vSharePct: s?.sharePct ?? 0,
+    vLabel: s?.label,
   };
 }
 

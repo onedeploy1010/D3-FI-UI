@@ -3,7 +3,7 @@ import { ArrowUp, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
-import { getUd3Tier, resolveUd3VLevel } from '@/components/partner/ud3Rules';
+import { getUd3Tier, resolveUd3SLevel } from '@/components/partner/ud3Rules';
 import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
@@ -231,8 +231,8 @@ export function PartnerTeamTree({
     const alias = getTeamAlias(aliases, node.address);
     const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
     const nodeTier = getUd3Tier(node.teamUsd);
-    // Tree cards lack small-area snap — approximate V with total only for V1/V2; V3+ needs server stats later.
-    const nodeV = resolveUd3VLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: 0 });
+    // Tree cards lack small-area snap — approximate S with total only for S1/S2; S3+ needs server stats later.
+    const nodeS = resolveUd3SLevel({ totalPerfUsdt: node.teamUsd, smallAreaPerfUsdt: 0 });
     const showTransferBtn =
       node.id !== 'me' &&
       ((canTransfer && !node.isGuideMock) ||
@@ -252,11 +252,11 @@ export function PartnerTeamTree({
           <PartnerLevelBadge
             label={
               nodeTier
-                ? `${p('ud3.tierBadge', { n: nodeTier.id })} · ${nodeTier.ratePct}%`
+                ? `${nodeTier.label} · ${nodeTier.ratePct}%`
                 : p('ud3.tierNone')
             }
           />
-          {nodeV && (
+          {nodeS && (
             <span
               className={cn(
                 'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 border',
@@ -265,7 +265,7 @@ export function PartnerTeamTree({
                   : 'text-[#8A2B57] bg-[#8A2B57]/8 border-[#8A2B57]/20',
               )}
             >
-              {nodeV.label}
+              {nodeS.label}
             </span>
           )}
           <span
@@ -377,9 +377,7 @@ export function PartnerTeamTree({
           toAddress={transferTarget.address}
           levelLabel={(() => {
             const t = getUd3Tier(transferTarget.teamUsd);
-            return t
-              ? `${p('ud3.tierBadge', { n: t.id })} · ${t.ratePct}%`
-              : p('ud3.tierNone');
+            return t ? `${t.label} · ${t.ratePct}%` : p('ud3.tierNone');
           })()}
           layerLabel={
             transferTarget.isDirect

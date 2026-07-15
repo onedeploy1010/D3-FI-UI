@@ -342,7 +342,7 @@ export type Sd3SettlementRecord = {
   rewardSharePct?: number;
   /** 网体极差实际差距（与 rewardSharePct 同值时可省略） */
   gapPct?: number;
-  /** 收款人当时 V 级，如 V2 */
+  /** 收款人当时 S 级，如 S2 */
   vLabel?: string;
   /** 入金地址相对本人的层数：1=直推，2=二层… */
   sourceDepth?: number;

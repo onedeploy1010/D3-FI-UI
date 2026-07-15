@@ -8,7 +8,7 @@ import { resolvePartnerSd3Metrics } from '@/components/partner/partnerSd3View';
 import {
   getUd3Tier,
   isUd3PlanEligible,
-  resolveUd3VLevel,
+  resolveUd3SLevel,
   UD3_PLAN_MIN_STAKE_USDT,
 } from '@/components/partner/ud3Rules';
 import { PartnerDualAnimatedBar, PartnerLevelBadge } from '@/components/partner/partnerUiKit';
@@ -45,7 +45,7 @@ export function PartnerTeamDashboard({
   const planEligible = isUd3PlanEligible(personalStake) || state.isPartner;
 
   const tier = getUd3Tier(totalPerf);
-  const vLevel = resolveUd3VLevel({
+  const sLevel = resolveUd3SLevel({
     totalPerfUsdt: totalPerf,
     smallAreaPerfUsdt: areas.smallAreaUsd,
   });
@@ -65,12 +65,12 @@ export function PartnerTeamDashboard({
         <div className="flex flex-wrap items-center gap-1.5 mb-2">
           {tier ? (
             <PartnerLevelBadge
-              label={`${p('ud3.tierBadge', { n: tier.id })} · ${tier.ratePct}%`}
+              label={`${tier.label} · ${tier.ratePct}%`}
             />
           ) : (
             <PartnerLevelBadge label={p('ud3.tierNone')} />
           )}
-          {vLevel ? (
+          {sLevel ? (
             <span
               className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                 isDark
@@ -78,8 +78,8 @@ export function PartnerTeamDashboard({
                   : 'text-[#8A2B57] bg-[#8A2B57]/8 border-[#8A2B57]/20'
               }`}
             >
-              {vLevel.label}
-              <span className="ml-1 opacity-70">{vLevel.sharePct}%</span>
+              {sLevel.label}
+              <span className="ml-1 opacity-70">{sLevel.sharePct}%</span>
             </span>
           ) : (
             <span
@@ -87,7 +87,7 @@ export function PartnerTeamDashboard({
                 isDark ? 'text-white/35 border-white/15' : 'text-[#160510]/40 border-[#160510]/15'
               }`}
             >
-              {p('ud3.vNone')}
+              {p('ud3.sNone')}
             </span>
           )}
         </div>
@@ -102,7 +102,7 @@ export function PartnerTeamDashboard({
       </div>
 
       <div className="relative px-4 py-3.5 space-y-2.5">
-        {/* V1–V2 focus: 总业绩 */}
+        {/* S1–S2 focus: 总业绩 */}
         <PartnerDualAnimatedBar
           title={p('team.totalPerf')}
           totalLabel={p('team.totalShort')}
@@ -114,11 +114,11 @@ export function PartnerTeamDashboard({
           isDark={isDark}
           totalAccent="#8A2B57"
           newAccent="#c084fc"
-          featured={Boolean(vLevel && vLevel.id <= 2)}
-          featuredHint={vLevel && vLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
+          featured={Boolean(sLevel && sLevel.id <= 2)}
+          featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
           badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
         />
-        {/* V3–V6 focus: 小区业绩（不展示大区） */}
+        {/* S3–S6 focus: 小区业绩（不展示大区） */}
         <PartnerDualAnimatedBar
           title={p('team.smallArea')}
           totalLabel={p('team.totalShort')}
@@ -130,8 +130,8 @@ export function PartnerTeamDashboard({
           isDark={isDark}
           totalAccent="#E0568F"
           newAccent="#f472b6"
-          featured={Boolean(!vLevel || vLevel.id >= 3)}
-          featuredHint={!vLevel || vLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
+          featured={Boolean(!sLevel || sLevel.id >= 3)}
+          featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
           badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
         />
         <PartnerDualAnimatedBar

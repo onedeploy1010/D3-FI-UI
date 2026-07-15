@@ -1,13 +1,14 @@
 /**
- * D³ UD3 reward engine — final rules.
+ * D³ UD3 (反向金) reward engine.
  *
  * TWO SEPARATE SYSTEMS (never mix):
- * ① Tier (档位) — how many UD3 a deposit generates (based on 引路人 referrer performance).
- * ② V-level (V1~V6) — how the 40% network pool is shared by differential (极差).
+ * ① 档位 S1~S6 — how many UD3 a deposit generates (based on 引路人 total performance).
+ *    Rate: S1 100% → S2 110% → … → S6 150% (+10% each).
+ * ② S-level (S1~S6) — how the 40% network pool is shared by differential (极差).
  *
  * Flow per credited deposit:
- *   generated = amountUsdt × tierRate(referrer)
- *   referrer gets 60%; network pool gets 40% (allocated by V differential up the chain).
+ *   generated = amountUsdt × tierRate(引路人)
+ *   引路人 gets 60%; network pool gets 40% (allocated by S differential up the chain).
  */
 
 export const UD3_DIRECT_SHARE = 0.6;
@@ -15,10 +16,11 @@ export const UD3_NETWORK_SHARE = 0.4;
 /** Personal stake threshold to join the UD3 plan (not partner-only). */
 export const UD3_PLAN_MIN_STAKE_USDT = 100;
 
-// ─── ① Tier (档位) — generation only ─────────────────────────────────────────
+// ─── ① Tier S1~S6 (档位) — generation only ───────────────────────────────────
 
 export type Ud3Tier = {
   id: 1 | 2 | 3 | 4 | 5 | 6;
+  label: `S${1 | 2 | 3 | 4 | 5 | 6}`;
   /** Inclusive min of 引路人 total (team) performance USDT */
   minTotalPerfUsdt: number;
   /** Exclusive max; Infinity for top tier */
@@ -29,19 +31,19 @@ export type Ud3Tier = {
   labelEn: string;
 };
 
-/** Tier thresholds from official chart (ceilings: ≤10万/20万/30万/50万/80万 → then 第六档). */
+/** S1 100% · S2 110% · S3 120% · S4 130% · S5 140% · S6 150% */
 export const UD3_TIERS: Ud3Tier[] = [
-  { id: 1, minTotalPerfUsdt: 0, maxTotalPerfUsdt: 100_000, rate: 0.5, ratePct: 50, labelZh: '第一档', labelEn: 'Tier 1' },
-  { id: 2, minTotalPerfUsdt: 100_000, maxTotalPerfUsdt: 200_000, rate: 0.6, ratePct: 60, labelZh: '第二档', labelEn: 'Tier 2' },
-  { id: 3, minTotalPerfUsdt: 200_000, maxTotalPerfUsdt: 300_000, rate: 0.7, ratePct: 70, labelZh: '第三档', labelEn: 'Tier 3' },
-  { id: 4, minTotalPerfUsdt: 300_000, maxTotalPerfUsdt: 500_000, rate: 0.8, ratePct: 80, labelZh: '第四档', labelEn: 'Tier 4' },
-  { id: 5, minTotalPerfUsdt: 500_000, maxTotalPerfUsdt: 800_000, rate: 0.9, ratePct: 90, labelZh: '第五档', labelEn: 'Tier 5' },
-  { id: 6, minTotalPerfUsdt: 800_000, maxTotalPerfUsdt: Number.POSITIVE_INFINITY, rate: 1, ratePct: 100, labelZh: '第六档', labelEn: 'Tier 6' },
+  { id: 1, label: 'S1', minTotalPerfUsdt: 0, maxTotalPerfUsdt: 100_000, rate: 1.0, ratePct: 100, labelZh: 'S1', labelEn: 'S1' },
+  { id: 2, label: 'S2', minTotalPerfUsdt: 100_000, maxTotalPerfUsdt: 200_000, rate: 1.1, ratePct: 110, labelZh: 'S2', labelEn: 'S2' },
+  { id: 3, label: 'S3', minTotalPerfUsdt: 200_000, maxTotalPerfUsdt: 300_000, rate: 1.2, ratePct: 120, labelZh: 'S3', labelEn: 'S3' },
+  { id: 4, label: 'S4', minTotalPerfUsdt: 300_000, maxTotalPerfUsdt: 500_000, rate: 1.3, ratePct: 130, labelZh: 'S4', labelEn: 'S4' },
+  { id: 5, label: 'S5', minTotalPerfUsdt: 500_000, maxTotalPerfUsdt: 800_000, rate: 1.4, ratePct: 140, labelZh: 'S5', labelEn: 'S5' },
+  { id: 6, label: 'S6', minTotalPerfUsdt: 800_000, maxTotalPerfUsdt: Number.POSITIVE_INFINITY, rate: 1.5, ratePct: 150, labelZh: 'S6', labelEn: 'S6' },
 ];
 
 /**
- * Resolve 档位 by performance ceilings (图)：
- * ≤10万 50% · ≤20万 60% · ≤30万 70% · ≤50万 80% · ≤80万 90% · >80万 100%
+ * Resolve 档位 by performance ceilings:
+ * ≤10万 S1 · ≤20万 S2 · ≤30万 S3 · ≤50万 S4 · ≤80万 S5 · >80万 S6
  */
 export function getUd3Tier(referrerTotalPerfUsdt: number): Ud3Tier | null {
   if (!Number.isFinite(referrerTotalPerfUsdt) || referrerTotalPerfUsdt < 0) return null;
@@ -53,11 +55,11 @@ export function getUd3Tier(referrerTotalPerfUsdt: number): Ud3Tier | null {
   return UD3_TIERS[5];
 }
 
-// ─── ② V-level (网体级别) — distribution only ────────────────────────────────
+// ─── ② S-level (网体级别) — distribution only ────────────────────────────────
 
-export type Ud3VLevel = {
+export type Ud3SLevel = {
   id: 1 | 2 | 3 | 4 | 5 | 6;
-  label: `V${1 | 2 | 3 | 4 | 5 | 6}`;
+  label: `S${1 | 2 | 3 | 4 | 5 | 6}`;
   /** Cumulative share of the 40% network pool (percent points 0–100). */
   sharePct: number;
   /** What performance metric qualifies this level. */
@@ -65,18 +67,24 @@ export type Ud3VLevel = {
   minPerfUsdt: number;
 };
 
+/** @deprecated Use Ud3SLevel */
+export type Ud3VLevel = Ud3SLevel;
+
 /**
- * V1~V2: 总业绩; V3~V6: 小区业绩.
+ * S1~S2: 总业绩; S3~S6: 小区业绩.
  * Thresholds are admin-configurable defaults.
  */
-export const UD3_V_LEVELS: Ud3VLevel[] = [
-  { id: 1, label: 'V1', sharePct: 20, metric: 'total', minPerfUsdt: 1_000 },
-  { id: 2, label: 'V2', sharePct: 40, metric: 'total', minPerfUsdt: 5_000 },
-  { id: 3, label: 'V3', sharePct: 55, metric: 'small', minPerfUsdt: 10_000 },
-  { id: 4, label: 'V4', sharePct: 70, metric: 'small', minPerfUsdt: 50_000 },
-  { id: 5, label: 'V5', sharePct: 85, metric: 'small', minPerfUsdt: 100_000 },
-  { id: 6, label: 'V6', sharePct: 100, metric: 'small', minPerfUsdt: 300_000 },
+export const UD3_S_LEVELS: Ud3SLevel[] = [
+  { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 1_000 },
+  { id: 2, label: 'S2', sharePct: 40, metric: 'total', minPerfUsdt: 5_000 },
+  { id: 3, label: 'S3', sharePct: 55, metric: 'small', minPerfUsdt: 10_000 },
+  { id: 4, label: 'S4', sharePct: 70, metric: 'small', minPerfUsdt: 50_000 },
+  { id: 5, label: 'S5', sharePct: 85, metric: 'small', minPerfUsdt: 100_000 },
+  { id: 6, label: 'S6', sharePct: 100, metric: 'small', minPerfUsdt: 300_000 },
 ];
+
+/** @deprecated Use UD3_S_LEVELS */
+export const UD3_V_LEVELS = UD3_S_LEVELS;
 
 export type Ud3PerfSnapshot = {
   /** 伞下总业绩（含直推线合计，不含本人入金时可自定） */
@@ -85,15 +93,18 @@ export type Ud3PerfSnapshot = {
   smallAreaPerfUsdt: number;
 };
 
-/** Highest V the member currently qualifies for (null if below V1). */
-export function resolveUd3VLevel(perf: Ud3PerfSnapshot): Ud3VLevel | null {
-  let best: Ud3VLevel | null = null;
-  for (const level of UD3_V_LEVELS) {
+/** Highest S the member currently qualifies for (null if below S1). */
+export function resolveUd3SLevel(perf: Ud3PerfSnapshot): Ud3SLevel | null {
+  let best: Ud3SLevel | null = null;
+  for (const level of UD3_S_LEVELS) {
     const value = level.metric === 'total' ? perf.totalPerfUsdt : perf.smallAreaPerfUsdt;
     if (value >= level.minPerfUsdt) best = level;
   }
   return best;
 }
+
+/** @deprecated Use resolveUd3SLevel */
+export const resolveUd3VLevel = resolveUd3SLevel;
 
 export function isUd3PlanEligible(personalStakeUsdt: number): boolean {
   return Number.isFinite(personalStakeUsdt) && personalStakeUsdt >= UD3_PLAN_MIN_STAKE_USDT;
@@ -114,7 +125,11 @@ export type Ud3GenerationResult = {
   networkPoolUd3: number;
 };
 
-/** Step2–4: generate UD3 from deposit using 引路人 tier, then 60/40 split. */
+/**
+ * Generate UD3 from downline deposit using 引路人档位:
+ *   generated = depositUsdt × S-tier rate
+ * then split 60% 引路人 / 40% 网体极差池.
+ */
 export function generateUd3FromDeposit(
   depositUsdt: number,
   referrerTotalPerfUsdt: number,
@@ -148,7 +163,7 @@ export function generateUd3FromDeposit(
 
 export type Ud3UplineNode = {
   wallet: string;
-  /** Cumulative V share pct (20/40/55/70/85/100). 0 = no V. */
+  /** Cumulative S share pct of network pool (20/40/55/70/85/100). 0 = no S. */
   vSharePct: number;
   vLabel?: string;
 };
@@ -166,18 +181,17 @@ export type Ud3DifferentialResult = {
   payouts: Ud3DifferentialPayout[];
   allocatedPct: number;
   allocatedUd3: number;
-  /** Unallocated share of the pool (waiting for higher V above). */
+  /** Unallocated share of the pool (waiting for higher S above). */
   remainingPct: number;
   remainingUd3: number;
 };
 
 /**
  * Allocate network pool by differential.
- * `chainBottomToTop`: closest upline first (excluding direct referrer who already got 60%),
+ * `chainBottomToTop`: closest upline first (excluding direct 引路人 who already got 60%),
  * then parents up to root.
  *
- * gap = max(ownVShare − maxEmittedBelow, 0)
- * same level → 0; skip levels → auto catch-up; low under high → 0 until higher.
+ * gap = max(ownSShare − maxEmittedBelow, 0)
  */
 export function allocateNetworkDifferential(
   networkPoolUd3: number,
