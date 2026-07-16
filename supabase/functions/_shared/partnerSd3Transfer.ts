@@ -21,14 +21,14 @@ export type PartnerSd3TransferResult = {
 async function ensurePartnerAccount(sb: Sb, wallet: string) {
   const { data, error } = await sb
     .from('partner_accounts')
-    .select('wallet_address, is_partner, sd3_balance')
+    .select('wallet_address, is_partner, ud3_balance')
     .eq('wallet_address', wallet)
     .maybeSingle();
   if (error) throw error;
   return data;
 }
 
-/** Transfer sD3 from a partner to an umbrella downline member. */
+/** Transfer UD3 (referral reward) from a partner to an umbrella downline member. */
 export async function transferPartnerSd3(
   sb: Sb,
   fromWallet: string,
@@ -51,9 +51,9 @@ export async function transferPartnerSd3(
     throw new HttpError(403, 'Partner account required');
   }
 
-  const senderBalance = Number(sender.sd3_balance ?? 0);
+  const senderBalance = Number(sender.ud3_balance ?? 0);
   if (amount > senderBalance + 0.0001) {
-    throw new HttpError(400, 'Insufficient sD3 balance');
+    throw new HttpError(400, 'Insufficient UD3 balance');
   }
 
   const isDownline = await isPartnerDownlineOf(sb, from, to);
@@ -71,51 +71,62 @@ export async function transferPartnerSd3(
   }
   const recipientWallet = recipientProfile.wallet_address as string;
 
-  const { data: transfer, error: transferErr } = await sb
-    .from('partner_sd3_transfers')
-    .insert({
-      from_wallet: from,
-      to_wallet: recipientWallet,
-      amount_sd3: amount,
-      status: 'completed',
-    })
-    .select('id')
-    .single();
-  if (transferErr) throw transferErr;
-
-  const nextSenderBalance = round4(Math.max(0, senderBalance - amount));
-  const { error: debitErr } = await sb
-    .from('partner_accounts')
-    .update({ sd3_balance: nextSenderBalance, updated_at: new Date().toISOString() })
-    .eq('wallet_address', from);
-  if (debitErr) throw debitErr;
-
+  // Ensure the recipient has a partner_accounts row so the atomic transfer can
+  // credit it (preserves the prior auto-provision behaviour). transfer_ud3 raises
+  // RECIPIENT_NOT_FOUND when the row is absent.
   const { data: recipientAcct } = await sb
     .from('partner_accounts')
-    .select('sd3_balance, is_partner')
+    .select('wallet_address')
     .eq('wallet_address', recipientWallet)
     .maybeSingle();
-
-  const recipientBalance = round4(Number(recipientAcct?.sd3_balance ?? 0) + amount);
-  if (recipientAcct) {
-    const { error: creditErr } = await sb
-      .from('partner_accounts')
-      .update({ sd3_balance: recipientBalance, updated_at: new Date().toISOString() })
-      .eq('wallet_address', recipientWallet);
-    if (creditErr) throw creditErr;
-  } else {
+  if (!recipientAcct) {
     const { error: createErr } = await sb.from('partner_accounts').insert({
       wallet_address: recipientWallet,
       is_partner: false,
-      sd3_balance: recipientBalance,
+      ud3_balance: 0,
     });
     if (createErr) throw createErr;
   }
 
+  // V-06: atomic debit sender + credit recipient in a single DB transaction.
+  const { data: newSenderBalance, error: transferErr } = await sb.rpc('transfer_ud3', {
+    p_from: from,
+    p_to: recipientWallet,
+    p_amount: amount,
+  });
+  if (transferErr) {
+    const msg = transferErr.message ?? '';
+    if (msg.includes('INSUFFICIENT_BALANCE')) throw new HttpError(400, 'Insufficient balance');
+    if (msg.includes('RECIPIENT_NOT_FOUND')) throw new HttpError(404, 'Recipient not found');
+    throw transferErr;
+  }
+
+  const nextSenderBalance = round4(Number(newSenderBalance ?? Math.max(0, senderBalance - amount)));
+
+  // Record the transfer + audit AFTER the balance move has committed.
+  const { data: transfer, error: insErr } = await sb
+    .from('partner_ud3_transfers')
+    .insert({
+      from_wallet: from,
+      to_wallet: recipientWallet,
+      amount_ud3: amount,
+      status: 'completed',
+    })
+    .select('id')
+    .single();
+  if (insErr) throw insErr;
+
+  const { data: recipientAfter } = await sb
+    .from('partner_accounts')
+    .select('ud3_balance')
+    .eq('wallet_address', recipientWallet)
+    .maybeSingle();
+  const recipientBalance = round4(Number(recipientAfter?.ud3_balance ?? 0));
+
   await writeAuditLog(sb, {
     actorType: 'user',
     action: 'partner_sd3_transfer',
-    entityType: 'partner_sd3_transfers',
+    entityType: 'partner_ud3_transfers',
     entityId: transfer.id as string,
     newValue: { fromWallet: from, toWallet: recipientWallet, amountSd3: amount },
   });

@@ -162,7 +162,7 @@ async function finalizeSweepJob(
 
       const { data: withdrawal } = await sb
         .from('partner_yield_withdrawals')
-        .select('wallet_address, amount_usdt, status')
+        .select('wallet_address, amount_usdt, d3_amount, status')
         .eq('id', job.reference_id)
         .maybeSingle();
 
@@ -177,6 +177,10 @@ async function finalizeSweepJob(
 
       if (withdrawal && withdrawal.status !== 'confirmed') {
         const wallet = withdrawal.wallet_address as string;
+        // V-03: pending_d3_yield was ALREADY debited atomically at request time
+        // (see requestPartnerYieldWithdraw). Do NOT decrement it again here or the
+        // user would be double-debited. Keep pending_usdt_yield in sync only, as a
+        // best-effort audit figure using the net USDT actually paid.
         const { data: acct } = await sb
           .from('partner_accounts')
           .select('pending_usdt_yield')
@@ -292,7 +296,18 @@ async function executeSweepJob(sb: Sb, job: SweepJob, gasWallet: WalletRow | nul
     throw new Error('Sweep amount is zero');
   }
 
-  await sb.from('sweep_jobs').update({ status: 'signing', updated_at: new Date().toISOString() }).eq('id', job.id);
+  // V-25: atomic claim. Flip queued -> signing only if THIS run wins the row.
+  // A concurrent pipeline run that already claimed it will have moved it past
+  // 'queued', so the guarded update returns no row and we skip (no double-send).
+  const { data: claimed } = await sb
+    .from('sweep_jobs')
+    .update({ status: 'signing', updated_at: new Date().toISOString() })
+    .eq('id', job.id)
+    .eq('status', 'queued')
+    .select('id');
+  if (!claimed || claimed.length === 0) {
+    return;
+  }
 
   const txHash = await sendErc20Transfer({
     from: fromCtx,
@@ -358,15 +373,50 @@ export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: 
       });
 
       if (job.job_type === 'yield_flash_withdraw' && job.reference_id) {
-        const wStatus = status === 'manual_review' ? 'manual_review' : 'failed';
-        await sb
-          .from('partner_yield_withdrawals')
-          .update({
-            status: wStatus,
-            error_message: message.slice(0, 500),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', job.reference_id);
+        if (status === 'manual_review') {
+          // Terminal failure (retries exhausted). Refund the D3 that was debited
+          // atomically at request time — exactly once. The guarded update below
+          // flips the row in-flight -> failed and only returns a row on the first
+          // caller to win that transition, so the refund is idempotent across
+          // retries and concurrent pipeline runs.
+          const { data: withdrawal } = await sb
+            .from('partner_yield_withdrawals')
+            .select('wallet_address, d3_amount')
+            .eq('id', job.reference_id)
+            .maybeSingle();
+
+          const { data: claimed } = await sb
+            .from('partner_yield_withdrawals')
+            .update({
+              status: 'failed',
+              error_message: message.slice(0, 500),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', job.reference_id)
+            .in('status', ['pending', 'signing', 'broadcasted'])
+            .select('id');
+
+          if (withdrawal && claimed && claimed.length > 0) {
+            const wallet = withdrawal.wallet_address as string;
+            const refundD3 = Number(withdrawal.d3_amount ?? 0);
+            if (wallet && refundD3 > 0) {
+              const { error: refundErr } = await sb.rpc('credit_pending_d3_yield', {
+                p_wallet: wallet,
+                p_amount: refundD3,
+              });
+              if (refundErr) {
+                console.error('[sweep] yield_flash_withdraw refund failed:', refundErr.message);
+              }
+            }
+          }
+        } else {
+          // Transient failure: keep the withdrawal in-flight for the retry, only
+          // record the latest error. No refund yet (a retry may still confirm).
+          await sb
+            .from('partner_yield_withdrawals')
+            .update({ error_message: message.slice(0, 500), updated_at: new Date().toISOString() })
+            .eq('id', job.reference_id);
+        }
       }
     }
   }
