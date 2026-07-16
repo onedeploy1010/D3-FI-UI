@@ -34,10 +34,18 @@ begin
   end loop;
 end $$;
 
--- Belt-and-suspenders: strip every default grant to anon/authenticated across the
--- whole public schema. RLS default-deny already blocks table rows, but revoking
--- table/sequence/function EXECUTE + DML privileges removes the grant surface too.
+-- Belt-and-suspenders: strip every default grant from the PUBLIC/anon role across the
+-- whole public schema. anon is the unauthenticated publishable-key role and is the
+-- actual V-19 threat surface (direct PostgREST reads/writes with the browser key).
+--
+-- NOTE: we deliberately do NOT revoke from `authenticated`. Regular app users
+-- authenticate via Privy and only ever reach edge functions (service_role) — they
+-- never hold a Postgres `authenticated` role. The ONLY direct table reader on the
+-- `authenticated` role is the admin panel reading `admin_users`
+-- (admin-panel/src/contexts/admin-auth.tsx), which is governed by that table's own
+-- RLS policy (migration 020). Revoking `authenticated` here would break admin login
+-- while adding no protection the per-table RLS above doesn't already provide.
 -- service_role is NOT touched, so edge functions keep full access.
-revoke all on all tables in schema public from anon, authenticated;
-revoke all on all sequences in schema public from anon, authenticated;
-revoke all on all functions in schema public from anon, authenticated;
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+revoke all on all functions in schema public from anon;
