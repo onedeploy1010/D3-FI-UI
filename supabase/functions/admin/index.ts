@@ -8,6 +8,12 @@ import {
   signSubsidyReceiptDownloads,
   updatePartnerProgramSettings,
 } from '../_shared/partnerSubsidySettings.ts';
+import {
+  assertDifferentApprover,
+  isPayoutAuthorizingChange,
+  writeAdminAudit,
+} from '../_shared/audit.ts';
+import type { AdminProfile } from '../_shared/adminAuth.ts';
 
 type Sb = ReturnType<typeof getSupabaseAdmin>;
 
@@ -147,7 +153,7 @@ async function getMemberDetail(sb: Sb, wallet: string) {
     .limit(50);
 
   const { data: sd3Transfers } = await sb
-    .from('partner_sd3_transfers')
+    .from('partner_ud3_transfers')
     .select('*')
     .or(`from_wallet.ilike.${pk},to_wallet.ilike.${pk}`)
     .order('created_at', { ascending: false })
@@ -251,7 +257,7 @@ async function listStakes(sb: Sb, params: URLSearchParams) {
 
   if (kind === 'sd3') {
     const { data: transfers, error } = await sb
-      .from('partner_sd3_transfers')
+      .from('partner_ud3_transfers')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -440,6 +446,152 @@ async function addTicketMessage(
   return { message: msg };
 }
 
+// ── V-08 maker-checker: approval queue for payout-authorizing actions ─────────
+
+// Action codes stored on admin_action_approvals.action, dispatched on approve.
+const APPROVAL_PROGRAM_SETTINGS = 'program_settings.update';
+const APPROVAL_SUBSIDY_TICKET = 'subsidy_ticket.patch';
+
+async function createApproval(
+  sb: Sb,
+  input: {
+    action: string;
+    targetType: string;
+    targetId: string;
+    payload: Record<string, unknown>;
+    requestedBy: string;
+  },
+) {
+  const { data, error } = await sb
+    .from('admin_action_approvals')
+    .insert({
+      action: input.action,
+      target_type: input.targetType,
+      target_id: input.targetId,
+      payload: input.payload,
+      requested_by: input.requestedBy,
+      status: 'pending',
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function listPendingApprovals(sb: Sb) {
+  const { data, error } = await sb
+    .from('admin_action_approvals')
+    .select('*')
+    .eq('status', 'pending')
+    .order('requested_at', { ascending: false });
+  if (error) throw error;
+  return { rows: data ?? [] };
+}
+
+async function loadPendingApproval(sb: Sb, id: string) {
+  const { data, error } = await sb
+    .from('admin_action_approvals')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new HttpError(404, 'Approval not found');
+  if (data.status !== 'pending') {
+    throw new HttpError(409, `Approval already ${data.status}`);
+  }
+  return data;
+}
+
+// Approve a pending request: enforce separation of duties, apply the original
+// change, mark it executed, and write the immutable admin audit row.
+async function approveApproval(sb: Sb, id: string, admin: AdminProfile) {
+  const approval = await loadPendingApproval(sb, id);
+  // Separation of duties: approver MUST differ from the requester.
+  assertDifferentApprover(approval.requested_by as string, admin.userId);
+
+  const payload = (approval.payload ?? {}) as Record<string, unknown>;
+  let before: unknown = null;
+  let after: unknown = null;
+
+  if (approval.action === APPROVAL_PROGRAM_SETTINGS) {
+    before = await getPartnerProgramSettings(sb);
+    after = await updatePartnerProgramSettings(sb, payload, admin.username);
+  } else if (approval.action === APPROVAL_SUBSIDY_TICKET) {
+    const { data: existing } = await sb
+      .from('partner_subsidy_tickets')
+      .select('*')
+      .eq('id', approval.target_id as string)
+      .maybeSingle();
+    before = existing ?? null;
+    const res = await patchSubsidyTicket(sb, approval.target_id as string, payload, admin);
+    after = res.ticket;
+  } else {
+    throw new HttpError(400, `Unknown approval action: ${approval.action}`);
+  }
+
+  const now = new Date().toISOString();
+  const { data: updated, error } = await sb
+    .from('admin_action_approvals')
+    .update({ status: 'executed', approved_by: admin.userId, approved_at: now })
+    .eq('id', id)
+    .eq('status', 'pending') // guard against a concurrent approve
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: approval.action as string,
+    entityType: approval.target_type as string,
+    entityId: approval.target_id as string,
+    before,
+    after,
+    reason: `maker-checker approved (requested_by=${approval.requested_by})`,
+  });
+
+  return { approval: updated };
+}
+
+async function rejectApproval(
+  sb: Sb,
+  id: string,
+  admin: AdminProfile,
+  reason?: string,
+) {
+  const approval = await loadPendingApproval(sb, id);
+  // Separation of duties applies to rejection too.
+  assertDifferentApprover(approval.requested_by as string, admin.userId);
+
+  const now = new Date().toISOString();
+  const { data: updated, error } = await sb
+    .from('admin_action_approvals')
+    .update({
+      status: 'rejected',
+      approved_by: admin.userId,
+      approved_at: now,
+      reason: reason ?? null,
+    })
+    .eq('id', id)
+    .eq('status', 'pending')
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: `${approval.action}.rejected`,
+    entityType: approval.target_type as string,
+    entityId: approval.target_id as string,
+    before: approval.payload,
+    after: null,
+    reason: reason ?? `maker-checker rejected (requested_by=${approval.requested_by})`,
+  });
+
+  return { approval: updated };
+}
+
 async function dashboardStats(sb: Sb) {
   const [
     partners,
@@ -537,7 +689,44 @@ Deno.serve(async (req) => {
         partnerSubsidyRatePct?: number;
         marketSubsidyRatePct?: number;
       }>(req);
+      // Reward RATE fields scale every future payout -> maker-checker gated.
+      // (All fields program-settings currently accepts are rate fields, so any
+      // non-empty change is gated; a future cosmetic field would fall through
+      // to the direct+audited apply below.)
+      if (isPayoutAuthorizingChange(body)) {
+        const before = await getPartnerProgramSettings(sb);
+        const approval = await createApproval(sb, {
+          action: APPROVAL_PROGRAM_SETTINGS,
+          targetType: 'partner_program_settings',
+          targetId: '1',
+          payload: body,
+          requestedBy: admin.userId,
+        });
+        // Record the request itself (no change applied yet).
+        await writeAdminAudit(sb, {
+          actorId: admin.userId,
+          actorRole: admin.role,
+          action: `${APPROVAL_PROGRAM_SETTINGS}.requested`,
+          entityType: 'partner_program_settings',
+          entityId: '1',
+          before,
+          after: body,
+          reason: 'maker-checker requested; awaiting second admin',
+        });
+        return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+      }
+      // Non-payout change: apply directly, but always audit.
+      const before = await getPartnerProgramSettings(sb);
       const settings = await updatePartnerProgramSettings(sb, body, admin.username);
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: APPROVAL_PROGRAM_SETTINGS,
+        entityType: 'partner_program_settings',
+        entityId: '1',
+        before,
+        after: settings,
+      });
       return jsonResponse({ ok: true, settings });
     }
 
@@ -556,10 +745,49 @@ Deno.serve(async (req) => {
         assignedAdmin?: string;
         marketLeaderStatus?: string;
       }>(req);
-      return jsonResponse({
-        ok: true,
-        ...(await patchSubsidyTicket(sb, ticketMatch[1], body, admin)),
+      const ticketId = ticketMatch[1];
+      const { data: before } = await sb
+        .from('partner_subsidy_tickets')
+        .select('*')
+        .eq('id', ticketId)
+        .maybeSingle();
+      if (!before) throw new HttpError(404, 'Ticket not found');
+
+      // Flipping a ticket to approved/paid authorizes a disbursement ->
+      // maker-checker gated. Other patches (notes, assignment, reject/close,
+      // market-leader flag) are applied directly but always audited.
+      if (isPayoutAuthorizingChange(body)) {
+        const approval = await createApproval(sb, {
+          action: APPROVAL_SUBSIDY_TICKET,
+          targetType: 'partner_subsidy_tickets',
+          targetId: ticketId,
+          payload: body,
+          requestedBy: admin.userId,
+        });
+        await writeAdminAudit(sb, {
+          actorId: admin.userId,
+          actorRole: admin.role,
+          action: `${APPROVAL_SUBSIDY_TICKET}.requested`,
+          entityType: 'partner_subsidy_tickets',
+          entityId: ticketId,
+          before,
+          after: body,
+          reason: 'maker-checker requested; awaiting second admin',
+        });
+        return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+      }
+
+      const result = await patchSubsidyTicket(sb, ticketId, body, admin);
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: APPROVAL_SUBSIDY_TICKET,
+        entityType: 'partner_subsidy_tickets',
+        entityId: ticketId,
+        before,
+        after: result.ticket,
       });
+      return jsonResponse({ ok: true, ...result });
     }
 
     const msgMatch = path.match(/^\/subsidy-tickets\/([0-9a-f-]{36})\/messages$/);
@@ -569,10 +797,43 @@ Deno.serve(async (req) => {
       }
       const body = await readJson<{ body: string; requestInfo?: boolean }>(req);
       if (!body.body?.trim()) throw new HttpError(400, 'body required');
-      return jsonResponse({
-        ok: true,
-        ...(await addTicketMessage(sb, msgMatch[1], body.body.trim(), admin, body.requestInfo)),
+      const result = await addTicketMessage(sb, msgMatch[1], body.body.trim(), admin, body.requestInfo);
+      // Adding a message is a mutation (may flip ticket status) -> audit it.
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'subsidy_ticket.message',
+        entityType: 'partner_subsidy_tickets',
+        entityId: msgMatch[1],
+        before: null,
+        after: { body: body.body.trim(), requestInfo: Boolean(body.requestInfo) },
       });
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    // ── V-08 maker-checker approval queue ────────────────────────────────────
+    if (req.method === 'GET' && path === '/approvals') {
+      if (!adminHasPermission(admin, 'subsidies.write')) {
+        throw new HttpError(403, 'Missing subsidies.write permission');
+      }
+      return jsonResponse({ ok: true, ...(await listPendingApprovals(sb)) });
+    }
+
+    const approveMatch = path.match(/^\/approvals\/([0-9a-f-]{36})\/approve$/);
+    if (req.method === 'POST' && approveMatch) {
+      if (!adminHasPermission(admin, 'subsidies.write')) {
+        throw new HttpError(403, 'Missing subsidies.write permission');
+      }
+      return jsonResponse({ ok: true, ...(await approveApproval(sb, approveMatch[1], admin)) });
+    }
+
+    const rejectMatch = path.match(/^\/approvals\/([0-9a-f-]{36})\/reject$/);
+    if (req.method === 'POST' && rejectMatch) {
+      if (!adminHasPermission(admin, 'subsidies.write')) {
+        throw new HttpError(403, 'Missing subsidies.write permission');
+      }
+      const body = await readJson<{ reason?: string }>(req).catch(() => ({}));
+      return jsonResponse({ ok: true, ...(await rejectApproval(sb, rejectMatch[1], admin, body.reason)) });
     }
 
     throw new HttpError(404, 'Not found');
