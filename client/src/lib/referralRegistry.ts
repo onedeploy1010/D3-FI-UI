@@ -43,6 +43,13 @@ const registryAbi = [
     inputs: [{ name: 'user', type: 'address' }],
     outputs: [{ type: 'bool' }],
   },
+  {
+    name: 'isRoot',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
 ] as const;
 
 const ZERO = '0x0000000000000000000000000000000000000000';
@@ -57,6 +64,32 @@ export async function readUplineOnchain(user: string): Promise<string | null> {
     args: [user as Address],
   })) as string;
   return upline && upline.toLowerCase() !== ZERO ? getAddress(upline) : null;
+}
+
+/**
+ * Whether `sponsor` is a valid on-chain upline: either a genesis root or already
+ * bound. This mirrors the contract's own `bind()` precondition
+ * (`isRoot[upline] || isBound[upline]`), so a root that has no off-chain profile
+ * yet is correctly treated as registered. On-chain is the source of truth.
+ */
+export async function isSponsorRegisteredOnchain(sponsor: string): Promise<boolean> {
+  if (!REFERRAL_REGISTRY_ADDRESS) return false;
+  const addr = sponsor as Address;
+  const [root, bound] = await Promise.all([
+    bscPublicClient.readContract({
+      address: REFERRAL_REGISTRY_ADDRESS,
+      abi: registryAbi,
+      functionName: 'isRoot',
+      args: [addr],
+    }) as Promise<boolean>,
+    bscPublicClient.readContract({
+      address: REFERRAL_REGISTRY_ADDRESS,
+      abi: registryAbi,
+      functionName: 'isBound',
+      args: [addr],
+    }) as Promise<boolean>,
+  ]);
+  return Boolean(root) || Boolean(bound);
 }
 
 /**

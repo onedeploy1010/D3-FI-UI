@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
@@ -9,7 +9,11 @@ import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
 import { bindReferral, checkSponsorRegistered } from '@/lib/unionApi';
-import { bindReferralOnchain, isOnchainReferralEnabled } from '@/lib/referralRegistry';
+import {
+  bindReferralOnchain,
+  isOnchainReferralEnabled,
+  isSponsorRegisteredOnchain,
+} from '@/lib/referralRegistry';
 import { getConnectedWalletClient } from '@/lib/wagmiWallet';
 import { isDemoWallet } from '@/lib/demoWallet';
 import {
@@ -166,7 +170,13 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
 
     setBinding(true);
     try {
-      const { registered } = await checkSponsorRegistered(sponsor);
+      // Sponsor validity: on-chain registry is the source of truth when configured
+      // (a genesis root has no off-chain profile but IS a valid upline). Fall back
+      // to the backend profile check only when there is no on-chain registry.
+      const onchain = isOnchainReferralEnabled();
+      const registered = onchain
+        ? await isSponsorRegisteredOnchain(sponsor)
+        : (await checkSponsorRegistered(sponsor)).registered;
       if (!registered) {
         setError(t(lang, 'errNotRegistered'));
         return;
@@ -174,7 +184,7 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
 
       // On-chain binding: user calls bind() and pays gas; then backend verifies + syncs.
       let txHash: string | undefined;
-      if (isOnchainReferralEnabled()) {
+      if (onchain) {
         const walletClient = await getConnectedWalletClient();
         if (!walletClient) {
           setError(t(lang, 'errInvalid'));
@@ -273,17 +283,26 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
 }
 
 export function ReferralBindGate({ children }: { children: ReactNode }) {
-  const { wallet, isConnected } = useWallet();
+  const { wallet, isConnected, isConnecting } = useWallet();
   const { lang } = useAppLang();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const { hasReferralBound, loading, refetch } = useReferralStatus(wallet);
 
+  // The authed /profile fetch needs the SIWE session, which is established
+  // asynchronously on connect. Re-check referral status once sign-in settles so a
+  // returning (already-bound) user never flashes the bind screen on a 401.
+  const prevConnecting = useRef(isConnecting);
+  useEffect(() => {
+    if (prevConnecting.current && !isConnecting) refetch();
+    prevConnecting.current = isConnecting;
+  }, [isConnecting, refetch]);
+
   if (!isConnected || !wallet || isDemoWallet(wallet)) {
     return <>{children}</>;
   }
 
-  if (loading) {
+  if (loading || isConnecting) {
     return (
       <div className={`min-h-[100dvh] flex items-center justify-center ${isDark ? 'bg-dark-gradient' : 'bg-light-gradient'}`}>
         <PartnerReferralLoading label={t(lang, 'loading')} isDark={isDark} />

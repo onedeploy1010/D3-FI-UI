@@ -990,8 +990,6 @@ Deno.serve(async (req) => {
       if (walletEquals(wallet, sponsorWallet)) throw new HttpError(400, 'Cannot refer yourself');
 
       await ensureProfile(sb, wallet);
-      const sponsor = await findProfileByWallet(sb, sponsorWallet.trim());
-      if (!sponsor) throw new HttpError(404, 'Sponsor not registered');
 
       const { data: existingList } = await sb
         .from('referrals')
@@ -1007,7 +1005,10 @@ Deno.serve(async (req) => {
       const type = referralType === 'shareholder' ? 'shareholder' : 'partner';
 
       // When the on-chain registry is configured, the binding MUST exist on-chain
-      // (the user bound directly and paid gas). We only verify + cache it here.
+      // (the user bound directly and paid gas). On-chain is the source of truth, so
+      // we do NOT require the sponsor to have an off-chain profile first — a genesis
+      // root legitimately has none. verifyOnchainBinding proves the edge, and
+      // upsertReferralFromChain materializes both profiles from the chain address.
       if (isReferralRegistryConfigured()) {
         const { ok, upline } = await verifyOnchainBinding({
           user: wallet,
@@ -1021,7 +1022,7 @@ Deno.serve(async (req) => {
             { onchainUpline: upline },
           );
         }
-        await upsertReferralFromChain(sb, wallet, sponsor.wallet_address, txHash);
+        await upsertReferralFromChain(sb, wallet, sponsorWallet.trim(), txHash);
         const { data: synced } = await sb
           .from('referrals')
           .select('*')
@@ -1031,6 +1032,10 @@ Deno.serve(async (req) => {
           .maybeSingle();
         return jsonResponse({ referral: synced, created: true, onchain: true });
       }
+
+      // Legacy path (no on-chain registry): the sponsor must be a registered profile.
+      const sponsor = await findProfileByWallet(sb, sponsorWallet.trim());
+      if (!sponsor) throw new HttpError(404, 'Sponsor not registered');
 
       const { data, error } = await sb
         .from('referrals')
