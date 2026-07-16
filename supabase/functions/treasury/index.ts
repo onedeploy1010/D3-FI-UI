@@ -36,6 +36,7 @@ import { computeSolvency } from '../_shared/solvency.ts';
 import { HttpError } from '../_shared/wallet.ts';
 import { assertMoneyAmount, requireActorWallet } from '../_shared/requireActor.ts';
 import { assertSettlementTokenSafe } from '../_shared/tokens.ts';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 function routePath(req: Request): string {
   const url = new URL(req.url);
@@ -210,6 +211,8 @@ Deno.serve(async (req) => {
     if (req.method === 'POST' && path === '/partner/yield-withdraw') {
       // Flash-swap released D3 -> USDT. Accepts amountD3 (preferred); amountUsdt kept
       // as a legacy alias (valued 1:1 as D3 quantity) until the client migrates.
+      // V-16: cap withdrawal attempts to 5/min per wallet (drains flash-swap pool).
+      await enforceRateLimit(sb, { key: `treasury:/partner/yield-withdraw:${wallet}`, limit: 5, windowSec: 60 });
       assertSettlementTokenSafe();
       const body = await readJson<{ amountD3?: number; amountUsdt?: number }>(req);
       const amountD3 = assertMoneyAmount(body.amountD3 ?? body.amountUsdt);
@@ -220,6 +223,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'POST' && path === '/partner/sd3-transfer') {
+      // V-16: 10/min per wallet.
+      await enforceRateLimit(sb, { key: `treasury:/partner/sd3-transfer:${wallet}`, limit: 10, windowSec: 60 });
       assertSettlementTokenSafe();
       const body = await readJson<{ toWallet: string; amountSd3: number }>(req);
       if (!body.toWallet?.trim()) throw new HttpError(400, 'toWallet required');
@@ -229,6 +234,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'POST' && path === '/partner/sd3-stake') {
+      // V-16: 10/min per wallet.
+      await enforceRateLimit(sb, { key: `treasury:/partner/sd3-stake:${wallet}`, limit: 10, windowSec: 60 });
       assertSettlementTokenSafe();
       const body = await readJson<{ amountSd3: number }>(req);
       const amountSd3 = assertMoneyAmount(body.amountSd3);
@@ -267,6 +274,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'POST' && path === '/deposit/report-tx') {
+      // V-16: 20/min per wallet.
+      await enforceRateLimit(sb, { key: `treasury:/deposit/report-tx:${wallet}`, limit: 20, windowSec: 60 });
       const body = await readJson<{ intentId: string; txHash: string }>(req);
       if (!body.intentId || !body.txHash) throw new HttpError(400, 'intentId and txHash required');
       const status = await reportDepositTx(sb, wallet, body.intentId, body.txHash);

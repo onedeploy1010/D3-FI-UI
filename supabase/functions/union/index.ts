@@ -44,6 +44,7 @@ import {
   walletEquals,
 } from '../_shared/wallet.ts';
 import { requireActorWallet } from '../_shared/requireActor.ts';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 type Sb = ReturnType<typeof getSupabaseAdmin>;
 
@@ -819,6 +820,8 @@ Deno.serve(async (req) => {
     // POST /usd3/claim
     if (req.method === 'POST' && path === '/usd3/claim') {
       const wallet = await requireActorWallet(sb, req, { allowDemo: true });
+      // V-16: 10/min per wallet.
+      await enforceRateLimit(sb, { key: `union:/usd3/claim:${wallet}`, limit: 10, windowSec: 60 });
       const profile = await findProfileByWallet(sb, wallet);
       if (!profile) throw new HttpError(404, 'Profile not found');
 
@@ -946,6 +949,8 @@ Deno.serve(async (req) => {
     // POST /referrals/bind
     if (req.method === 'POST' && path === '/referrals/bind') {
       const wallet = await requireActorWallet(sb, req, { allowDemo: true });
+      // V-16: 5/min per wallet.
+      await enforceRateLimit(sb, { key: `union:/referrals/bind:${wallet}`, limit: 5, windowSec: 60 });
       const body = await req.json().catch(() => ({}));
       const { sponsorWallet, referralType, txHash } = body as {
         sponsorWallet?: string;
@@ -1077,6 +1082,8 @@ Deno.serve(async (req) => {
     // POST /multisig/proposals
     if (req.method === 'POST' && path === '/multisig/proposals') {
       const wallet = await requireActorWallet(sb, req, { allowDemo: true });
+      // V-16: 10/min per wallet.
+      await enforceRateLimit(sb, { key: `union:/multisig/proposals:${wallet}`, limit: 10, windowSec: 60 });
       const body = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.lineMultisig) throw new HttpError(404, 'Line multisig not found');
@@ -1209,6 +1216,8 @@ Deno.serve(async (req) => {
     const signMatch = path.match(/^\/multisig\/proposals\/([^/]+)\/sign$/);
     if (req.method === 'POST' && signMatch) {
       const wallet = await requireActorWallet(sb, req, { allowDemo: true });
+      // V-16: 10/min per wallet.
+      await enforceRateLimit(sb, { key: `union:/multisig/proposals/sign:${wallet}`, limit: 10, windowSec: 60 });
       const signBody = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.isCommitteeMember) throw new HttpError(403, 'Not a committee member');

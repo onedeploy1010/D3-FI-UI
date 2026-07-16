@@ -1,20 +1,74 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import {
-  collectPartnerSd3ForSettlementDate,
-  fetchPartnerAreaStats,
-} from './partnerPerformance.ts';
-import { yesterdaySgtDateString } from './partnerTimezone.ts';
+import { toSgtDateString, yesterdaySgtDateString } from './partnerTimezone.ts';
+import { getD3PriceUsdt, usdtToD3 } from './d3Price.ts';
+import { HttpError } from './wallet.ts';
 
 type Sb = SupabaseClient;
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * V-11: A caller-supplied settlement date must be a valid YYYY-MM-DD and must NOT
+ * be in the future relative to today in SGT. Settling a future date would credit
+ * yield that has not yet accrued. Pure/testable: `todaySgt` is injected.
+ */
+export function assertSettlementDateNotFuture(date: string, todaySgt: string): void {
+  if (typeof date !== 'string' || !DATE_RE.test(date)) {
+    throw new HttpError(400, 'settlementDate must be YYYY-MM-DD');
+  }
+  // Reject impossible calendar dates (e.g. 2026-13-40) that pass the regex.
+  const parsed = new Date(`${date}T00:00:00+08:00`);
+  if (Number.isNaN(parsed.getTime()) || toSgtDateString(parsed) !== date) {
+    throw new HttpError(400, 'settlementDate must be a valid date');
+  }
+  // Lexicographic compare is correct for zero-padded ISO dates.
+  if (date > todaySgt) {
+    throw new HttpError(400, 'settlementDate must not be in the future');
+  }
+}
 
 export const DAILY_YIELD_PCT = 0.4;
 export const DAILY_YIELD_RATE = DAILY_YIELD_PCT / 100;
 export const STAKE_LOCK_DAYS = 540;
+/** USDT stake exits at 6x principal; UD3 re-stake exits at 2x. */
+export const EXIT_MULTIPLIER_USDT = 6;
+export const EXIT_MULTIPLIER_UD3 = 2;
 
 const CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweeping'];
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+function round6(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+function exitMultiplierForKind(kind: unknown): number {
+  return kind === 'ud3' || kind === 'sd3' ? EXIT_MULTIPLIER_UD3 : EXIT_MULTIPLIER_USDT;
+}
+
+/**
+ * Ensure a position row carries its D3-denominated fields. Legacy rows created
+ * before migration 027 (or before this code) get backfilled from principal at
+ * the given price (best-effort: original stake price is unknown for legacy rows).
+ * Returns the resolved D3 fields.
+ */
+function resolvePositionD3(
+  pos: Record<string, unknown>,
+  d3Price: number,
+): { stakedD3: number; dailyReleaseD3: number; exitCapD3: number; releasedD3: number; priceAtStake: number } {
+  const principal = Number(pos.principal_usdt ?? 0);
+  const priceAtStake = Number(pos.d3_price_at_stake ?? 0) > 0 ? Number(pos.d3_price_at_stake) : d3Price;
+  const stakedD3 = Number(pos.staked_d3 ?? 0) > 0 ? Number(pos.staked_d3) : usdtToD3(principal, priceAtStake);
+  const dailyReleaseD3 =
+    Number(pos.daily_release_d3 ?? 0) > 0
+      ? Number(pos.daily_release_d3)
+      : usdtToD3(round4(principal * DAILY_YIELD_RATE), priceAtStake);
+  const exitMult = exitMultiplierForKind(pos.kind);
+  const exitCapD3 = Number(pos.exit_cap_d3 ?? 0) > 0 ? Number(pos.exit_cap_d3) : round6(stakedD3 * exitMult);
+  const releasedD3 = Number(pos.released_d3 ?? 0);
+  return { stakedD3, dailyReleaseD3, exitCapD3, releasedD3, priceAtStake };
 }
 
 async function ensurePartnerAccount(sb: Sb, walletAddress: string) {
@@ -51,6 +105,12 @@ export async function syncStakePositionOnCredit(sb: Sb, intentId: string): Promi
   const unlockAt = new Date(new Date(startedAt).getTime() + STAKE_LOCK_DAYS * 86400000).toISOString();
   const dailyYield = round4(principal * DAILY_YIELD_RATE);
 
+  // D3-denominated fields (price locked at stake time). USDT stake => 6x exit.
+  const d3Price = await getD3PriceUsdt(sb);
+  const stakedD3 = usdtToD3(principal, d3Price);
+  const dailyReleaseD3 = usdtToD3(dailyYield, d3Price);
+  const exitCapD3 = round6(stakedD3 * EXIT_MULTIPLIER_USDT);
+
   await sb.from('partner_stake_positions').insert({
     wallet_address: wallet,
     intent_id: intentId,
@@ -60,7 +120,12 @@ export async function syncStakePositionOnCredit(sb: Sb, intentId: string): Promi
     started_at: startedAt,
     unlock_at: unlockAt,
     status: 'active',
-    exit_multiplier: 6,
+    exit_multiplier: EXIT_MULTIPLIER_USDT,
+    staked_d3: stakedD3,
+    d3_price_at_stake: d3Price,
+    daily_release_d3: dailyReleaseD3,
+    released_d3: 0,
+    exit_cap_d3: exitCapD3,
   });
 
   if (intent.intent_type === 'partner_join') {
@@ -96,6 +161,9 @@ export async function runDailyPartnerSettlement(
   sb: Sb,
   settlementDate?: string,
 ): Promise<PartnerSettlementResult> {
+  if (settlementDate !== undefined) {
+    assertSettlementDateNotFuture(settlementDate, toSgtDateString());
+  }
   const dateStr = settlementDate ?? yesterdaySgtDateString();
 
   const { data: prior } = await sb
@@ -121,6 +189,7 @@ export async function runDailyPartnerSettlement(
 
   try {
     const settlementEnd = new Date(`${dateStr}T23:59:59.999+08:00`);
+    const d3Price = await getD3PriceUsdt(sb);
 
     const { data: positions } = await sb
       .from('partner_stake_positions')
@@ -129,9 +198,9 @@ export async function runDailyPartnerSettlement(
 
     for (const pos of positions ?? []) {
       const started = new Date(pos.started_at as string);
-      const unlock = new Date(pos.unlock_at as string);
       if (started > settlementEnd) continue;
-      if (unlock <= new Date(`${dateStr}T00:00:00+08:00`)) continue;
+      // Rule B: no 540-day cutoff — a position releases until the VALUE-based exit cap
+      // (principal × 6 for USDT, × 2 for UD3) is reached. unlock_at is display-only.
 
       const { data: dup } = await sb
         .from('partner_yield_settlements')
@@ -141,11 +210,14 @@ export async function runDailyPartnerSettlement(
         .maybeSingle();
       if (dup) continue;
 
-      const principal = Number(pos.principal_usdt ?? 0);
-      const accruedSoFar = Number(pos.accrued_yield_usdt ?? 0);
-      const exitMult = Number(pos.exit_multiplier ?? (pos.kind === 'sd3' ? 2 : 6));
-      const exitCap = round4(principal * exitMult);
-      if (accruedSoFar >= exitCap - 1e-9) {
+      // ── Value-based exit (rule B): release the daily D3 quantity, valued at the
+      // CURRENT day price, until cumulative VALUE reaches principal × exit_multiplier.
+      // accrued_yield_usdt = authoritative cumulative released VALUE (drives exit). ──
+      const d3 = resolvePositionD3(pos as Record<string, unknown>, d3Price);
+      const principalUsdt = Number(pos.principal_usdt ?? 0);
+      const exitCapUsdt = round4(principalUsdt * exitMultiplierForKind(pos.kind));
+      const accruedUsdt = Number(pos.accrued_yield_usdt ?? 0);
+      if (accruedUsdt >= exitCapUsdt - 1e-6) {
         if (pos.status === 'active') {
           await sb
             .from('partner_stake_positions')
@@ -155,9 +227,23 @@ export async function runDailyPartnerSettlement(
         continue;
       }
 
-      const dailyFull = round4(Number(pos.daily_yield_usdt ?? 0));
-      const yieldUsdt = round4(Math.min(dailyFull, exitCap - accruedSoFar));
-      if (yieldUsdt <= 0) continue;
+      const remainingUsdt = round4(exitCapUsdt - accruedUsdt);
+      const fullDayValueUsdt = round4(d3.dailyReleaseD3 * d3Price);
+      let releaseD3: number;
+      let releaseValueUsdt: number;
+      if (fullDayValueUsdt <= remainingUsdt) {
+        releaseD3 = d3.dailyReleaseD3;
+        releaseValueUsdt = fullDayValueUsdt;
+      } else {
+        // Final partial day — cap value exactly at the 6×/2× ceiling.
+        releaseValueUsdt = remainingUsdt;
+        releaseD3 = d3Price > 0 ? round6(remainingUsdt / d3Price) : 0;
+      }
+      if (releaseD3 <= 0 || releaseValueUsdt <= 0) continue;
+
+      const nextAccruedUsdt = round4(accruedUsdt + releaseValueUsdt);
+      const nextReleasedD3 = round6(d3.releasedD3 + releaseD3);
+      const closed = nextAccruedUsdt >= exitCapUsdt - 1e-6;
 
       const wallet = pos.wallet_address as string;
       await ensurePartnerAccount(sb, wallet);
@@ -168,20 +254,24 @@ export async function runDailyPartnerSettlement(
         settlement_date: dateStr,
         principal_usdt: pos.principal_usdt,
         daily_rate_pct: DAILY_YIELD_PCT,
-        yield_usdt: yieldUsdt,
+        yield_usdt: releaseValueUsdt,
+        yield_d3: releaseD3,
+        d3_price: d3Price,
       });
 
       const { data: acct } = await sb
         .from('partner_accounts')
-        .select('pending_usdt_yield, lifetime_usdt_yield')
+        .select('pending_usdt_yield, lifetime_usdt_yield, pending_d3_yield, lifetime_d3_yield')
         .eq('wallet_address', wallet)
         .single();
 
       await sb
         .from('partner_accounts')
         .update({
-          pending_usdt_yield: round4(Number(acct?.pending_usdt_yield ?? 0) + yieldUsdt),
-          lifetime_usdt_yield: round4(Number(acct?.lifetime_usdt_yield ?? 0) + yieldUsdt),
+          pending_d3_yield: round6(Number(acct?.pending_d3_yield ?? 0) + releaseD3),
+          lifetime_d3_yield: round6(Number(acct?.lifetime_d3_yield ?? 0) + releaseD3),
+          pending_usdt_yield: round4(Number(acct?.pending_usdt_yield ?? 0) + releaseValueUsdt),
+          lifetime_usdt_yield: round4(Number(acct?.lifetime_usdt_yield ?? 0) + releaseValueUsdt),
           updated_at: new Date().toISOString(),
         })
         .eq('wallet_address', wallet);
@@ -189,8 +279,13 @@ export async function runDailyPartnerSettlement(
       await sb
         .from('partner_stake_positions')
         .update({
-          accrued_yield_usdt: round4(accruedSoFar + yieldUsdt),
-          status: accruedSoFar + yieldUsdt >= exitCap - 1e-9 ? 'closed' : 'active',
+          released_d3: nextReleasedD3,
+          staked_d3: d3.stakedD3,
+          d3_price_at_stake: d3.priceAtStake,
+          daily_release_d3: d3.dailyReleaseD3,
+          exit_cap_d3: d3.exitCapD3,
+          accrued_yield_usdt: nextAccruedUsdt,
+          status: closed ? 'closed' : 'active',
           updated_at: new Date().toISOString(),
         })
         .eq('id', pos.id);
@@ -198,78 +293,10 @@ export async function runDailyPartnerSettlement(
       yieldRows++;
     }
 
-    const { byWallet: sd3Allocations, events: sd3AllocationEvents } =
-      await collectPartnerSd3ForSettlementDate(sb, dateStr);
-
-    for (const [wallet, row] of sd3Allocations.entries()) {
-      if (row.sd3 <= 0) continue;
-
-      const { data: dup } = await sb
-        .from('partner_sd3_settlements')
-        .select('id')
-        .eq('wallet_address', wallet)
-        .eq('settlement_date', dateStr)
-        .maybeSingle();
-      if (dup) continue;
-
-      const { data: partnerAcct } = await sb
-        .from('partner_accounts')
-        .select('is_partner')
-        .eq('wallet_address', wallet)
-        .maybeSingle();
-      if (!partnerAcct?.is_partner) continue;
-
-      const areas = await fetchPartnerAreaStats(sb, wallet);
-
-      await sb.from('partner_sd3_settlements').insert({
-        wallet_address: wallet,
-        settlement_date: dateStr,
-        team_performance_usd: areas.smallAreaUsd,
-        daily_new_performance_usd: row.smallAreaNewUsd,
-        tier_rate_pct: row.tierRatePct,
-        sd3_amount: row.sd3,
-      });
-
-      const { data: acct } = await sb
-        .from('partner_accounts')
-        .select('sd3_balance, lifetime_sd3_earned')
-        .eq('wallet_address', wallet)
-        .single();
-
-      await sb
-        .from('partner_accounts')
-        .update({
-          sd3_balance: round4(Number(acct?.sd3_balance ?? 0) + row.sd3),
-          lifetime_sd3_earned: round4(Number(acct?.lifetime_sd3_earned ?? 0) + row.sd3),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('wallet_address', wallet);
-
-      sd3Rows++;
-    }
-
-    if (sd3AllocationEvents.length) {
-      const { data: existingAlloc } = await sb
-        .from('partner_sd3_allocations')
-        .select('id')
-        .eq('settlement_date', dateStr)
-        .limit(1);
-      if (!existingAlloc?.length) {
-        await sb.from('partner_sd3_allocations').insert(
-          sd3AllocationEvents.map((e) => ({
-            recipient_wallet: e.recipientWallet,
-            source_wallet: e.sourceWallet,
-            settlement_date: e.settlementDate,
-            intent_id: e.intentId ?? null,
-            event_amount_usd: e.eventAmountUsd,
-            tier_rate_pct: e.tierRatePct,
-            reward_share_pct: e.rewardSharePct,
-            role: e.role,
-            sd3_amount: e.sd3Amount,
-          })),
-        );
-      }
-    }
+    // ── sD3 (贿赂金) daily engine DEPRECATED ──────────────────────────────────
+    // The single reward is now UD3, credited per-deposit by the upline-tier engine
+    // (`tryAllocateUd3ForCreditedIntent` in deposit.ts). No daily sD3 crediting.
+    // Legacy sd3_balance was consolidated into ud3_balance by migration 027.
 
     await sb
       .from('partner_settlement_runs')
@@ -344,7 +371,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .order('settlement_date', { ascending: false })
       .limit(30),
     sb
-      .from('partner_sd3_transfers')
+      .from('partner_ud3_transfers')
       .select('*')
       .ilike('from_wallet', w)
       .eq('status', 'completed')
@@ -361,6 +388,3 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     sd3Transfers: sd3Transfers.data ?? [],
   };
 }
-
-// Re-export for callers that imported calcDailySd3 from this module.
-export { getBribeTier, calcDailySd3DirectShare as calcDailySd3 } from './partnerSd3Rules.ts';
