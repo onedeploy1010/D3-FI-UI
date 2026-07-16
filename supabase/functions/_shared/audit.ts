@@ -77,22 +77,42 @@ export async function writeAdminAudit(sb: SupabaseClient, input: AdminAuditInput
 }
 
 /**
+ * Market-leader statuses that grant subsidy eligibility. Transitioning a partner
+ * INTO one of these unlocks future subsidy quota/eligibility, so the transition is
+ * payout-authorizing and must clear maker-checker. Non-eligibility values
+ * (`rejected`, `revoked`, `none`, `pending`) do not grant anything and may apply
+ * directly. Exported so callers/tests share one source of truth.
+ */
+export const ELIGIBILITY_GRANTING_MARKET_LEADER_STATUSES: ReadonlySet<string> = new Set([
+  'approved',
+]);
+
+/**
  * Maker-checker classification: does this intended change authorize a future or
  * immediate payout, and therefore require a second admin's approval?
  *
- * Two payout-authorizing surfaces exist in admin/index.ts:
+ * Three payout-authorizing surfaces exist in admin/index.ts:
  *  - program-settings reward RATE fields (partnerSubsidyRatePct / marketSubsidyRatePct)
  *    — they scale every future subsidy payout.
  *  - flipping a subsidy ticket to an `approved` or `paid` state — that authorizes
  *    the actual disbursement of that ticket.
+ *  - flipping a partner's `marketLeaderStatus` to an eligibility-granting value
+ *    (e.g. `approved`) — that unlocks future subsidy quota/eligibility.
  * Everything else (admin notes, assignment, cosmetic status like rejected/closed,
- * market-leader flags) is NOT payout-authorizing and may be applied directly.
+ * non-granting market-leader values) is NOT payout-authorizing and may apply
+ * directly.
  */
 export function isPayoutAuthorizingChange(patch: Record<string, unknown>): boolean {
   if (patch.partnerSubsidyRatePct != null || patch.marketSubsidyRatePct != null) {
     return true;
   }
   if (typeof patch.status === 'string' && (patch.status === 'approved' || patch.status === 'paid')) {
+    return true;
+  }
+  if (
+    typeof patch.marketLeaderStatus === 'string' &&
+    ELIGIBILITY_GRANTING_MARKET_LEADER_STATUSES.has(patch.marketLeaderStatus)
+  ) {
     return true;
   }
   return false;

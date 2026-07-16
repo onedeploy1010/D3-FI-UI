@@ -376,23 +376,39 @@ async function patchSubsidyTicket(
     .single();
   if (error) throw error;
 
-  if (existing.kind === 'market_leader' && body.status === 'approved') {
-    await sb
-      .from('partner_accounts')
-      .update({ market_leader_status: 'approved', updated_at: now })
-      .ilike('wallet_address', w(existing.wallet_address as string));
-  }
-  if (existing.kind === 'market_leader' && body.status === 'rejected') {
-    await sb
-      .from('partner_accounts')
-      .update({ market_leader_status: 'rejected', updated_at: now })
-      .ilike('wallet_address', w(existing.wallet_address as string));
-  }
+  // Resolve the single market_leader_status transition this patch implies. An
+  // explicit marketLeaderStatus takes precedence; otherwise a market_leader
+  // ticket flipping to approved/rejected mirrors that onto the account.
+  let mlNext: string | null = null;
   if (body.marketLeaderStatus) {
+    mlNext = body.marketLeaderStatus;
+  } else if (existing.kind === 'market_leader' && body.status === 'approved') {
+    mlNext = 'approved';
+  } else if (existing.kind === 'market_leader' && body.status === 'rejected') {
+    mlNext = 'rejected';
+  }
+
+  // Capture the partner_accounts.market_leader_status before/after so the caller
+  // can emit an immutable admin audit row for this eligibility-bearing write.
+  let marketLeader:
+    | { wallet: string; before: string | null; after: string }
+    | null = null;
+  if (mlNext) {
+    const wallet = w(existing.wallet_address as string);
+    const { data: acctBefore } = await sb
+      .from('partner_accounts')
+      .select('market_leader_status')
+      .ilike('wallet_address', wallet)
+      .maybeSingle();
     await sb
       .from('partner_accounts')
-      .update({ market_leader_status: body.marketLeaderStatus, updated_at: now })
-      .ilike('wallet_address', w(existing.wallet_address as string));
+      .update({ market_leader_status: mlNext, updated_at: now })
+      .ilike('wallet_address', wallet);
+    marketLeader = {
+      wallet,
+      before: (acctBefore?.market_leader_status as string | null) ?? null,
+      after: mlNext,
+    };
   }
 
   await sb.from('partner_subsidy_messages').insert({
@@ -402,7 +418,7 @@ async function patchSubsidyTicket(
     body: `状态更新为 ${body.status ?? '—'}`,
   });
 
-  return { ticket };
+  return { ticket, marketLeader };
 }
 
 async function addTicketMessage(
@@ -502,58 +518,154 @@ async function loadPendingApproval(sb: Sb, id: string) {
   return data;
 }
 
-// Approve a pending request: enforce separation of duties, apply the original
-// change, mark it executed, and write the immutable admin audit row.
-async function approveApproval(sb: Sb, id: string, admin: AdminProfile) {
+/**
+ * Atomically claim a pending approval by flipping it to a terminal state, gated
+ * on `status = 'pending'`. Returns the claimed row to the single caller that won
+ * the race, or `null` to every loser. This is the TOCTOU fix: the state
+ * transition happens BEFORE any payout-authorizing side effect, so a concurrent
+ * approver cannot also pass the guard and re-apply the change.
+ */
+async function claimApproval(
+  sb: Sb,
+  id: string,
+  status: 'executed' | 'rejected',
+  adminUserId: string,
+  extra: Record<string, unknown> = {},
+): Promise<Record<string, unknown> | null> {
+  const now = new Date().toISOString();
+  const { data, error } = await sb
+    .from('admin_action_approvals')
+    .update({ status, approved_by: adminUserId, approved_at: now, ...extra })
+    .eq('id', id)
+    .eq('status', 'pending')
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
+type ApplyResult = {
+  before: unknown;
+  after: unknown;
+  marketLeader?: { wallet: string; before: string | null; after: string } | null;
+  conflict?: string | null;
+};
+
+// Injectable appliers so the claim/apply ordering can be unit-tested with fakes.
+export type ApproveDeps = {
+  claimApproval: (
+    sb: Sb,
+    id: string,
+    adminUserId: string,
+  ) => Promise<Record<string, unknown> | null>;
+  applyProgramSettings: (
+    sb: Sb,
+    payload: Record<string, unknown>,
+    admin: AdminProfile,
+  ) => Promise<ApplyResult>;
+  applySubsidyTicket: (
+    sb: Sb,
+    targetId: string,
+    payload: Record<string, unknown>,
+    admin: AdminProfile,
+  ) => Promise<ApplyResult>;
+};
+
+export const defaultApproveDeps: ApproveDeps = {
+  claimApproval: (sb, id, adminUserId) =>
+    claimApproval(sb, id, 'executed', adminUserId),
+  applyProgramSettings: async (sb, payload, admin) => {
+    const before = await getPartnerProgramSettings(sb);
+    const after = await updatePartnerProgramSettings(sb, payload, admin.username);
+    return { before, after };
+  },
+  applySubsidyTicket: async (sb, targetId, payload, admin) => {
+    const { data: existing } = await sb
+      .from('partner_subsidy_tickets')
+      .select('*')
+      .eq('id', targetId)
+      .maybeSingle();
+    // Re-assert cheap preconditions on execute so we never re-flip an
+    // already-terminal target (avoids double-pay / re-approval after the row
+    // moved between request and approval).
+    if (!existing) {
+      return { before: null, after: null, conflict: 'ticket_not_found' };
+    }
+    if (existing.status === 'paid') {
+      return { before: existing, after: existing, conflict: 'already_paid' };
+    }
+    const res = await patchSubsidyTicket(sb, targetId, payload, admin);
+    return { before: existing, after: res.ticket, marketLeader: res.marketLeader };
+  },
+};
+
+// Approve a pending request. Order is: separation-of-duties check -> CLAIM the
+// row atomically (pending -> executed) -> only the winner applies the stored
+// change and writes the immutable audit trail.
+export async function approveApproval(
+  sb: Sb,
+  id: string,
+  admin: AdminProfile,
+  deps: ApproveDeps = defaultApproveDeps,
+) {
   const approval = await loadPendingApproval(sb, id);
   // Separation of duties: approver MUST differ from the requester.
   assertDifferentApprover(approval.requested_by as string, admin.userId);
 
-  const payload = (approval.payload ?? {}) as Record<string, unknown>;
-  let before: unknown = null;
-  let after: unknown = null;
-
-  if (approval.action === APPROVAL_PROGRAM_SETTINGS) {
-    before = await getPartnerProgramSettings(sb);
-    after = await updatePartnerProgramSettings(sb, payload, admin.username);
-  } else if (approval.action === APPROVAL_SUBSIDY_TICKET) {
-    const { data: existing } = await sb
-      .from('partner_subsidy_tickets')
-      .select('*')
-      .eq('id', approval.target_id as string)
-      .maybeSingle();
-    before = existing ?? null;
-    const res = await patchSubsidyTicket(sb, approval.target_id as string, payload, admin);
-    after = res.ticket;
-  } else {
-    throw new HttpError(400, `Unknown approval action: ${approval.action}`);
+  const action = approval.action as string;
+  if (action !== APPROVAL_PROGRAM_SETTINGS && action !== APPROVAL_SUBSIDY_TICKET) {
+    throw new HttpError(400, `Unknown approval action: ${action}`);
   }
 
-  const now = new Date().toISOString();
-  const { data: updated, error } = await sb
-    .from('admin_action_approvals')
-    .update({ status: 'executed', approved_by: admin.userId, approved_at: now })
-    .eq('id', id)
-    .eq('status', 'pending') // guard against a concurrent approve
-    .select('*')
-    .single();
-  if (error) throw error;
+  // CLAIM FIRST: atomically move pending -> executed. Losers of a concurrent
+  // race get null here and apply NOTHING.
+  const claimed = await deps.claimApproval(sb, id, admin.userId);
+  if (!claimed) throw new HttpError(409, 'Approval already processed');
+
+  const payload = (approval.payload ?? {}) as Record<string, unknown>;
+  let result: ApplyResult;
+  if (action === APPROVAL_PROGRAM_SETTINGS) {
+    result = await deps.applyProgramSettings(sb, payload, admin);
+  } else {
+    result = await deps.applySubsidyTicket(sb, approval.target_id as string, payload, admin);
+  }
+
+  const reason = result.conflict
+    ? `maker-checker approved but target precondition changed (${result.conflict}); no-op applied (requested_by=${approval.requested_by})`
+    : `maker-checker approved (requested_by=${approval.requested_by})`;
 
   await writeAdminAudit(sb, {
     actorId: admin.userId,
     actorRole: admin.role,
-    action: approval.action as string,
+    action,
     entityType: approval.target_type as string,
     entityId: approval.target_id as string,
-    before,
-    after,
-    reason: `maker-checker approved (requested_by=${approval.requested_by})`,
+    before: result.before,
+    after: result.after,
+    reason,
   });
 
-  return { approval: updated };
+  // Capture the partner_accounts.market_leader_status eligibility write in its
+  // own before/after admin audit row (skipped on a no-op conflict).
+  if (!result.conflict && result.marketLeader) {
+    await writeAdminAudit(sb, {
+      actorId: admin.userId,
+      actorRole: admin.role,
+      action: 'partner_account.market_leader_status',
+      entityType: 'partner_accounts',
+      entityId: result.marketLeader.wallet,
+      before: { market_leader_status: result.marketLeader.before },
+      after: { market_leader_status: result.marketLeader.after },
+      reason: `maker-checker approved (requested_by=${approval.requested_by})`,
+    });
+  }
+
+  return { approval: claimed };
 }
 
-async function rejectApproval(
+// Reject a pending request. Same claim-first ordering: atomically move
+// pending -> rejected; only the winner writes the audit row.
+export async function rejectApproval(
   sb: Sb,
   id: string,
   admin: AdminProfile,
@@ -563,20 +675,10 @@ async function rejectApproval(
   // Separation of duties applies to rejection too.
   assertDifferentApprover(approval.requested_by as string, admin.userId);
 
-  const now = new Date().toISOString();
-  const { data: updated, error } = await sb
-    .from('admin_action_approvals')
-    .update({
-      status: 'rejected',
-      approved_by: admin.userId,
-      approved_at: now,
-      reason: reason ?? null,
-    })
-    .eq('id', id)
-    .eq('status', 'pending')
-    .select('*')
-    .single();
-  if (error) throw error;
+  const claimed = await claimApproval(sb, id, 'rejected', admin.userId, {
+    reason: reason ?? null,
+  });
+  if (!claimed) throw new HttpError(409, 'Approval already processed');
 
   await writeAdminAudit(sb, {
     actorId: admin.userId,
@@ -589,7 +691,7 @@ async function rejectApproval(
     reason: reason ?? `maker-checker rejected (requested_by=${approval.requested_by})`,
   });
 
-  return { approval: updated };
+  return { approval: claimed };
 }
 
 async function dashboardStats(sb: Sb) {
@@ -787,6 +889,19 @@ Deno.serve(async (req) => {
         before,
         after: result.ticket,
       });
+      // Any non-eligibility market_leader_status write (e.g. rejected/revoked)
+      // still mutates partner_accounts -> capture it in its own audit row.
+      if (result.marketLeader) {
+        await writeAdminAudit(sb, {
+          actorId: admin.userId,
+          actorRole: admin.role,
+          action: 'partner_account.market_leader_status',
+          entityType: 'partner_accounts',
+          entityId: result.marketLeader.wallet,
+          before: { market_leader_status: result.marketLeader.before },
+          after: { market_leader_status: result.marketLeader.after },
+        });
+      }
       return jsonResponse({ ok: true, ...result });
     }
 

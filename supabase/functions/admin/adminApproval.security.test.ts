@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   assertDifferentApprover,
   isPayoutAuthorizingChange,
   buildAdminAuditRow,
   writeAdminAudit,
 } from '../_shared/audit.ts';
+import { approveApproval, type ApproveDeps } from './index.ts';
 
 describe('V-08 maker-checker — assertDifferentApprover (separation of duties)', () => {
   it('throws 403 when approver equals requester', () => {
@@ -38,12 +39,20 @@ describe('V-08 maker-checker — isPayoutAuthorizingChange (field classification
     expect(isPayoutAuthorizingChange({ status: 'paid' })).toBe(true);
   });
 
+  it('gates a marketLeaderStatus flipped to an eligibility-granting value', () => {
+    // Residual 1: granting market-leader eligibility drives future subsidy quota
+    // and is therefore payout-authorizing -> must clear maker-checker.
+    expect(isPayoutAuthorizingChange({ marketLeaderStatus: 'approved' })).toBe(true);
+  });
+
   it('does NOT gate cosmetic / non-payout patches', () => {
     expect(isPayoutAuthorizingChange({ adminNote: 'looks fine' })).toBe(false);
     expect(isPayoutAuthorizingChange({ assignedAdmin: 'alice' })).toBe(false);
     expect(isPayoutAuthorizingChange({ status: 'rejected' })).toBe(false);
     expect(isPayoutAuthorizingChange({ status: 'closed' })).toBe(false);
-    expect(isPayoutAuthorizingChange({ marketLeaderStatus: 'approved' })).toBe(false);
+    // Non-eligibility market-leader transitions grant nothing -> not gated.
+    expect(isPayoutAuthorizingChange({ marketLeaderStatus: 'rejected' })).toBe(false);
+    expect(isPayoutAuthorizingChange({ marketLeaderStatus: 'none' })).toBe(false);
     expect(isPayoutAuthorizingChange({})).toBe(false);
   });
 });
@@ -111,5 +120,119 @@ describe('V-08 admin audit — writeAdminAudit builds the correct immutable row'
     expect(inserts[0].table).toBe('audit_logs');
     expect((inserts[0].payload as { actor_type: string }).actor_type).toBe('admin');
     expect((inserts[0].payload as { actor_id: string }).actor_id).toBe('admin-9');
+  });
+});
+
+describe('V-08 maker-checker — approveApproval claims the row BEFORE applying (TOCTOU)', () => {
+  const admin = { userId: 'admin-2', username: 'bob', role: 'superadmin' } as never;
+  const pending = {
+    id: 'apr-1',
+    action: 'subsidy_ticket.patch',
+    target_type: 'partner_subsidy_tickets',
+    target_id: 'tkt-9',
+    payload: { status: 'approved' },
+    requested_by: 'admin-1',
+    status: 'pending',
+  };
+
+  // Minimal client: loadPendingApproval reads the pending row; writeAdminAudit
+  // inserts into audit_logs. No .update() path is exercised because claimApproval
+  // is injected as a fake below.
+  function fakeSb(auditInserts: unknown[]) {
+    // deno-lint-ignore no-explicit-any
+    return {
+      from: (table: string) => {
+        if (table === 'admin_action_approvals') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({ data: pending, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'audit_logs') {
+          return {
+            insert: (payload: unknown) => {
+              auditInserts.push(payload);
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+      // deno-lint-ignore no-explicit-any
+    } as any;
+  }
+
+  it('returns 409 and applies NOTHING when the atomic claim loses the race (0 rows)', async () => {
+    const auditInserts: unknown[] = [];
+    const applySubsidyTicket = vi.fn();
+    const applyProgramSettings = vi.fn();
+    const deps: ApproveDeps = {
+      claimApproval: vi.fn().mockResolvedValue(null), // lost the race -> null
+      applySubsidyTicket,
+      applyProgramSettings,
+    };
+
+    await expect(
+      approveApproval(fakeSb(auditInserts), 'apr-1', admin, deps),
+    ).rejects.toMatchObject({ status: 409, message: 'Approval already processed' });
+
+    expect(deps.claimApproval).toHaveBeenCalledTimes(1);
+    expect(applySubsidyTicket).not.toHaveBeenCalled();
+    expect(applyProgramSettings).not.toHaveBeenCalled();
+    expect(auditInserts).toHaveLength(0);
+  });
+
+  it('applies the side effect exactly once when the claim wins (1 row)', async () => {
+    const auditInserts: unknown[] = [];
+    const applySubsidyTicket = vi.fn().mockResolvedValue({
+      before: { id: 'tkt-9', status: 'under_review' },
+      after: { id: 'tkt-9', status: 'approved' },
+      marketLeader: null,
+    });
+    const applyProgramSettings = vi.fn();
+    const deps: ApproveDeps = {
+      claimApproval: vi.fn().mockResolvedValue({ ...pending, status: 'executed' }),
+      applySubsidyTicket,
+      applyProgramSettings,
+    };
+
+    const res = await approveApproval(fakeSb(auditInserts), 'apr-1', admin, deps);
+
+    // claim happened before apply, and apply ran exactly once.
+    expect(deps.claimApproval).toHaveBeenCalledTimes(1);
+    expect(applySubsidyTicket).toHaveBeenCalledTimes(1);
+    expect(applySubsidyTicket).toHaveBeenCalledWith(
+      expect.anything(),
+      'tkt-9',
+      { status: 'approved' },
+      admin,
+    );
+    expect(applyProgramSettings).not.toHaveBeenCalled();
+    expect((res.approval as { status: string }).status).toBe('executed');
+    expect(auditInserts).toHaveLength(1);
+  });
+
+  it('records a no-op conflict (not a re-flip) when the ticket is already paid on execute', async () => {
+    const auditInserts: unknown[] = [];
+    const applySubsidyTicket = vi.fn().mockResolvedValue({
+      before: { id: 'tkt-9', status: 'paid' },
+      after: { id: 'tkt-9', status: 'paid' },
+      conflict: 'already_paid',
+    });
+    const deps: ApproveDeps = {
+      claimApproval: vi.fn().mockResolvedValue({ ...pending, status: 'executed' }),
+      applySubsidyTicket,
+      applyProgramSettings: vi.fn(),
+    };
+
+    await approveApproval(fakeSb(auditInserts), 'apr-1', admin, deps);
+
+    expect(auditInserts).toHaveLength(1);
+    const row = auditInserts[0] as { new_value: { reason: string } };
+    expect(row.new_value.reason).toContain('already_paid');
+    expect(row.new_value.reason).toContain('no-op');
   });
 });
