@@ -53,8 +53,12 @@ export async function stakePartnerSd3(
     .eq('wallet_address', wallet)
     .maybeSingle();
   if (error) throw error;
-  if (!acct?.is_partner) {
-    throw new HttpError(403, 'Partner account required');
+  // UD3 (反向金) may be staked by ANY account that holds a balance — it is earned
+  // from downline deposits regardless of the holder's own partner status, and the
+  // rules place no partner requirement on staking it (only on withdrawing, which
+  // is disallowed entirely). Require only that the account exists with a balance.
+  if (!acct) {
+    throw new HttpError(403, 'No UD3 account');
   }
 
   const balance = Number(acct.ud3_balance ?? 0);

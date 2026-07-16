@@ -72,16 +72,20 @@ export default function PartnerProgram() {
     hasStake,
   } = usePartnerProgram(wallet, demoSessionKey);
 
+  // The assets tab is visible to partners AND to any non-partner who has staked
+  // (a regular/crowdfund stake still produces yield + D3 to view).
+  const canSeeAssets = state.isPartner || hasStake;
+
   const visibleTabs = useMemo(
-    () => TAB_IDS.filter((id) => id !== 'assets' || state.isPartner),
-    [state.isPartner],
+    () => TAB_IDS.filter((id) => id !== 'assets' || canSeeAssets),
+    [canSeeAssets],
   );
 
   useEffect(() => {
-    if (tab === 'assets' && !state.isPartner) {
+    if (tab === 'assets' && !canSeeAssets) {
       setTab('home');
     }
-  }, [tab, state.isPartner]);
+  }, [tab, canSeeAssets]);
 
   const handleWithdrawYield = useCallback(
     async (amount: number) => {
@@ -245,12 +249,13 @@ export default function PartnerProgram() {
                   onGoHome={() => setTab('home')}
                 />
               )}
-              {tab === 'assets' && state.isPartner && (
+              {tab === 'assets' && canSeeAssets && (
                 <PartnerAssetsTab
                   lang={lang}
                   isDark={isDark}
                   wallet={wallet}
                   state={state}
+                  hasStake={hasStake}
                   teamStats={teamStats}
                   pendingSd3Earned={pendingSd3Earned}
                   subsidySettings={subsidySettings}

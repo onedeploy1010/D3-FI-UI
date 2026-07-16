@@ -53,11 +53,13 @@ export function PartnerAssetsTab({
   onMarketSubsidy,
   onGoTeamTransferGuide,
   yieldWithdrawing = false,
+  hasStake = false,
 }: {
   lang: AppLang;
   isDark: boolean;
   wallet: string | null;
   state: PartnerState;
+  hasStake?: boolean;
   teamStats: PartnerTeamStats;
   subsidySettings: PartnerProgramSettings;
   teamNodes?: Record<string, PartnerTeamNode>;
@@ -141,7 +143,9 @@ export function PartnerAssetsTab({
     }
   };
 
-  if (!state.isPartner) {
+  // Partners always see assets; non-partners see them too once they have staked
+  // (so they can view their stake positions, yield and D3 output).
+  if (!state.isPartner && !hasStake) {
     return (
       <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
         {p('assets.partnersOnly')}

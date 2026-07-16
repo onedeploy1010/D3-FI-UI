@@ -114,9 +114,8 @@ export function PartnerHomeTab({
       setUseSd3(false);
       setAmount(String(PARTNER_ENTRY_USDT));
     } else {
-      const n = Number.isFinite(numAmount) ? numAmount : DEFAULT_HOME_STAKE_USDT;
-      const rounded = Math.max(REGULAR_STAKE_MIN_USDT, Math.floor(n / REGULAR_STAKE_STEP_USDT) * REGULAR_STAKE_STEP_USDT);
-      setAmount(String(rounded));
+      // Non-partner (regular) stake defaults to the 100 USDT minimum; user can edit.
+      setAmount(String(REGULAR_STAKE_MIN_USDT));
     }
   };
 

@@ -390,7 +390,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
-  const [account, positions, sd3History, sd3Allocations, yieldHistory, sd3Transfers] = await Promise.all([
+  const [account, positions, sd3History, ud3Ledger, yieldHistory, sd3Transfers] = await Promise.all([
     sb.from('partner_accounts').select('*').ilike('wallet_address', w).maybeSingle(),
     sb
       .from('partner_stake_positions')
@@ -404,11 +404,15 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .ilike('wallet_address', w)
       .order('settlement_date', { ascending: false })
       .limit(30),
+    // UD3 reward list = the new reverse-gold ledger (partner_ud3_ledger). The old
+    // partner_sd3_allocations table is unused by the current engine, which left the
+    // "UD3 奖励列表" empty even though the account balance reflected the reward.
     sb
-      .from('partner_sd3_allocations')
+      .from('partner_ud3_ledger')
       .select('*')
       .ilike('recipient_wallet', w)
-      .order('settlement_date', { ascending: false })
+      .neq('role', 'reserve')
+      .order('created_at', { ascending: false })
       .limit(100),
     sb
       .from('partner_yield_settlements')
@@ -425,11 +429,39 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .limit(50),
   ]);
 
+  // Enrich each ledger row with its generating event (who deposited, how much, tier)
+  // and shape it into the allocation-history rows the client already renders.
+  const ledgerRows = ud3Ledger.data ?? [];
+  const eventIds = [...new Set(ledgerRows.map((r) => r.event_id).filter(Boolean))];
+  let eventsById: Record<string, Record<string, unknown>> = {};
+  if (eventIds.length > 0) {
+    const { data: evs } = await sb
+      .from('partner_ud3_events')
+      .select('id, depositor_wallet, deposit_usdt, tier_rate_pct')
+      .in('id', eventIds);
+    eventsById = Object.fromEntries((evs ?? []).map((e) => [e.id as string, e]));
+  }
+  const sd3Allocations = ledgerRows.map((r) => {
+    const ev = eventsById[r.event_id as string] ?? {};
+    return {
+      id: r.id,
+      recipient_wallet: r.recipient_wallet,
+      settlement_date: r.created_at,
+      event_amount_usd: Number(ev.deposit_usdt ?? 0),
+      tier_rate_pct: Number(ev.tier_rate_pct ?? 0),
+      // Direct reward is the fixed 60% cut; network (级差) rewards carry their gap %.
+      reward_share_pct: r.role === 'direct' ? 60 : Number(r.gap_pct ?? r.v_share_pct ?? 0),
+      role: r.role,
+      source_wallet: ev.depositor_wallet ?? null,
+      sd3_amount: Number(r.ud3_amount ?? 0),
+    };
+  });
+
   return {
     account: account.data,
     stakePositions: positions.data ?? [],
     sd3Settlements: sd3History.data ?? [],
-    sd3Allocations: sd3Allocations.data ?? [],
+    sd3Allocations,
     yieldSettlements: yieldHistory.data ?? [],
     sd3Transfers: sd3Transfers.data ?? [],
   };

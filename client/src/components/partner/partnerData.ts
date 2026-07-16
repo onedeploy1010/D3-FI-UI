@@ -860,10 +860,12 @@ export function hydratePartnerStateFromApi(
 
   const stakeOrders: PartnerStakeOrder[] = positions.map(mapStakePositionToOrder);
 
-  const serverIds = new Set(stakeOrders.map((o) => o.id));
-  const localExtras = local.stakeOrders.filter((o) => !serverIds.has(o.id));
-  const mergedStakeOrders =
-    stakeOrders.length > 0 ? [...stakeOrders, ...localExtras] : local.stakeOrders;
+  // Server positions are authoritative for a real account. We deliberately do NOT
+  // merge local optimistic orders back in: they carry client-generated ids that
+  // never match the server position id, so an optimistic order placed at stake
+  // time was never reconciled and lingered as a duplicate "ghost" (one real
+  // 1000U stake rendering as two). Trust the server list once it has any row.
+  const mergedStakeOrders = stakeOrders.length > 0 ? stakeOrders : local.stakeOrders;
 
   const allocationHistory =
     (api.partnerSd3Allocations?.length ?? 0) > 0
@@ -898,12 +900,14 @@ export function hydratePartnerStateFromApi(
   const accountBalance = account ? Number(account.ud3_balance ?? account.sd3_balance ?? 0) : 0;
   const lifetimeSd3Earned =
     accountLifetime > 0 ? accountLifetime : settledSum > 0 ? settledSum : local.lifetimeSd3Earned;
-  const sd3Balance =
-    accountBalance > 0
-      ? accountBalance
-      : lifetimeSd3Earned > 0
-        ? lifetimeSd3Earned
-        : local.sd3Balance;
+  // When a real account exists its UD3 balance is authoritative — including 0 after
+  // the holder has staked/transferred it all. Only fall back to lifetime/local when
+  // there is no server account at all (avoids showing a phantom balance you can't spend).
+  const sd3Balance = account
+    ? accountBalance
+    : lifetimeSd3Earned > 0
+      ? lifetimeSd3Earned
+      : local.sd3Balance;
 
   const serverTransfers: PartnerTransfer[] = (api.partnerSd3Transfers ?? []).map((r) => ({
     id: r.id,

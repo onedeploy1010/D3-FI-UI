@@ -26,7 +26,11 @@ export function resolveSettledSd3Base(state: PartnerState): number {
 
 /** Available sD3 — partners use server balance; others deduct transfers/stakes from settled base. */
 export function getSd3Available(state: PartnerState): number {
-  if (state.isPartner) return round2(state.sd3Balance);
+  // Spendable UD3 is the current account balance, which the server debits on every
+  // stake/transfer — authoritative for partners and non-partners alike. (UD3 earned
+  // from downline deposits is credited immediately, so no separate "settled" gate.)
+  if (state.sd3Balance > 0 || state.isPartner) return Math.max(0, round2(state.sd3Balance));
+  // Fallback for demo / not-yet-hydrated local state with no live account balance.
   const settled = resolveSettledSd3Base(state);
   const transferred = sumSd3Transferred(state);
   const staked = state.sd3StakedFromRewards ?? 0;
