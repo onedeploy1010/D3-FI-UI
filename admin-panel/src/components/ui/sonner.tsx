@@ -1,16 +1,13 @@
-"use client"
-
-import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
+// The admin panel has no next-themes provider; Sonner's own "system" theme
+// (prefers-color-scheme) is enough and avoids an undeclared dependency.
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="system"
       className="toaster group"
       toastOptions={{
         classNames: {

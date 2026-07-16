@@ -40,6 +40,8 @@ const copy = {
     errAlready: '你已绑定过推荐人',
     errRequired: '请填写推荐人地址或通过推荐链接进入',
     loading: '正在检查推荐关系…',
+    disconnect: '断开钱包',
+    switchHint: '连错钱包？点此断开后重新连接',
   },
   'zh-TW': {
     title: '綁定推薦人',
@@ -57,6 +59,8 @@ const copy = {
     errAlready: '你已綁定過推薦人',
     errRequired: '請填寫推薦人地址或通過推薦連結進入',
     loading: '正在檢查推薦關係…',
+    disconnect: '斷開錢包',
+    switchHint: '連錯錢包？點此斷開後重新連接',
   },
   en: {
     title: 'Bind referrer',
@@ -74,6 +78,8 @@ const copy = {
     errAlready: 'You are already bound to a referrer',
     errRequired: 'Enter a referrer address or open a referral link',
     loading: 'Checking referral status…',
+    disconnect: 'Disconnect',
+    switchHint: 'Wrong wallet? Disconnect and reconnect.',
   },
   ja: {
     title: '紹介者を紐付け',
@@ -91,6 +97,8 @@ const copy = {
     errAlready: 'すでに紹介者が紐付けられています',
     errRequired: '紹介者アドレスを入力するか紹介リンクから入場',
     loading: '紹介関係を確認中…',
+    disconnect: '切断',
+    switchHint: '違うウォレット？切断して再接続。',
   },
   ko: {
     title: '추천인 연결',
@@ -108,6 +116,8 @@ const copy = {
     errAlready: '이미 추천인이 연결되어 있습니다',
     errRequired: '추천인 주소를 입력하거나 추천 링크로 접속하세요',
     loading: '추천 관계 확인 중…',
+    disconnect: '연결 해제',
+    switchHint: '잘못된 지갑? 연결을 해제하고 다시 연결하세요.',
   },
   th: {
     title: 'ผูกผู้แนะนำ',
@@ -125,6 +135,8 @@ const copy = {
     errAlready: 'คุณผูกผู้แนะนำแล้ว',
     errRequired: 'กรอกที่อยู่ผู้แนะนำหรือเปิดจากลิงก์แนะนำ',
     loading: 'กำลังตรวจสอบความสัมพันธ์…',
+    disconnect: 'ตัดการเชื่อมต่อ',
+    switchHint: 'ผิดกระเป๋า? ตัดการเชื่อมต่อแล้วเชื่อมใหม่',
   },
 } as const;
 
@@ -133,7 +145,7 @@ function t(lang: keyof typeof copy, key: keyof (typeof copy)['en']) {
 }
 
 function ReferralBindScreen({ onBound }: { onBound: () => void }) {
-  const { wallet } = useWallet();
+  const { wallet, shortAddress, disconnect } = useWallet();
   const { lang } = useAppLang();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -227,9 +239,27 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
         className="ios-glass-card ios-glass-highlight w-full max-w-md rounded-3xl p-6 relative"
       >
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
-        <h2 className="site-content-title mb-2">{t(lang, 'title')}</h2>
-        <p className={`text-xs mb-5 leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h2 className="site-content-title">{t(lang, 'title')}</h2>
+          <button
+            type="button"
+            onClick={() => disconnect()}
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+              isDark
+                ? 'bg-white/10 text-white/80 hover:bg-white/15'
+                : 'bg-[#160510]/8 text-[#160510]/70 hover:bg-[#160510]/12'
+            }`}
+            title={t(lang, 'switchHint')}
+          >
+            {shortAddress ? <span className="font-mono">{shortAddress}</span> : null}
+            <span>· {t(lang, 'disconnect')}</span>
+          </button>
+        </div>
+        <p className={`text-xs mb-2 leading-relaxed ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
           {t(lang, 'desc')}
+        </p>
+        <p className={`text-[10px] mb-5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+          {t(lang, 'switchHint')}
         </p>
 
         {fromLink && sponsor && isEthAddress(sponsor) ? (
