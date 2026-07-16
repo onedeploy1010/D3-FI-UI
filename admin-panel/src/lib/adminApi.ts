@@ -63,3 +63,92 @@ export type SubsidyMessage = {
   body: string;
   created_at: string;
 };
+
+// ---- Security / Circuit-Breaker ----
+
+export type PauseFlag = {
+  flag: string;
+  paused: boolean;
+  reason: string | null;
+  updated_at: string | null;
+  auto_paused?: boolean;
+};
+
+export type RiskLimits = Record<string, number | string | boolean | null>;
+
+export type SecuritySolvency = {
+  ratio: number;
+  liabilityUsdt: number;
+  flashSwapReserveUsdt: number;
+  healthy: boolean;
+};
+
+export type SecurityAlertCounts = { P0: number; P1: number; P2: number; P3: number };
+
+export type SecurityOverview = {
+  pauseFlags: PauseFlag[];
+  limits: RiskLimits;
+  solvency: SecuritySolvency;
+  alertCounts: SecurityAlertCounts;
+};
+
+export type AlertSeverity = 'P0' | 'P1' | 'P2' | 'P3';
+export type AlertStatus = 'open' | 'ack' | 'resolved';
+
+export type SecurityAlert = {
+  id: string;
+  severity: AlertSeverity;
+  rule_id: string;
+  title: string | null;
+  detail?: unknown;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  status: AlertStatus;
+  auto_paused?: boolean;
+  created_at: string;
+  acknowledged_by?: string | null;
+  acknowledged_at?: string | null;
+};
+
+export function getSecurityOverview() {
+  return adminFetch<SecurityOverview>('/security/overview');
+}
+
+export function listSecurityAlerts(params?: { status?: string; severity?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.status && params.status !== 'all') qs.set('status', params.status);
+  if (params?.severity && params.severity !== 'all') qs.set('severity', params.severity);
+  const q = qs.toString();
+  return adminFetch<{ rows: SecurityAlert[] }>(`/security/alerts${q ? `?${q}` : ''}`);
+}
+
+export function ackAlert(id: string) {
+  return adminFetch<{ ok?: boolean }>(`/security/alerts/${id}/ack`, { method: 'POST' });
+}
+
+export function pause(flag: string, reason: string) {
+  return adminFetch<{ ok?: boolean }>('/security/pause', {
+    method: 'POST',
+    body: JSON.stringify({ flag, reason }),
+  });
+}
+
+export function unpause(flag: string, reason: string) {
+  // maker-checker: returns a pending approval (202); a second admin must approve.
+  return adminFetch<{ ok?: boolean; approvalId?: string; pending?: boolean }>('/security/unpause', {
+    method: 'POST',
+    body: JSON.stringify({ flag, reason }),
+  });
+}
+
+export function getRiskLimits() {
+  return adminFetch<{ limits: RiskLimits }>('/security/limits');
+}
+
+export function updateRiskLimits(patch: Record<string, unknown>) {
+  // maker-checker: returns a pending approval.
+  return adminFetch<{ ok?: boolean; approvalId?: string; pending?: boolean }>('/security/limits', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}

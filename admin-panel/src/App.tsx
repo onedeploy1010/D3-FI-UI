@@ -11,6 +11,7 @@ import ReferralsPage from '@/pages/admin/referrals';
 import PartnersPage from '@/pages/admin/partners';
 import StakesPage from '@/pages/admin/stakes';
 import SubsidiesPage from '@/pages/admin/subsidies';
+import SecurityPage from '@/pages/admin/security';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000 } },
@@ -27,6 +28,7 @@ function AdminRoutes() {
           <Route path="/partners" component={PartnersPage} />
           <Route path="/stakes" component={StakesPage} />
           <Route path="/subsidies" component={SubsidiesPage} />
+          <Route path="/security" component={SecurityPage} />
           <Route path="/">
             <Redirect to="/dashboard" />
           </Route>

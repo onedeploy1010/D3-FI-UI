@@ -6,6 +6,7 @@ import {
   Users,
   GitBranch,
   Shield,
+  ShieldAlert,
   Layers,
   Headphones,
   LogOut,
@@ -20,6 +21,7 @@ const NAV = [
   { href: '/partners', label: '合伙人管理', sub: 'Partners', icon: Shield },
   { href: '/stakes', label: '质押管理', sub: 'Stakes', icon: Layers },
   { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones },
+  { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert },
 ] as const;
 
 function isActive(location: string, href: string) {
