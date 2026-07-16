@@ -21,8 +21,12 @@ import {
   fetchPartnerReferralNodeStats,
   fetchPartnerTeamStats,
 } from '../_shared/partnerPerformance.ts';
-import { calcDailySd3DirectShare } from '../_shared/partnerSd3Rules.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
+import {
+  isReferralRegistryConfigured,
+  upsertReferralFromChain,
+  verifyOnchainBinding,
+} from '../_shared/referralRegistry.ts';
 import {
   addApplicantTicketMessage,
   createPartnerSubsidyTicket,
@@ -36,10 +40,10 @@ import {
 import {
   HttpError,
   isEthAddress,
-  requireWallet,
   shortWallet,
   walletEquals,
 } from '../_shared/wallet.ts';
+import { requireActorWallet } from '../_shared/requireActor.ts';
 
 type Sb = ReturnType<typeof getSupabaseAdmin>;
 
@@ -613,13 +617,9 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
   const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
 
   const isPartner = Boolean(partnerBundle.account?.is_partner);
-  const pendingSd3Earned = isPartner
-    ? calcDailySd3DirectShare(
-        partnerTeamStats.smallAreaPerformanceUsd,
-        partnerTeamStats.smallAreaNewPerformanceUsd,
-        true,
-      )
-    : 0;
+  // Daily sD3 (贿赂金) is abolished; the reward is now UD3 credited per deposit.
+  // Field kept at 0 for client compatibility until Batch B renames the response.
+  const pendingSd3Earned = 0;
 
   return {
     profile,
@@ -732,7 +732,7 @@ Deno.serve(async (req) => {
 
     const profileGet = path.match(/^\/profile\/(0x[0-9a-fA-F]{40})$/);
     if (req.method === 'GET' && profileGet) {
-      const headerWallet = requireWallet(req);
+      const headerWallet = await requireActorWallet(sb, req, { allowDemo: true });
       const urlWallet = profileGet[1];
       assertWalletMatch(headerWallet, urlWallet);
       return jsonResponse(await fetchProfileBundle(sb, urlWallet));
@@ -740,7 +740,7 @@ Deno.serve(async (req) => {
 
     // POST /profile
     if (req.method === 'POST' && path === '/profile') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { displayName, lang } = body as {
         displayName?: string;
@@ -770,7 +770,7 @@ Deno.serve(async (req) => {
 
     // POST /shareholders/join
     if (req.method === 'POST' && path === '/shareholders/join') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { joinTxHash, sponsorWallet } = body as { joinTxHash?: string; sponsorWallet?: string };
 
@@ -818,7 +818,7 @@ Deno.serve(async (req) => {
 
     // POST /usd3/claim
     if (req.method === 'POST' && path === '/usd3/claim') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const profile = await findProfileByWallet(sb, wallet);
       if (!profile) throw new HttpError(404, 'Profile not found');
 
@@ -870,7 +870,7 @@ Deno.serve(async (req) => {
 
     // POST /partner/demo-reset — restore seeded demo partner data on each demo login
     if (req.method === 'POST' && path === '/partner/demo-reset') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       if (!demoMode || !isDemoWalletAddress(wallet)) {
         throw new HttpError(403, 'Demo reset requires demo mode');
       }
@@ -879,7 +879,7 @@ Deno.serve(async (req) => {
 
     // POST /partner/subsidy-receipts/sign
     if (req.method === 'POST' && path === '/partner/subsidy-receipts/sign') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { files } = body as {
         files?: Array<{ name: string; contentType: string; size: number }>;
@@ -891,7 +891,7 @@ Deno.serve(async (req) => {
 
     // POST /partner/subsidy-tickets
     if (req.method === 'POST' && path === '/partner/subsidy-tickets') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { kind, amountUsd, purpose, applicationType, receiptPaths } = body as {
         kind?: 'partner_subsidy' | 'market_subsidy' | 'market_leader';
@@ -913,7 +913,7 @@ Deno.serve(async (req) => {
 
     // GET /partner/subsidy-quota?kind=partner_subsidy
     if (req.method === 'GET' && path === '/partner/subsidy-quota') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const url = new URL(req.url);
       const kind = url.searchParams.get('kind');
       if (kind !== 'partner_subsidy' && kind !== 'market_subsidy') {
@@ -928,14 +928,14 @@ Deno.serve(async (req) => {
 
     // GET /partner/subsidy-tickets
     if (req.method === 'GET' && path === '/partner/subsidy-tickets') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const tickets = await listWalletSubsidyTickets(sb, wallet);
       return jsonResponse({ ok: true, tickets });
     }
 
     const ticketMsgMatch = path.match(/^\/partner\/subsidy-tickets\/([0-9a-f-]{36})\/messages$/);
     if (req.method === 'POST' && ticketMsgMatch) {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { body: messageBody } = body as { body?: string };
       if (!messageBody?.trim()) throw new HttpError(400, 'body required');
@@ -945,11 +945,12 @@ Deno.serve(async (req) => {
 
     // POST /referrals/bind
     if (req.method === 'POST' && path === '/referrals/bind') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
-      const { sponsorWallet, referralType } = body as {
+      const { sponsorWallet, referralType, txHash } = body as {
         sponsorWallet?: string;
         referralType?: 'partner' | 'shareholder';
+        txHash?: string;
       };
 
       if (!sponsorWallet || !isEthAddress(sponsorWallet)) {
@@ -973,6 +974,33 @@ Deno.serve(async (req) => {
       }
 
       const type = referralType === 'shareholder' ? 'shareholder' : 'partner';
+
+      // When the on-chain registry is configured, the binding MUST exist on-chain
+      // (the user bound directly and paid gas). We only verify + cache it here.
+      if (isReferralRegistryConfigured()) {
+        const { ok, upline } = await verifyOnchainBinding({
+          user: wallet,
+          expectedUpline: sponsorWallet.trim(),
+          txHash,
+        });
+        if (!ok) {
+          throw new HttpError(
+            409,
+            'On-chain binding not found — call ReferralRegistry.bind() first',
+            { onchainUpline: upline },
+          );
+        }
+        await upsertReferralFromChain(sb, wallet, sponsor.wallet_address, txHash);
+        const { data: synced } = await sb
+          .from('referrals')
+          .select('*')
+          .ilike('wallet_address', wallet.toLowerCase())
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle();
+        return jsonResponse({ referral: synced, created: true, onchain: true });
+      }
+
       const { data, error } = await sb
         .from('referrals')
         .upsert(
@@ -981,6 +1009,7 @@ Deno.serve(async (req) => {
             sponsor_wallet_address: sponsor.wallet_address,
             referral_type: type,
             status: 'active',
+            ...(txHash ? { join_tx_hash: txHash } : {}),
           },
           { onConflict: 'wallet_address,sponsor_wallet_address' },
         )
@@ -992,7 +1021,7 @@ Deno.serve(async (req) => {
 
     // GET /notifications
     if (req.method === 'GET' && path === '/notifications') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const url = new URL(req.url);
       const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
       const profile = await findProfileByWallet(sb, wallet);
@@ -1017,7 +1046,7 @@ Deno.serve(async (req) => {
     // POST /notifications/:id/read
     const notifRead = path.match(/^\/notifications\/([^/]+)\/read$/);
     if (req.method === 'POST' && notifRead) {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const profile = await findProfileByWallet(sb, wallet);
       if (!profile) throw new HttpError(404, 'Profile not found');
 
@@ -1032,7 +1061,7 @@ Deno.serve(async (req) => {
 
     // POST /notifications/read-all
     if (req.method === 'POST' && path === '/notifications/read-all') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const profile = await findProfileByWallet(sb, wallet);
       if (!profile) throw new HttpError(404, 'Profile not found');
 
@@ -1047,7 +1076,7 @@ Deno.serve(async (req) => {
 
     // POST /multisig/proposals
     if (req.method === 'POST' && path === '/multisig/proposals') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.lineMultisig) throw new HttpError(404, 'Line multisig not found');
@@ -1179,7 +1208,7 @@ Deno.serve(async (req) => {
     // POST /multisig/proposals/:id/sign
     const signMatch = path.match(/^\/multisig\/proposals\/([^/]+)\/sign$/);
     if (req.method === 'POST' && signMatch) {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const signBody = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.isCommitteeMember) throw new HttpError(403, 'Not a committee member');
@@ -1260,7 +1289,7 @@ Deno.serve(async (req) => {
 
     // POST /multisig/committee
     if (req.method === 'POST' && path === '/multisig/committee') {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const { signerWallet, roleZh, roleEn, dividendWeightPct } = body as {
         signerWallet?: string;
@@ -1299,7 +1328,7 @@ Deno.serve(async (req) => {
     // PATCH /multisig/committee/:memberId
     const patchMember = path.match(/^\/multisig\/committee\/([^/]+)$/);
     if (req.method === 'PATCH' && patchMember) {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const body = await req.json().catch(() => ({}));
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.isLineLeader) throw new HttpError(403, 'Only line leader can update committee');
@@ -1327,7 +1356,7 @@ Deno.serve(async (req) => {
 
     // DELETE /multisig/committee/:memberId
     if (req.method === 'DELETE' && patchMember) {
-      const wallet = requireWallet(req);
+      const wallet = await requireActorWallet(sb, req, { allowDemo: true });
       const ctx = await resolveLineMultisigContext(sb, wallet);
       if (!ctx.isLineLeader) throw new HttpError(403, 'Only line leader can remove committee members');
 

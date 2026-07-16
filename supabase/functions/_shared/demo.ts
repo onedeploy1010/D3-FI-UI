@@ -35,7 +35,8 @@ export const DEMO_POC_SCORE = {
 
 /** Demo reads/writes for the seeded line-leader wallet without Privy JWT. */
 export function isDemoModeRequest(req: Request): boolean {
-  if (Deno.env.get('DEMO_MODE_ENABLED') === 'false') return false;
+  // V-17: demo mode is OFF by default; it must be explicitly enabled via env.
+  if (Deno.env.get('DEMO_MODE_ENABLED') !== 'true') return false;
   if (req.headers.get('x-demo-mode') !== '1') return false;
   const wallet = req.headers.get('x-wallet-address')?.trim();
   if (!wallet) return false;

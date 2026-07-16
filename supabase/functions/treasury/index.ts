@@ -30,7 +30,12 @@ import {
   approveAllConsensusActivities,
   getConsensusDiagnostics,
 } from '../_shared/turnkeyConsensus.ts';
-import { HttpError, requireWallet } from '../_shared/wallet.ts';
+import { syncReferralBindingsFromChain } from '../_shared/referralRegistry.ts';
+import { anchorDailyState, getStateProof } from '../_shared/merkleAnchor.ts';
+import { computeSolvency } from '../_shared/solvency.ts';
+import { HttpError } from '../_shared/wallet.ts';
+import { assertMoneyAmount, requireActorWallet } from '../_shared/requireActor.ts';
+import { assertSettlementTokenSafe } from '../_shared/tokens.ts';
 
 function routePath(req: Request): string {
   const url = new URL(req.url);
@@ -47,11 +52,26 @@ async function readJson<T>(req: Request): Promise<T> {
   }
 }
 
+/** Constant-time string comparison to avoid leaking the secret via timing (V-14). */
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ba = enc.encode(a);
+  const bb = enc.encode(b);
+  // Fold the length difference into the accumulator so the loop runs a fixed
+  // number of iterations regardless of input, still returning false on mismatch.
+  let diff = ba.length ^ bb.length;
+  const len = Math.max(ba.length, bb.length);
+  for (let i = 0; i < len; i++) {
+    diff |= (ba[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 function requireCronSecret(req: Request): void {
   const secret = Deno.env.get('TREASURY_CRON_SECRET');
   if (!secret) throw new HttpError(503, 'TREASURY_CRON_SECRET not configured');
-  const header = req.headers.get('X-Treasury-Cron-Secret');
-  if (header !== secret) throw new HttpError(401, 'Unauthorized');
+  const header = req.headers.get('X-Treasury-Cron-Secret') ?? '';
+  if (!timingSafeEqual(header, secret)) throw new HttpError(401, 'Unauthorized');
 }
 
 Deno.serve(async (req) => {
@@ -64,6 +84,7 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && path === '/health') {
       const summary = await getInfrastructureSummary(sb).catch(() => null);
       const depositPool = await getDepositPoolStats(sb).catch(() => null);
+      const solvency = await computeSolvency(sb).catch(() => null);
       return jsonResponse({
         ok: true,
         service: 'treasury',
@@ -72,6 +93,7 @@ Deno.serve(async (req) => {
         treasuryWalletId: treasuryWalletIdFromEnv() ? 'configured' : 'missing',
         infrastructure: summary,
         depositPool,
+        solvency,
       });
     }
 
@@ -82,7 +104,26 @@ Deno.serve(async (req) => {
       );
       const { runDailyPartnerSettlement } = await import('../_shared/partnerSettlement.ts');
       const result = await runDailyPartnerSettlement(sb, body.settlementDate);
+      // Anchor the day's balances on-chain (tamper-evidence). Non-fatal on failure.
+      const anchor = await anchorDailyState(sb, body.settlementDate).catch((e) => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
+      return jsonResponse({ ok: true, ...result, anchor });
+    }
+
+    if (req.method === 'POST' && path === '/admin/anchor-daily-state') {
+      requireCronSecret(req);
+      const body = await readJson<{ settlementDate?: string }>(req).catch(
+        () => ({} as { settlementDate?: string }),
+      );
+      const result = await anchorDailyState(sb, body.settlementDate);
       return jsonResponse({ ok: true, ...result });
+    }
+
+    if (req.method === 'GET' && path === '/admin/solvency') {
+      requireCronSecret(req);
+      const report = await computeSolvency(sb);
+      return jsonResponse({ ok: true, ...report });
     }
 
     if (req.method === 'POST' && path === '/internal/partner-demo-tick') {
@@ -131,6 +172,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...result });
     }
 
+    if (req.method === 'POST' && path === '/admin/referrals/sync-onchain') {
+      requireCronSecret(req);
+      const result = await syncReferralBindingsFromChain(sb);
+      return jsonResponse({ ok: true, ...result });
+    }
+
     if (req.method === 'GET' && path === '/admin/turnkey/consensus-status') {
       requireCronSecret(req);
       if (!isTurnkeyConfigured()) throw new HttpError(503, 'Turnkey not configured');
@@ -146,52 +193,62 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...result, diagnostics });
     }
 
-    const wallet = requireWallet(req);
+    // V-01/F2: bind the acting wallet to the verified Privy JWT. Demo PoC routes
+    // are allowed to use the seeded demo wallet only when demo mode is active
+    // (which is OFF by default in production — see V-17).
+    const wallet = await requireActorWallet(sb, req, { allowDemo: true });
     const demoMode = isDemoModeRequest(req);
 
+    if (req.method === 'GET' && path === '/partner/state-proof') {
+      const url = new URL(req.url);
+      const date = url.searchParams.get('date');
+      if (!date) throw new HttpError(400, 'date (YYYY-MM-DD) required');
+      const proof = await getStateProof(sb, date, wallet);
+      return jsonResponse({ ok: true, ...proof });
+    }
+
     if (req.method === 'POST' && path === '/partner/yield-withdraw') {
-      const body = await readJson<{ amountUsdt: number }>(req);
-      if (!body.amountUsdt || body.amountUsdt <= 0) {
-        throw new HttpError(400, 'amountUsdt required');
-      }
-      const result = await requestPartnerYieldWithdraw(sb, wallet, body.amountUsdt, {
+      // Flash-swap released D3 -> USDT. Accepts amountD3 (preferred); amountUsdt kept
+      // as a legacy alias (valued 1:1 as D3 quantity) until the client migrates.
+      assertSettlementTokenSafe();
+      const body = await readJson<{ amountD3?: number; amountUsdt?: number }>(req);
+      const amountD3 = assertMoneyAmount(body.amountD3 ?? body.amountUsdt);
+      const result = await requestPartnerYieldWithdraw(sb, wallet, amountD3, {
         demoMode: isYieldWithdrawDemoRequest(req),
       });
       return jsonResponse({ ok: true, ...result });
     }
 
     if (req.method === 'POST' && path === '/partner/sd3-transfer') {
+      assertSettlementTokenSafe();
       const body = await readJson<{ toWallet: string; amountSd3: number }>(req);
       if (!body.toWallet?.trim()) throw new HttpError(400, 'toWallet required');
-      if (!body.amountSd3 || body.amountSd3 <= 0) {
-        throw new HttpError(400, 'amountSd3 required');
-      }
-      const result = await transferPartnerSd3(sb, wallet, body.toWallet.trim(), body.amountSd3);
+      const amountSd3 = assertMoneyAmount(body.amountSd3);
+      const result = await transferPartnerSd3(sb, wallet, body.toWallet.trim(), amountSd3);
       return jsonResponse({ ok: true, ...result });
     }
 
     if (req.method === 'POST' && path === '/partner/sd3-stake') {
+      assertSettlementTokenSafe();
       const body = await readJson<{ amountSd3: number }>(req);
-      if (!body.amountSd3 || body.amountSd3 <= 0) {
-        throw new HttpError(400, 'amountSd3 required');
-      }
-      const result = await stakePartnerSd3(sb, wallet, body.amountSd3);
+      const amountSd3 = assertMoneyAmount(body.amountSd3);
+      const result = await stakePartnerSd3(sb, wallet, amountSd3);
       return jsonResponse({ ok: true, ...result });
     }
 
     if (req.method === 'POST' && path === '/partner/join') {
+      assertSettlementTokenSafe();
       const body = await readJson<{ amountUsdt?: number }>(req);
-      const amount = body.amountUsdt ?? 5000;
+      const amount = assertMoneyAmount(body.amountUsdt ?? 5000);
       const intent = await createStakeIntent(sb, wallet, 'partner_join', amount);
       return jsonResponse(intent);
     }
 
     if (req.method === 'POST' && path === '/crowdfunding/stake-intent') {
+      assertSettlementTokenSafe();
       const body = await readJson<{ amountUsdt: number }>(req);
-      if (!body.amountUsdt || body.amountUsdt <= 0) {
-        throw new HttpError(400, 'amountUsdt required');
-      }
-      const intent = await createStakeIntent(sb, wallet, 'crowdfund_stake', body.amountUsdt);
+      const amountUsdt = assertMoneyAmount(body.amountUsdt);
+      const intent = await createStakeIntent(sb, wallet, 'crowdfund_stake', amountUsdt);
       return jsonResponse(intent);
     }
 
