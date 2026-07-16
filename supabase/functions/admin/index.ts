@@ -467,6 +467,9 @@ async function addTicketMessage(
 // Action codes stored on admin_action_approvals.action, dispatched on approve.
 const APPROVAL_PROGRAM_SETTINGS = 'program_settings.update';
 const APPROVAL_SUBSIDY_TICKET = 'subsidy_ticket.patch';
+// Security circuit-breaker maker-checker actions (Agent O).
+const APPROVAL_SECURITY_UNPAUSE = 'security.unpause';
+const APPROVAL_RISK_LIMITS = 'risk_limits.update';
 
 async function createApproval(
   sb: Sb,
@@ -569,6 +572,16 @@ export type ApproveDeps = {
     payload: Record<string, unknown>,
     admin: AdminProfile,
   ) => Promise<ApplyResult>;
+  applySecurityUnpause: (
+    sb: Sb,
+    payload: Record<string, unknown>,
+    admin: AdminProfile,
+  ) => Promise<ApplyResult>;
+  applyRiskLimits: (
+    sb: Sb,
+    payload: Record<string, unknown>,
+    admin: AdminProfile,
+  ) => Promise<ApplyResult>;
 };
 
 export const defaultApproveDeps: ApproveDeps = {
@@ -597,6 +610,45 @@ export const defaultApproveDeps: ApproveDeps = {
     const res = await patchSubsidyTicket(sb, targetId, payload, admin);
     return { before: existing, after: res.ticket, marketLeader: res.marketLeader };
   },
+  // security.unpause: flip the named circuit-breaker back to paused=false. Runs
+  // ONLY after the approval row was atomically claimed, so a lost race applies
+  // nothing (approveApproval short-circuits on a null claim before dispatch).
+  applySecurityUnpause: async (sb, payload) => {
+    const flag = String(payload.flag ?? '');
+    const { data: before } = await sb
+      .from('system_pause_flags')
+      .select('*')
+      .eq('flag', flag)
+      .maybeSingle();
+    const { data: after, error } = await sb
+      .from('system_pause_flags')
+      .update({
+        paused: false,
+        reason: (payload.reason as string | null) ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('flag', flag)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    return { before: before ?? null, after: after ?? null };
+  },
+  // risk_limits.update: apply the sanitized numeric patch to the singleton row.
+  applyRiskLimits: async (sb, payload) => {
+    const { data: before } = await sb
+      .from('risk_limits')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+    const { data: after, error } = await sb
+      .from('risk_limits')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return { before: before ?? null, after };
+  },
 };
 
 // Approve a pending request. Order is: separation-of-duties check -> CLAIM the
@@ -613,7 +665,13 @@ export async function approveApproval(
   assertDifferentApprover(approval.requested_by as string, admin.userId);
 
   const action = approval.action as string;
-  if (action !== APPROVAL_PROGRAM_SETTINGS && action !== APPROVAL_SUBSIDY_TICKET) {
+  const KNOWN_ACTIONS = [
+    APPROVAL_PROGRAM_SETTINGS,
+    APPROVAL_SUBSIDY_TICKET,
+    APPROVAL_SECURITY_UNPAUSE,
+    APPROVAL_RISK_LIMITS,
+  ];
+  if (!KNOWN_ACTIONS.includes(action)) {
     throw new HttpError(400, `Unknown approval action: ${action}`);
   }
 
@@ -626,8 +684,12 @@ export async function approveApproval(
   let result: ApplyResult;
   if (action === APPROVAL_PROGRAM_SETTINGS) {
     result = await deps.applyProgramSettings(sb, payload, admin);
-  } else {
+  } else if (action === APPROVAL_SUBSIDY_TICKET) {
     result = await deps.applySubsidyTicket(sb, approval.target_id as string, payload, admin);
+  } else if (action === APPROVAL_SECURITY_UNPAUSE) {
+    result = await deps.applySecurityUnpause(sb, payload, admin);
+  } else {
+    result = await deps.applyRiskLimits(sb, payload, admin);
   }
 
   const reason = result.conflict
@@ -692,6 +754,191 @@ export async function rejectApproval(
   });
 
   return { approval: claimed };
+}
+
+// ── Security / circuit-breaker helpers (Agent O) ─────────────────────────────
+
+// The named pause surfaces seeded by migration 038. Pausing an unknown flag is
+// rejected so a typo can never create a silent no-op breaker.
+export const KNOWN_PAUSE_FLAGS = [
+  'flash_swap',
+  'deposits',
+  'settlement',
+  'treasury',
+  'rewards',
+] as const;
+
+export function isKnownPauseFlag(flag: string): boolean {
+  return (KNOWN_PAUSE_FLAGS as readonly string[]).includes(flag);
+}
+
+// Only these numeric caps may be patched on the singleton risk_limits row; any
+// other field in the request body (e.g. id/updated_at) is dropped.
+const RISK_LIMITS_FIELDS = [
+  'max_withdraw_per_tx_usdt',
+  'max_user_daily_usdt',
+  'max_platform_hourly_usdt',
+  'min_solvency_ratio',
+] as const;
+
+export function sanitizeRiskLimitsPatch(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const k of RISK_LIMITS_FIELDS) {
+    if (body[k] !== undefined) patch[k] = body[k];
+  }
+  return patch;
+}
+
+// Pause is a conservative safety action -> single admin, immediate (NOT
+// maker-checkered). Upsert paused=true and write a before/after audit row.
+export async function pauseFlag(
+  sb: Sb,
+  flag: string,
+  reason: string | null,
+  admin: AdminProfile,
+) {
+  const { data: before } = await sb
+    .from('system_pause_flags')
+    .select('*')
+    .eq('flag', flag)
+    .maybeSingle();
+  const { data: after, error } = await sb
+    .from('system_pause_flags')
+    .upsert(
+      { flag, paused: true, reason, updated_at: new Date().toISOString() },
+      { onConflict: 'flag' },
+    )
+    .select('*')
+    .single();
+  if (error) throw error;
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: 'security.pause',
+    entityType: 'system_pause_flags',
+    entityId: flag,
+    before: before ?? null,
+    after,
+    reason: reason ?? undefined,
+  });
+  return after;
+}
+
+// Unpause (resuming a paused surface) is maker-checkered: create a pending
+// approval; the flag is flipped only when a DIFFERENT admin approves. Does NOT
+// touch system_pause_flags here.
+export async function requestUnpause(
+  sb: Sb,
+  flag: string,
+  reason: string | null,
+  admin: AdminProfile,
+) {
+  const approval = await createApproval(sb, {
+    action: APPROVAL_SECURITY_UNPAUSE,
+    targetType: 'system_pause_flags',
+    targetId: flag,
+    payload: { flag, reason },
+    requestedBy: admin.userId,
+  });
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: `${APPROVAL_SECURITY_UNPAUSE}.requested`,
+    entityType: 'system_pause_flags',
+    entityId: flag,
+    before: null,
+    after: { flag, reason },
+    reason: 'maker-checker requested; awaiting second admin',
+  });
+  return approval;
+}
+
+// Changing risk limits is maker-checkered: create a pending approval carrying the
+// sanitized patch; applied only on a second admin's approval.
+export async function requestRiskLimitsUpdate(
+  sb: Sb,
+  patch: Record<string, unknown>,
+  admin: AdminProfile,
+) {
+  const { data: before } = await sb
+    .from('risk_limits')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+  const approval = await createApproval(sb, {
+    action: APPROVAL_RISK_LIMITS,
+    targetType: 'risk_limits',
+    targetId: '1',
+    payload: patch,
+    requestedBy: admin.userId,
+  });
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: `${APPROVAL_RISK_LIMITS}.requested`,
+    entityType: 'risk_limits',
+    entityId: '1',
+    before: before ?? null,
+    after: patch,
+    reason: 'maker-checker requested; awaiting second admin',
+  });
+  return approval;
+}
+
+export async function ackAlert(sb: Sb, id: string, admin: AdminProfile) {
+  const { data: before } = await sb
+    .from('security_alerts')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (!before) throw new HttpError(404, 'Alert not found');
+  const { data: after, error } = await sb
+    .from('security_alerts')
+    .update({
+      status: 'ack',
+      acknowledged_by: admin.userId,
+      acknowledged_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: 'security.alert.ack',
+    entityType: 'security_alerts',
+    entityId: id,
+    before,
+    after,
+  });
+  return after;
+}
+
+async function countOpenAlertsBySeverity(sb: Sb) {
+  const sevs = ['P0', 'P1', 'P2', 'P3'] as const;
+  const res = await Promise.all(
+    sevs.map((s) =>
+      sb
+        .from('security_alerts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'open')
+        .eq('severity', s)
+    ),
+  );
+  const counts: Record<'P0' | 'P1' | 'P2' | 'P3', number> = { P0: 0, P1: 0, P2: 0, P3: 0 };
+  sevs.forEach((s, i) => {
+    counts[s] = res[i].count ?? 0;
+  });
+  return counts;
+}
+
+function requireSecurityWrite(admin: AdminProfile) {
+  if (!adminHasPermission(admin, 'security.write')) {
+    throw new HttpError(403, 'Missing security.write permission');
+  }
 }
 
 async function dashboardStats(sb: Sb) {
@@ -949,6 +1196,95 @@ Deno.serve(async (req) => {
       }
       const body = await readJson<{ reason?: string }>(req).catch(() => ({}));
       return jsonResponse({ ok: true, ...(await rejectApproval(sb, rejectMatch[1], admin, body.reason)) });
+    }
+
+    // ── Security / circuit-breaker / alerts (Agent O) ─────────────────────────
+    // Reads: any admin. Writes: security.write (or superadmin).
+    if (req.method === 'GET' && path === '/security/overview') {
+      const [pauseRes, limitsRes, alertCounts] = await Promise.all([
+        sb
+          .from('system_pause_flags')
+          .select('flag, paused, reason, updated_at')
+          .order('flag', { ascending: true }),
+        sb.from('risk_limits').select('*').eq('id', 1).maybeSingle(),
+        countOpenAlertsBySeverity(sb),
+      ]);
+      // computeSolvency reaches on-chain (turnkey/viem); dynamic import keeps
+      // that heavy graph out of module load, and any failure degrades to
+      // solvency:null so the panel still renders.
+      let solvency: unknown = null;
+      try {
+        const { computeSolvency } = await import('../_shared/solvency.ts');
+        solvency = await computeSolvency(sb);
+      } catch (e) {
+        console.error('[admin] computeSolvency failed', e);
+        solvency = null;
+      }
+      return jsonResponse({
+        ok: true,
+        pauseFlags: pauseRes.data ?? [],
+        limits: limitsRes.data ?? null,
+        solvency,
+        alertCounts,
+      });
+    }
+
+    if (req.method === 'GET' && path === '/security/alerts') {
+      const url = new URL(req.url);
+      const status = url.searchParams.get('status') ?? 'open';
+      const severity = url.searchParams.get('severity');
+      let q = sb
+        .from('security_alerts')
+        .select('*')
+        .eq('status', status)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (severity) q = q.eq('severity', severity);
+      const { data, error } = await q;
+      if (error) throw error;
+      return jsonResponse({ ok: true, rows: data ?? [] });
+    }
+
+    const alertAckMatch = path.match(/^\/security\/alerts\/([0-9a-f-]{36})\/ack$/);
+    if (req.method === 'POST' && alertAckMatch) {
+      requireSecurityWrite(admin);
+      const alert = await ackAlert(sb, alertAckMatch[1], admin);
+      return jsonResponse({ ok: true, alert });
+    }
+
+    if (req.method === 'POST' && path === '/security/pause') {
+      requireSecurityWrite(admin);
+      const body = await readJson<{ flag?: string; reason?: string }>(req);
+      const flag = String(body.flag ?? '').trim();
+      if (!isKnownPauseFlag(flag)) throw new HttpError(400, `Unknown pause flag: ${flag}`);
+      const flagRow = await pauseFlag(sb, flag, body.reason ?? null, admin);
+      return jsonResponse({ ok: true, flag: flagRow });
+    }
+
+    if (req.method === 'POST' && path === '/security/unpause') {
+      requireSecurityWrite(admin);
+      const body = await readJson<{ flag?: string; reason?: string }>(req);
+      const flag = String(body.flag ?? '').trim();
+      if (!isKnownPauseFlag(flag)) throw new HttpError(400, `Unknown pause flag: ${flag}`);
+      const approval = await requestUnpause(sb, flag, body.reason ?? null, admin);
+      return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+    }
+
+    if (req.method === 'GET' && path === '/security/limits') {
+      const { data, error } = await sb.from('risk_limits').select('*').eq('id', 1).maybeSingle();
+      if (error) throw error;
+      return jsonResponse({ ok: true, limits: data ?? null });
+    }
+
+    if (req.method === 'PATCH' && path === '/security/limits') {
+      requireSecurityWrite(admin);
+      const body = await readJson<Record<string, unknown>>(req);
+      const patch = sanitizeRiskLimitsPatch(body);
+      if (Object.keys(patch).length === 0) {
+        throw new HttpError(400, 'No valid risk_limits fields to update');
+      }
+      const approval = await requestRiskLimitsUpdate(sb, patch, admin);
+      return jsonResponse({ ok: true, pendingApproval: approval }, 202);
     }
 
     throw new HttpError(404, 'Not found');

@@ -127,6 +127,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...report });
     }
 
+    if (req.method === 'POST' && path === '/internal/security-scan') {
+      requireCronSecret(req);
+      const { runSecurityScan } = await import('../_shared/securityMonitor.ts');
+      return jsonResponse({ ok: true, ...(await runSecurityScan(sb)) });
+    }
+
     if (req.method === 'POST' && path === '/internal/partner-demo-tick') {
       requireCronSecret(req);
       const { runDemoPartnerDailyTick } = await import('../_shared/demoPartnerDailyTick.ts');

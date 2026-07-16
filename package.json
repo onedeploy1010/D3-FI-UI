@@ -10,6 +10,8 @@
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
     "db:check": "tsx scripts/supabase-check.ts",
+    "security:preflight": "tsx scripts/security-preflight.ts",
+    "security:enable": "tsx scripts/enable-monitoring.ts",
     "db:migrate:ai": "tsx scripts/supabase-migrate-ai.ts",
     "db:seed:ai": "tsx scripts/supabase-seed-ai.ts",
     "db:seed:union": "tsx scripts/supabase-seed-union.ts",

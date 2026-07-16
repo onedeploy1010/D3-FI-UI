@@ -113,3 +113,4 @@ supabase/.temp/
 client/public/__manus__/version.json
 .project-config.json
 supabase/.env.secrets
+admin-panel/.env
