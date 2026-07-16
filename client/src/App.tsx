@@ -10,6 +10,7 @@ import D3Fi from "./pages/D3Fi";
 import BribeeUnion from "./pages/BribeeUnion";
 import PartnerProgram from "./pages/PartnerProgram";
 import D3AISite from "./pages/D3AISite";
+import FakeToken from "./pages/FakeToken";
 import { ReferralBindGate } from "@/components/wallet/ReferralBindGate";
 import { ReferralLanding } from "@/components/wallet/ReferralLanding";
 
@@ -46,9 +47,15 @@ function App() {
       <ThemeProvider defaultTheme="light" switchable={false}>
         <TooltipProvider>
           <Toaster />
-          <ReferralBindGate>
-            <Router />
-          </ReferralBindGate>
+          <Switch>
+            {/* Test-token faucet: ungated so testers can claim before binding a referral. */}
+            <Route path="/faketoken" component={FakeToken} />
+            <Route>
+              <ReferralBindGate>
+                <Router />
+              </ReferralBindGate>
+            </Route>
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

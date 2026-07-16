@@ -22,8 +22,8 @@ const envPath = path.resolve(root, '.env');
 
 config({ path: envPath });
 
-const PROJECT_REF = 'gvyvdnegsxiykxffddwb';
-const SUPABASE_URL = process.env.SUPABASE_URL ?? `https://${PROJECT_REF}.supabase.co`;
+const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://gvyvdnegsxiykxffddwb.supabase.co';
+const PROJECT_REF = new URL(SUPABASE_URL).hostname.split('.')[0];
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 
 let cronSecret = process.env.TREASURY_CRON_SECRET?.trim();

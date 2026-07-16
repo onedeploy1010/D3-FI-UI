@@ -7,7 +7,7 @@
  *
  * Flow per credited deposit:
  *   generated = amountUsdt × tierRate(引路人)
- *   引路人 gets 60%; remaining 40% walks UP by 极差:
+ *   引路人 gets 60%; remaining 40% walks UP by 级差:
  *     gap% = max(ownShare − max(引路人 share, shares already claimed below), 0)
  *   Same level as someone already on the path → gap 0 (no reward); remainder waits for higher S.
  */
@@ -133,7 +133,7 @@ export type Ud3GenerationResult = {
 /**
  * Generate UD3 from downline deposit using 引路人档位:
  *   generated = depositUsdt × S-tier rate
- * then split 60% 引路人 / 40% 网体极差池.
+ * then split 60% 引路人 / 40% 网体级差池.
  */
 export function generateUd3FromDeposit(
   depositUsdt: number,
@@ -164,7 +164,7 @@ export function generateUd3FromDeposit(
   };
 }
 
-// ─── Network differential (极差) ─────────────────────────────────────────────
+// ─── Network differential (级差) ─────────────────────────────────────────────
 
 export type Ud3UplineNode = {
   wallet: string;

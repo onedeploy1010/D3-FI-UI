@@ -1,4 +1,4 @@
--- UD3 reward engine (档位 + V1~V6 极差). Separate from legacy partner_sd3_* tables.
+-- UD3 reward engine (档位 + V1~V6 级差). Separate from legacy partner_sd3_* tables.
 
 alter table public.partner_accounts
   add column if not exists ud3_balance numeric(24, 6) not null default 0,

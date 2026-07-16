@@ -1,6 +1,6 @@
 /**
  * Demo UD3 settlement — 已结算 vs 未结算（当日下线新增入金）.
- * Engine: 档位产出 → 直推 60% → 网体 40% 自下而上极差。
+ * Engine: 档位产出 → 直推 60% → 网体 40% 自下而上级差。
  */
 import type { Sd3SettlementRecord } from '@/components/partner/partnerData';
 import {

@@ -72,7 +72,7 @@ export function resolvePartnerSd3Metrics(
 ): PartnerSd3Metrics {
   const fromStats = areasFromTeamStats(teamStats);
   const areas = fromStats ?? computePartnerAreaStats(teamNodes);
-  /** Pending UD3：按各节点当日新增，直推 60% + 网体极差（与结算引擎一致）。 */
+  /** Pending UD3：按各节点当日新增，直推 60% + 网体级差（与结算引擎一致）。 */
   const pendingFromRules = estimatePendingUd3ForMe(teamNodes);
   const pendingSd3 =
     pendingFromApi != null && pendingFromApi > 0 ? pendingFromApi : pendingFromRules;

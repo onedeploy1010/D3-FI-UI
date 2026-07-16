@@ -12,10 +12,9 @@ import {
 import { bscPublicClient, d3DefaultChain } from '@/lib/chains';
 import { PartnerPaymentError } from '@/lib/partnerPaymentErrors';
 import { shortWallet } from '@/lib/wallet';
+import { BSC_USDT_ADDRESS, BSC_USDT_DECIMALS } from '@/lib/tokens';
 
-/** BSC USDT (BEP-20) — 18 decimals on BSC */
-export const BSC_USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955' as const;
-const BSC_USDT_DECIMALS = 18;
+export { BSC_USDT_ADDRESS };
 const ERC20_TRANSFER_GAS_FALLBACK = 120_000n;
 const GAS_BUFFER_NUM = 130n;
 const GAS_BUFFER_DEN = 100n;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { useWallets } from '@privy-io/react-auth';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { GlassButton } from '@/components/ui/GlassSurface';
@@ -9,6 +10,8 @@ import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
 import { bindReferral, checkSponsorRegistered } from '@/lib/unionApi';
+import { bindReferralOnchain, isOnchainReferralEnabled } from '@/lib/referralRegistry';
+import { resolveWalletForAddress } from '@/lib/privyWallet';
 import { isDemoWallet } from '@/lib/demoWallet';
 import {
   captureReferralFromUrl,
@@ -30,6 +33,8 @@ const copy = {
     errSelf: '不能绑定自己的钱包',
     errInvalid: '请输入有效的以太坊地址',
     errNotRegistered: '该地址尚未注册，请让对方先连接钱包完成注册',
+    errRejected: '你取消了绑定交易',
+    errAlready: '你已绑定过推荐人',
     errRequired: '请填写推荐人地址或通过推荐链接进入',
     loading: '正在检查推荐关系…',
   },
@@ -45,6 +50,8 @@ const copy = {
     errSelf: '不能綁定自己的錢包',
     errInvalid: '請輸入有效的以太坊地址',
     errNotRegistered: '該地址尚未註冊，請讓對方先連接錢包完成註冊',
+    errRejected: '你取消了綁定交易',
+    errAlready: '你已綁定過推薦人',
     errRequired: '請填寫推薦人地址或通過推薦連結進入',
     loading: '正在檢查推薦關係…',
   },
@@ -60,6 +67,8 @@ const copy = {
     errSelf: 'You cannot refer yourself',
     errInvalid: 'Enter a valid Ethereum address',
     errNotRegistered: 'This address is not registered. Ask them to connect their wallet first.',
+    errRejected: 'You cancelled the binding transaction',
+    errAlready: 'You are already bound to a referrer',
     errRequired: 'Enter a referrer address or open a referral link',
     loading: 'Checking referral status…',
   },
@@ -75,6 +84,8 @@ const copy = {
     errSelf: '自分自身は紹介者にできません',
     errInvalid: '有効なイーサリアムアドレスを入力',
     errNotRegistered: '未登録のアドレスです。先にウォレット接続を依頼してください。',
+    errRejected: '取引をキャンセルしました',
+    errAlready: 'すでに紹介者が紐付けられています',
     errRequired: '紹介者アドレスを入力するか紹介リンクから入場',
     loading: '紹介関係を確認中…',
   },
@@ -90,6 +101,8 @@ const copy = {
     errSelf: '본인 지갑은 추천인이 될 수 없습니다',
     errInvalid: '유효한 이더리움 주소를 입력하세요',
     errNotRegistered: '등록되지 않은 주소입니다. 먼저 지갑 연결을 요청하세요.',
+    errRejected: '거래를 취소했습니다',
+    errAlready: '이미 추천인이 연결되어 있습니다',
     errRequired: '추천인 주소를 입력하거나 추천 링크로 접속하세요',
     loading: '추천 관계 확인 중…',
   },
@@ -105,6 +118,8 @@ const copy = {
     errSelf: 'ไม่สามารถแนะนำตัวเองได้',
     errInvalid: 'กรอกที่อยู่ Ethereum ที่ถูกต้อง',
     errNotRegistered: 'ที่อยู่นี้ยังไม่ลงทะเบียน ให้เชื่อมกระเป๋าก่อน',
+    errRejected: 'คุณยกเลิกธุรกรรม',
+    errAlready: 'คุณผูกผู้แนะนำแล้ว',
     errRequired: 'กรอกที่อยู่ผู้แนะนำหรือเปิดจากลิงก์แนะนำ',
     loading: 'กำลังตรวจสอบความสัมพันธ์…',
   },
@@ -116,6 +131,7 @@ function t(lang: keyof typeof copy, key: keyof (typeof copy)['en']) {
 
 function ReferralBindScreen({ onBound }: { onBound: () => void }) {
   const { wallet } = useWallet();
+  const { wallets } = useWallets();
   const { lang } = useAppLang();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -157,22 +173,39 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
         setError(t(lang, 'errNotRegistered'));
         return;
       }
-      await bindReferral(wallet, sponsor, 'partner');
+
+      // On-chain binding: user calls bind() and pays gas; then backend verifies + syncs.
+      let txHash: string | undefined;
+      if (isOnchainReferralEnabled()) {
+        const connected = resolveWalletForAddress(wallets, wallet);
+        if (!connected) {
+          setError(t(lang, 'errInvalid'));
+          return;
+        }
+        txHash = await bindReferralOnchain(connected, sponsor);
+      }
+
+      await bindReferral(wallet, sponsor, 'partner', txHash);
       clearPendingReferral();
       onBound();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('not registered') || msg.includes('not found')) {
+      const lower = msg.toLowerCase();
+      if (lower.includes('rejected') || lower.includes('denied')) {
+        setError(t(lang, 'errRejected'));
+      } else if (msg.includes('not registered') || msg.includes('not found') || msg.includes('UplineNotRegistered')) {
         setError(t(lang, 'errNotRegistered'));
-      } else if (msg.includes('yourself')) {
+      } else if (msg.includes('yourself') || msg.includes('SelfBind')) {
         setError(t(lang, 'errSelf'));
+      } else if (msg.includes('AlreadyBound')) {
+        setError(t(lang, 'errAlready'));
       } else {
         setError(msg);
       }
     } finally {
       setBinding(false);
     }
-  }, [wallet, sponsor, lang, onBound]);
+  }, [wallet, wallets, sponsor, lang, onBound]);
 
   return (
     <div

@@ -16,8 +16,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 config({ path: path.resolve(root, '.env') });
 
-const PROJECT_REF = 'gvyvdnegsxiykxffddwb';
-const SUPABASE_URL = process.env.SUPABASE_URL ?? `https://${PROJECT_REF}.supabase.co`;
+const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://gvyvdnegsxiykxffddwb.supabase.co';
+const PROJECT_REF = new URL(SUPABASE_URL).hostname.split('.')[0];
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 const cronSecret = process.env.TREASURY_CRON_SECRET?.trim();
 

@@ -6,9 +6,9 @@ type Sb = SupabaseClient;
 const DEMO_WALLET = DEMO_WALLET_ADDRESS;
 const DEMO_SPONSOR = '0xabcdef1234567890abcdef1234567890abcdef01';
 
-const DEMO_SETTLED_SD3 = 4960;
+const DEMO_SETTLED_UD3 = 4960;
 
-/** Restore demo line-leader to fresh entry: settled sD3 + team perf, no partner/stakes/transfers. */
+/** Restore demo line-leader to fresh entry: settled UD3 + team perf, no partner/stakes/transfers. */
 export async function resetDemoPartnerSession(sb: Sb): Promise<{ ok: true }> {
   const { data: allIntents } = await sb
     .from('stake_intents')
@@ -34,14 +34,16 @@ export async function resetDemoPartnerSession(sb: Sb): Promise<{ ok: true }> {
   }
 
   await sb.from('partner_yield_withdrawals').delete().ilike('wallet_address', DEMO_WALLET);
-  await sb.from('partner_sd3_transfers').delete().ilike('from_wallet', DEMO_WALLET);
+  await sb.from('partner_ud3_transfers').delete().ilike('from_wallet', DEMO_WALLET);
 
   await sb.from('partner_accounts').upsert(
     {
       wallet_address: DEMO_WALLET,
       is_partner: false,
-      sd3_balance: DEMO_SETTLED_SD3,
-      lifetime_sd3_earned: DEMO_SETTLED_SD3,
+      ud3_balance: DEMO_SETTLED_UD3,
+      lifetime_ud3_earned: DEMO_SETTLED_UD3,
+      pending_d3_yield: 0,
+      lifetime_d3_yield: 0,
       lifetime_usdt_yield: 0,
       pending_usdt_yield: 0,
       joined_at: null,

@@ -123,11 +123,16 @@ export function bindReferral(
   wallet: string,
   sponsorWallet: string,
   referralType: 'partner' | 'shareholder' = 'partner',
+  txHash?: string,
 ) {
-  return unionFetch<{ referral: unknown; created: boolean }>('/referrals/bind', wallet, {
-    method: 'POST',
-    body: JSON.stringify({ sponsorWallet, referralType }),
-  });
+  return unionFetch<{ referral: unknown; created: boolean; onchain?: boolean }>(
+    '/referrals/bind',
+    wallet,
+    {
+      method: 'POST',
+      body: JSON.stringify({ sponsorWallet, referralType, txHash }),
+    },
+  );
 }
 
 export function createMultisigProposal(

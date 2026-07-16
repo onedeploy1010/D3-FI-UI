@@ -536,8 +536,8 @@ export async function runDemoPartnerDailyTick(
   await sb.from('partner_accounts').upsert(
     {
       wallet_address: DEMO_WALLET_ADDRESS,
-      sd3_balance: next.lifetimeUd3,
-      lifetime_sd3_earned: next.lifetimeUd3,
+      ud3_balance: next.lifetimeUd3,
+      lifetime_ud3_earned: next.lifetimeUd3,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'wallet_address' },

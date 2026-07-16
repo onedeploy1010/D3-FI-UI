@@ -338,20 +338,20 @@ export type Sd3SettlementRecord = {
   /** 引路人（入金者直推上级）档位百分比，如 S1=100 */
   tierRatePct: number;
   sd3Amount: number;
-  /** 直推 60% / 网体极差 */
+  /** 直推 60% / 网体级差 */
   role?: Sd3RewardRole;
-  /** 直推=60；极差=本次 gap% */
+  /** 直推=60；级差=本次 gap% */
   rewardSharePct?: number;
-  /** 网体极差实际差距（与 rewardSharePct 同值时可省略） */
+  /** 网体级差实际差距（与 rewardSharePct 同值时可省略） */
   gapPct?: number;
-  /** 收款人当时网体 S 级，如 S2（用于极差） */
+  /** 收款人当时网体 S 级，如 S2（用于级差） */
   vLabel?: string;
   /** 入金地址相对本人的层数：1=直推，2=二层… */
   sourceDepth?: number;
   /** 入金成员 */
   sourceAddress?: string;
   sourceLabel?: string;
-  /** 该笔入金的引路人（直推上级）；极差奖励来源 */
+  /** 该笔入金的引路人（直推上级）；级差奖励来源 */
   guideAddress?: string;
   guideLabel?: string;
   /** 引路人档位标签，如 S1 */
@@ -741,7 +741,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   marketSubsidyPerformanceUsed: 16_000,
-  /** Demo UD3：直推 60% + 下层网体极差（由 settleUd3DepositEvent 生成）。 */
+  /** Demo UD3：直推 60% + 下层网体级差（由 settleUd3DepositEvent 生成）。 */
   sd3SettlementHistory: DEMO_UD3_HISTORY,
   pendingUsdtYield: 0,
   yieldSettlementsByPosition: {},
@@ -894,8 +894,8 @@ export function hydratePartnerStateFromApi(
   const latestSd3 = sd3SettlementHistory[0];
 
   const settledSum = round2(sd3SettlementHistory.reduce((s, r) => s + r.sd3Amount, 0));
-  const accountLifetime = account ? Number(account.lifetime_sd3_earned ?? 0) : 0;
-  const accountBalance = account ? Number(account.sd3_balance ?? 0) : 0;
+  const accountLifetime = account ? Number(account.lifetime_ud3_earned ?? account.lifetime_sd3_earned ?? 0) : 0;
+  const accountBalance = account ? Number(account.ud3_balance ?? account.sd3_balance ?? 0) : 0;
   const lifetimeSd3Earned =
     accountLifetime > 0 ? accountLifetime : settledSum > 0 ? settledSum : local.lifetimeSd3Earned;
   const sd3Balance =

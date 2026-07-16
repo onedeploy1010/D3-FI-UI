@@ -454,6 +454,23 @@ export async function sendErc20Transfer(opts: {
   });
 }
 
+/** Send an arbitrary contract call (value 0 by default) from a managed wallet. */
+export async function sendContractCall(opts: {
+  from: WalletSigningContext;
+  to: string;
+  data: Hex;
+  valueWei?: bigint;
+  gasFundingCtx?: WalletSigningContext;
+}): Promise<Hash> {
+  await ensureGasBalance(opts.from, opts.gasFundingCtx);
+  return buildAndSignTx(opts.from, {
+    account: opts.from.address as Address,
+    to: opts.to as Address,
+    value: opts.valueWei ?? 0n,
+    data: opts.data,
+  });
+}
+
 export function walletContextFromDbRow(row: {
   address: string;
   metadata?: Record<string, unknown> | null;
