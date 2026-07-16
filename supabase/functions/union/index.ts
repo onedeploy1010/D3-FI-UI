@@ -1,7 +1,8 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
 import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
 import { resetDemoPartnerSession } from '../_shared/demoPartnerReset.ts';
-import { getPrivyToken, requirePrivyAuth } from '../_shared/privy.ts';
+import { getPrivyToken } from '../_shared/privy.ts';
+import { issueNonce, verifySiweAndIssueToken, verifySiweSession } from '../_shared/siwe.ts';
 import {
   createPrivyTreasuryWallet,
   executePrivyWalletRpc,
@@ -707,11 +708,36 @@ Deno.serve(async (req) => {
     const publicGet =
       req.method === 'GET' &&
       (path === '/health' || path === '/protocol' || Boolean(sponsorReg));
+    // Public SIWE auth handshake — apikey only, no wallet/session auth required.
+    const authRoute =
+      req.method === 'POST' && (path === '/auth/nonce' || path === '/auth/verify');
     const demoMode = isDemoModeRequest(req);
+    // Actor identity now comes from the SIWE session (X-Session-Token); the proven,
+    // lowercased wallet address doubles as the stable user id written to profiles.
     let privyUserId: string | undefined;
-    if (!publicGet && !demoMode) {
-      const claims = await requirePrivyAuth(req);
-      privyUserId = claims?.sub;
+    if (!publicGet && !authRoute && !demoMode) {
+      privyUserId = await verifySiweSession(req);
+    }
+
+    // POST /auth/nonce — issue a single-use SIWE nonce for {address}.
+    if (req.method === 'POST' && path === '/auth/nonce') {
+      const body = await req.json().catch(() => ({}));
+      const { address } = body as { address?: string };
+      if (!address || !isEthAddress(address)) throw new HttpError(400, 'Invalid address');
+      return jsonResponse(await issueNonce(sb, address));
+    }
+
+    // POST /auth/verify — verify the SIWE signature and mint a session token.
+    if (req.method === 'POST' && path === '/auth/verify') {
+      const body = await req.json().catch(() => ({}));
+      const { message, signature } = body as { message?: string; signature?: string };
+      if (typeof message !== 'string' || typeof signature !== 'string') {
+        throw new HttpError(400, 'message and signature required');
+      }
+      // The SIWE `domain` is validated against the server-side SIWE_ALLOWED_DOMAINS
+      // allowlist inside verifySiweAndIssueToken — the request Origin/Host is
+      // deliberately NOT trusted (it is attacker-controlled under phishing).
+      return jsonResponse(await verifySiweAndIssueToken(sb, { message, signature }));
     }
 
     // GET /health

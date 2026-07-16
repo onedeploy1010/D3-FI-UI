@@ -1,13 +1,7 @@
 // @refresh reset
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-import { usePrivy, useWallets, useConnectOrCreateWallet, useConnectWallet } from '@privy-io/react-auth';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useAccount, useChainId, useDisconnect, useSignMessage } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
 import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
@@ -21,22 +15,11 @@ import { clearLocalDemoSim, resetLocalDemoSim } from '@/components/partner/ud3De
 import { clearDemoPartnerSession } from '@/lib/demoPartnerSession';
 import { resetDemoPartnerSession } from '@/lib/unionApi';
 import { shortWallet } from '@/lib/wallet';
-import { resolvePrimaryWalletAddress } from '@/lib/privyWallet';
-import { bindReferral, ensureUnionProfile, setUnionAccessTokenGetter } from '@/lib/unionApi';
-import { setDepositAccessTokenGetter } from '@/lib/depositApi';
+import { bindReferral, ensureUnionProfile } from '@/lib/unionApi';
+import { clearSiweSession, hasValidSession, siweSignIn } from '@/lib/siwe';
 import { WalletContext, type WalletContextValue } from './wallet-context';
 
-/** Detect when Privy `ready` never fires (blocked SDK, wrong origin, ad blocker). */
-const PRIVY_INIT_TIMEOUT_MS = 8000;
-/** Reset stuck "connecting" if Privy modal never completes. */
-const LOGIN_STUCK_TIMEOUT_MS = 90_000;
-
-const privyInitFailedMessage =
-  'Privy 初始化失败：请在 Privy Dashboard 将本站域名加入 Allowed origins，关闭广告拦截后刷新页面。';
-const privyNotReadyMessage = 'Privy 正在初始化，请稍候…';
-
-const privyConfigured = Boolean(import.meta.env.VITE_PRIVY_APP_ID);
-const privyMissingError = '请在 .env 配置 VITE_PRIVY_APP_ID';
+const siweRejectedMessage = '您取消了签名。请重新连接钱包并在弹窗中签名以登录。';
 
 function useDemoWalletState() {
   const [demoWallet, setDemoWallet] = useState<string | null>(() => readDemoWalletFromSession());
@@ -77,215 +60,112 @@ function useDemoWalletState() {
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  if (!privyConfigured) {
-    return <WalletProviderUnconfigured>{children}</WalletProviderUnconfigured>;
-  }
-  return <WalletProviderPrivy>{children}</WalletProviderPrivy>;
-}
+  const { open } = useAppKit();
+  const { address, status } = useAccount();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
+  const chainId = useChainId();
 
-function WalletProviderUnconfigured({ children }: { children: ReactNode }) {
-  const { demoWallet, isDemo, demoSessionKey, activateDemo, deactivateDemo } = useDemoWalletState();
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const connectDemo = useCallback(async () => {
-    setIsConnecting(true);
-    try {
-      await activateDemo();
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [activateDemo]);
-
-  const value = useMemo<WalletContextValue>(
-    () => ({
-      wallet: demoWallet,
-      shortAddress: demoWallet ? shortWallet(demoWallet) : null,
-      privyUserId: null,
-      isConnected: Boolean(demoWallet),
-      isDemo,
-      isPrivyReady: true,
-      privyInitFailed: false,
-      isReady: true,
-      isConnecting,
-      demoSessionKey,
-      error: null,
-      connect: () => {
-        throw new Error(privyMissingError);
-      },
-      connectDemo,
-      disconnect: deactivateDemo,
-    }),
-    [demoWallet, isDemo, isConnecting, demoSessionKey, connectDemo, deactivateDemo],
-  );
-
-  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
-}
-
-function WalletProviderPrivy({ children }: { children: ReactNode }) {
-  const { ready, authenticated, user, logout, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
   const { demoWallet, isDemo, demoSessionKey, activateDemo, deactivateDemo } = useDemoWalletState();
   const [error, setError] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [privyInitTimedOut, setPrivyInitTimedOut] = useState(false);
-  const isPrivyReady = ready;
-  const privyInitFailed = privyInitTimedOut && !ready;
+  const [siweInProgress, setSiweInProgress] = useState(false);
 
-  const { connectOrCreateWallet } = useConnectOrCreateWallet({
-    onSuccess: () => setIsConnecting(false),
-    onError: () => {
-      setIsConnecting(false);
-      setError('钱包连接失败，请重试');
-    },
-  });
-
-  const { connectWallet } = useConnectWallet({
-    onSuccess: () => setIsConnecting(false),
-    onError: () => {
-      setIsConnecting(false);
-      setError('钱包连接失败，请重试');
-    },
-  });
-
-  useEffect(() => {
-    if (ready) {
-      setPrivyInitTimedOut(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setPrivyInitTimedOut(true), PRIVY_INIT_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
-  }, [ready]);
-
-  useEffect(() => {
-    if (privyInitFailed) {
-      console.warn('[Privy] SDK did not become ready — check Allowed origins in Privy Dashboard');
-    }
-  }, [privyInitFailed]);
-
-  useEffect(() => {
-    if (authenticated) setIsConnecting(false);
-  }, [authenticated]);
-
-  useLayoutEffect(() => {
-    const getter = async () => {
-      if (demoWallet) return null;
-      if (!authenticated) return null;
-      try {
-        return await getAccessToken();
-      } catch {
-        return null;
-      }
-    };
-    setUnionAccessTokenGetter(getter);
-    setDepositAccessTokenGetter(getter);
-  }, [authenticated, getAccessToken, demoWallet]);
-
-  const privyWallet = useMemo(() => {
-    if (!authenticated || demoWallet) return null;
-    return resolvePrimaryWalletAddress(wallets, user?.wallet?.address);
-  }, [authenticated, demoWallet, wallets, user?.wallet?.address]);
-
-  const wallet = demoWallet ?? privyWallet;
-  const privyUserId = demoWallet ? null : (user?.id ?? null);
-  const isReady = Boolean(demoWallet) || isPrivyReady;
+  // wagmi's connected address is only authoritative when not in demo mode.
+  const externalAddress = demoWallet ? null : (address ?? null);
+  const wallet = demoWallet ?? externalAddress;
+  const isConnecting = siweInProgress || status === 'connecting';
 
   const syncProfile = useCallback(
-    async (address: string) => {
+    async (addr: string) => {
       if (isDemo) return;
       try {
-        await ensureUnionProfile(address, {
-          privyUserId: privyUserId ?? undefined,
-          displayName: user?.email?.address ?? undefined,
-        });
+        await ensureUnionProfile(addr);
       } catch {
         // Supabase may be offline during UI-only dev
       }
     },
-    [isDemo, privyUserId, user?.email?.address],
+    [isDemo],
   );
 
+  // Establish a SIWE session once per connected external address.
+  const attemptedAddrRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!privyWallet || demoWallet) return;
-    void syncProfile(privyWallet);
-  }, [privyWallet, demoWallet, syncProfile]);
+    if (!externalAddress) return;
+    const addrLc = externalAddress.toLowerCase();
+    if (attemptedAddrRef.current === addrLc) return;
 
-  useEffect(() => {
-    if (privyWallet) setIsConnecting(false);
-  }, [privyWallet]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (!hasValidSession(externalAddress)) {
+          setSiweInProgress(true);
+          await siweSignIn(externalAddress, chainId, signMessageAsync);
+        }
+        attemptedAddrRef.current = addrLc;
+        if (!cancelled) setError(null);
+        await syncProfile(externalAddress);
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : String(e);
+        const lower = msg.toLowerCase();
+        if (lower.includes('rejected') || lower.includes('denied') || lower.includes('cancel')) {
+          // User declined the signature — disconnect so a retry starts clean.
+          setError(siweRejectedMessage);
+          clearSiweSession();
+          wagmiDisconnect();
+        } else {
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) setSiweInProgress(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [externalAddress, chainId, signMessageAsync, syncProfile, wagmiDisconnect]);
 
   const connect = useCallback(() => {
     setError(null);
-    if (!isPrivyReady) {
-      setError(privyInitFailed ? privyInitFailedMessage : privyNotReadyMessage);
-      return;
-    }
     if (wallet) return;
-
     deactivateDemo();
-    setIsConnecting(true);
-
-    try {
-      if (authenticated) {
-        connectWallet();
-      } else {
-        connectOrCreateWallet();
-      }
-    } catch (e) {
-      setIsConnecting(false);
-      setError(e instanceof Error ? e.message : '无法打开 Privy 登录窗口');
-      return;
-    }
-
-    window.setTimeout(() => {
-      setIsConnecting((connecting) => {
-        if (connecting) {
-          setError('登录超时：若未弹出 Privy 窗口，请检查广告拦截或将本站域名加入 Privy Allowed origins');
-        }
-        return false;
-      });
-    }, LOGIN_STUCK_TIMEOUT_MS);
-  }, [
-    isPrivyReady,
-    privyInitFailed,
-    wallet,
-    authenticated,
-    deactivateDemo,
-    connectWallet,
-    connectOrCreateWallet,
-  ]);
+    void open();
+  }, [wallet, deactivateDemo, open]);
 
   const connectDemo = useCallback(async () => {
-    setIsConnecting(true);
     setError(null);
     try {
-      if (authenticated) await logout();
+      if (address) wagmiDisconnect();
+      clearSiweSession();
+      attemptedAddrRef.current = null;
       deactivateDemo();
       await activateDemo();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       throw e;
-    } finally {
-      setIsConnecting(false);
     }
-  }, [authenticated, logout, deactivateDemo, activateDemo]);
+  }, [address, wagmiDisconnect, deactivateDemo, activateDemo]);
 
   const disconnect = useCallback(() => {
     setError(null);
+    attemptedAddrRef.current = null;
+    clearSiweSession();
     deactivateDemo();
-    if (authenticated) void logout();
-  }, [authenticated, logout, deactivateDemo]);
+    if (address) wagmiDisconnect();
+  }, [address, wagmiDisconnect, deactivateDemo]);
 
   const value = useMemo<WalletContextValue>(
     () => ({
       wallet,
       shortAddress: wallet ? shortWallet(wallet) : null,
-      privyUserId,
+      privyUserId: null,
       isConnected: Boolean(wallet),
       isDemo,
-      isPrivyReady,
-      privyInitFailed,
-      isReady,
+      isPrivyReady: true,
+      privyInitFailed: false,
+      isReady: true,
       isConnecting,
       demoSessionKey,
       error,
@@ -293,20 +173,7 @@ function WalletProviderPrivy({ children }: { children: ReactNode }) {
       connectDemo,
       disconnect,
     }),
-    [
-      wallet,
-      privyUserId,
-      isDemo,
-      isPrivyReady,
-      privyInitFailed,
-      isReady,
-      isConnecting,
-      demoSessionKey,
-      error,
-      connect,
-      connectDemo,
-      disconnect,
-    ],
+    [wallet, isDemo, isConnecting, demoSessionKey, error, connect, connectDemo, disconnect],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

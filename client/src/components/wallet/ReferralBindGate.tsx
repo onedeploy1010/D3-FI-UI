@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { useWallets } from '@privy-io/react-auth';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { GlassButton } from '@/components/ui/GlassSurface';
@@ -11,7 +10,7 @@ import { useAppLang } from '@/i18n/LanguageContext';
 import { toLegacyLang } from '@/i18n/types';
 import { bindReferral, checkSponsorRegistered } from '@/lib/unionApi';
 import { bindReferralOnchain, isOnchainReferralEnabled } from '@/lib/referralRegistry';
-import { resolveWalletForAddress } from '@/lib/privyWallet';
+import { getConnectedWalletClient } from '@/lib/wagmiWallet';
 import { isDemoWallet } from '@/lib/demoWallet';
 import {
   captureReferralFromUrl,
@@ -131,7 +130,6 @@ function t(lang: keyof typeof copy, key: keyof (typeof copy)['en']) {
 
 function ReferralBindScreen({ onBound }: { onBound: () => void }) {
   const { wallet } = useWallet();
-  const { wallets } = useWallets();
   const { lang } = useAppLang();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -177,12 +175,12 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
       // On-chain binding: user calls bind() and pays gas; then backend verifies + syncs.
       let txHash: string | undefined;
       if (isOnchainReferralEnabled()) {
-        const connected = resolveWalletForAddress(wallets, wallet);
-        if (!connected) {
+        const walletClient = await getConnectedWalletClient();
+        if (!walletClient) {
           setError(t(lang, 'errInvalid'));
           return;
         }
-        txHash = await bindReferralOnchain(connected, sponsor);
+        txHash = await bindReferralOnchain(walletClient, sponsor);
       }
 
       await bindReferral(wallet, sponsor, 'partner', txHash);
@@ -205,7 +203,7 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
     } finally {
       setBinding(false);
     }
-  }, [wallet, wallets, sponsor, lang, onBound]);
+  }, [wallet, sponsor, lang, onBound]);
 
   return (
     <div

@@ -1,15 +1,14 @@
-import type { ConnectedWallet } from '@privy-io/react-auth';
 import {
-  createWalletClient,
-  custom,
   encodeFunctionData,
   formatEther,
   formatUnits,
   parseUnits,
   type Address,
   type Hex,
+  type WalletClient,
 } from 'viem';
 import { bscPublicClient, d3DefaultChain } from '@/lib/chains';
+import { ensureD3Chain } from '@/lib/wagmiWallet';
 import { PartnerPaymentError } from '@/lib/partnerPaymentErrors';
 import { shortWallet } from '@/lib/wallet';
 import { BSC_USDT_ADDRESS, BSC_USDT_DECIMALS } from '@/lib/tokens';
@@ -140,11 +139,12 @@ async function assertPaymentReady(account: Address, amountWei: bigint, data: Hex
 }
 
 async function sendUsdt(
-  wallet: ConnectedWallet,
+  walletClient: WalletClient,
   amountUsdt: number,
   toAddress: string,
 ): Promise<string> {
-  const account = wallet.address as Address;
+  const account = walletClient.account?.address as Address | undefined;
+  if (!account) throw new PartnerPaymentError({ code: 'wallet_required' });
   const amountWei = parseUsdtAmountSafe(amountUsdt);
   const data = encodeFunctionData({
     abi: erc20Abi,
@@ -152,18 +152,12 @@ async function sendUsdt(
     args: [toAddress as Address, amountWei],
   });
 
-  await wallet.switchChain(d3DefaultChain.id);
+  await ensureD3Chain(walletClient);
   const { gasLimit, gasPrice } = await assertPaymentReady(account, amountWei, data);
-
-  const provider = await wallet.getEthereumProvider();
-  const walletClient = createWalletClient({
-    account,
-    chain: d3DefaultChain,
-    transport: custom(provider),
-  });
 
   try {
     return await walletClient.sendTransaction({
+      account,
       to: BSC_USDT_ADDRESS,
       data,
       chain: d3DefaultChain,
@@ -180,7 +174,7 @@ export async function payToDepositAddress(opts: {
   amountUsdt: number;
   depositAddress: string;
   isDemo: boolean;
-  wallet: ConnectedWallet | null;
+  wallet: WalletClient | null;
 }): Promise<{ txHash: string | null }> {
   if (opts.isDemo) {
     return { txHash: null };

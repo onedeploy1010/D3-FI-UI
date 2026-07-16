@@ -1,14 +1,7 @@
 import { readDemoWalletFromSession, isDemoWallet } from './demoWallet';
 import { isSupabaseClientConfigured, supabaseAnonKey, supabaseUrl } from './supabase';
+import { getSessionToken } from './siwe';
 import { formatWalletAddress } from './wallet';
-
-type TokenGetter = () => Promise<string | null>;
-
-let accessTokenGetter: TokenGetter | null = null;
-
-export function setDepositAccessTokenGetter(getter: TokenGetter) {
-  accessTokenGetter = getter;
-}
 
 export type DepositIntent = {
   intentId: string;
@@ -49,9 +42,9 @@ async function buildHeaders(wallet: string): Promise<Record<string, string>> {
   const demoSession = readDemoWalletFromSession();
   if (demoSession && isDemoWallet(address)) {
     headers['X-Demo-Mode'] = '1';
-  } else if (accessTokenGetter) {
-    const token = await accessTokenGetter();
-    if (token) headers['X-Privy-Token'] = token;
+  } else {
+    const token = getSessionToken();
+    if (token) headers['X-Session-Token'] = token;
   }
 
   return headers;

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'wouter';
-import { useWallets } from '@privy-io/react-auth';
 import { useWallet } from '@/contexts/wallet-context';
-import { resolveWalletForAddress } from '@/lib/privyWallet';
+import { getConnectedWalletClient } from '@/lib/wagmiWallet';
 import { claimTestUsdt, getFaucetStatus, type FaucetStatus } from '@/lib/faucet';
 import { BSC_USDT_ADDRESS, USDT_IS_FAUCET } from '@/lib/tokens';
 import { shortWallet } from '@/lib/wallet';
@@ -16,7 +15,6 @@ function fmtCooldown(sec: number): string {
 
 export default function FakeToken() {
   const { wallet, isConnected, connect } = useWallet();
-  const { wallets } = useWallets();
 
   const [status, setStatus] = useState<FaucetStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,15 +39,15 @@ export default function FakeToken() {
 
   const onClaim = useCallback(async () => {
     if (!wallet) return;
-    const connected = resolveWalletForAddress(wallets, wallet);
-    if (!connected) {
+    const walletClient = await getConnectedWalletClient();
+    if (!walletClient) {
       setMsg({ kind: 'err', text: '未找到可签名的钱包，请重新连接。' });
       return;
     }
     setClaiming(true);
     setMsg({ kind: 'info', text: '正在提交领取交易，请在钱包中确认…' });
     try {
-      const txHash = await claimTestUsdt(connected);
+      const txHash = await claimTestUsdt(walletClient);
       setMsg({ kind: 'ok', text: `领取成功！交易：${shortWallet(txHash)}。约 5 秒后余额刷新。` });
       setTimeout(() => void refresh(), 5000);
     } catch (e) {
@@ -65,7 +63,7 @@ export default function FakeToken() {
     } finally {
       setClaiming(false);
     }
-  }, [wallet, wallets, refresh]);
+  }, [wallet, refresh]);
 
   const canClaim = !!status && status.claimableInSec <= 0 && !claiming;
 

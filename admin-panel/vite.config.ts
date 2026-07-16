@@ -9,6 +9,12 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
+    // Force a single React instance — prevents "Cannot read properties of null
+    // (reading 'useContext')" from a duplicate ESM/CJS React copy in the bundle.
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime'],
   },
   server: {
     port: 5174,

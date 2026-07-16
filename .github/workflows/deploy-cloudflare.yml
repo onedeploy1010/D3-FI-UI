@@ -10,7 +10,8 @@ on:
 env:
   VITE_SUPABASE_URL: https://fbykfczfshcmfekdmrfp.supabase.co
   VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ToOtnOV0ewmzAGAVijklfw_i35DB5xy
-  VITE_PRIVY_APP_ID: cmr8vygpn00o20cl5oil97sgj
+  # Wallet auth is now Reown AppKit + SIWE (Privy removed). Project id is public.
+  VITE_REOWN_PROJECT_ID: '3797379276b38cfb9f98d7e8b4d6c5dd'
 
 jobs:
   dapp:

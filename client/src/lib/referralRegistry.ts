@@ -1,12 +1,11 @@
-import type { ConnectedWallet } from '@privy-io/react-auth';
 import {
-  createWalletClient,
-  custom,
   encodeFunctionData,
   getAddress,
   type Address,
+  type WalletClient,
 } from 'viem';
 import { bscPublicClient, d3DefaultChain } from '@/lib/chains';
+import { ensureD3Chain } from '@/lib/wagmiWallet';
 
 /**
  * Frontend for the on-chain ReferralRegistry (contracts/src/ReferralRegistry.sol).
@@ -65,18 +64,17 @@ export async function readUplineOnchain(user: string): Promise<string | null> {
  * The caller should then POST /referrals/bind with { sponsorWallet, txHash } to sync.
  */
 export async function bindReferralOnchain(
-  wallet: ConnectedWallet,
+  walletClient: WalletClient,
   upline: string,
 ): Promise<string> {
   if (!REFERRAL_REGISTRY_ADDRESS) throw new Error('On-chain referral registry not configured');
-  const account = wallet.address as Address;
-  await wallet.switchChain(d3DefaultChain.id);
+  const account = walletClient.account?.address as Address | undefined;
+  if (!account) throw new Error('No connected wallet account');
+  await ensureD3Chain(walletClient);
 
   const data = encodeFunctionData({ abi: registryAbi, functionName: 'bind', args: [upline as Address] });
-  const provider = await wallet.getEthereumProvider();
-  const walletClient = createWalletClient({ account, chain: d3DefaultChain, transport: custom(provider) });
 
-  const txHash = await walletClient.sendTransaction({ to: REFERRAL_REGISTRY_ADDRESS, data, chain: d3DefaultChain });
+  const txHash = await walletClient.sendTransaction({ account, to: REFERRAL_REGISTRY_ADDRESS, data, chain: d3DefaultChain });
   // Wait for confirmation so the backend's uplineOf() read reflects the binding.
   await bscPublicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
   return txHash;

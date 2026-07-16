@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { useWallets } from '@privy-io/react-auth';
 import { useWallet } from '@/contexts/wallet-context';
 import {
   createPartnerJoinIntent,
@@ -10,7 +9,7 @@ import {
 } from '@/lib/depositApi';
 import { payToDepositAddress } from '@/lib/partnerDepositPay';
 import { PartnerPaymentError } from '@/lib/partnerPaymentErrors';
-import { resolveWalletForAddress } from '@/lib/privyWallet';
+import { getConnectedWalletClient } from '@/lib/wagmiWallet';
 
 export type DepositPaymentResult = {
   intent: DepositIntent;
@@ -19,7 +18,6 @@ export type DepositPaymentResult = {
 
 export function useDepositPayment(wallet: string | null) {
   const { isDemo } = useWallet();
-  const { wallets } = useWallets();
   const [paying, setPaying] = useState(false);
   const [lastIntent, setLastIntent] = useState<DepositIntent | null>(null);
 
@@ -52,15 +50,15 @@ export function useDepositPayment(wallet: string | null) {
         const intent = await createIntent();
         setLastIntent(intent);
 
-        const connected = resolveWalletForAddress(wallets, w);
-        if (!connected) {
+        const walletClient = await getConnectedWalletClient();
+        if (!walletClient) {
           throw new PartnerPaymentError({ code: 'no_wallet' });
         }
         const { txHash } = await payToDepositAddress({
           amountUsdt,
           depositAddress: intent.depositAddress,
           isDemo: false,
-          wallet: connected,
+          wallet: walletClient,
         });
 
         if (txHash) {
@@ -73,7 +71,7 @@ export function useDepositPayment(wallet: string | null) {
         setPaying(false);
       }
     },
-    [isDemo, wallets],
+    [isDemo],
   );
 
   const payForJoin = useCallback(

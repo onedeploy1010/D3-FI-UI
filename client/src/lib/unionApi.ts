@@ -6,17 +6,10 @@ import {
   readDemoWalletFromSession,
 } from './demoWallet';
 import { isSupabaseClientConfigured, supabaseUrl, supabaseAnonKey } from './supabase';
+import { getSessionToken } from './siwe';
 import { formatWalletAddress } from './wallet';
 
 export type { UnionProfileBundle };
-
-type TokenGetter = () => Promise<string | null>;
-
-let accessTokenGetter: TokenGetter | null = null;
-
-export function setUnionAccessTokenGetter(getter: TokenGetter) {
-  accessTokenGetter = getter;
-}
 
 function requireSupabase() {
   if (!isSupabaseClientConfigured || !supabaseUrl || !supabaseAnonKey) {
@@ -36,9 +29,9 @@ async function buildFunctionHeaders(wallet: string): Promise<Record<string, stri
   const demoSession = readDemoWalletFromSession();
   if (demoSession && isDemoWallet(address)) {
     headers['X-Demo-Mode'] = '1';
-  } else if (accessTokenGetter) {
-    const token = await accessTokenGetter();
-    if (token) headers['X-Privy-Token'] = token;
+  } else {
+    const token = getSessionToken();
+    if (token) headers['X-Session-Token'] = token;
   }
 
   return headers;
