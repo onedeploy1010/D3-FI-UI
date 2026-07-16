@@ -78,6 +78,65 @@ async function ensurePartnerAccount(sb: Sb, walletAddress: string) {
   );
 }
 
+/**
+ * NEW-1 (HIGH): persist a settlement's daily D3 release ATOMICALLY.
+ *
+ * `pending_d3_yield` is a spendable balance that is DEBITED atomically at withdraw
+ * time (034 `debit_pending_d3_yield`). Crediting it here with a read-modify-write
+ * (SELECT balance; UPDATE balance+delta) races that debit: a debit landing between
+ * our read and write is clobbered by the stale write-back -> lost update -> the user
+ * keeps yield they already withdrew (double-spend). So the pending_d3_yield credit
+ * goes through the atomic `credit_pending_d3_yield` RPC (single UPDATE ... += under a
+ * row lock). The remaining columns — `lifetime_d3_yield` (monotonic counter),
+ * `pending_usdt_yield` / `lifetime_usdt_yield` (best-effort USDT audit figures) — are
+ * NOT atomic-debit targets, so a plain update is fine; pending_d3_yield is deliberately
+ * NEVER written in that update (the RPC owns it).
+ */
+export async function creditSettlementYield(
+  sb: Sb,
+  wallet: string,
+  releaseD3: number,
+  releaseValueUsdt: number,
+): Promise<void> {
+  // Atomic spendable-balance credit (credit-first; provision the row and retry once
+  // if it does not exist yet — case-insensitive so an existing mixed-case row is hit).
+  const { error: creditErr } = await sb.rpc('credit_pending_d3_yield', {
+    p_wallet: wallet,
+    p_amount: releaseD3,
+  });
+  if (creditErr) {
+    const msg = creditErr.message ?? '';
+    if (msg.includes('ACCOUNT_NOT_FOUND') || msg.includes('RECIPIENT_NOT_FOUND')) {
+      await ensurePartnerAccount(sb, wallet);
+      const { error: retryErr } = await sb.rpc('credit_pending_d3_yield', {
+        p_wallet: wallet,
+        p_amount: releaseD3,
+      });
+      if (retryErr) throw retryErr;
+    } else {
+      throw creditErr;
+    }
+  }
+
+  // Non-spendable counters + USDT audit figures. pending_d3_yield is intentionally
+  // absent here — it is owned by the atomic RPC above (no read-modify-write on it).
+  const { data: acct } = await sb
+    .from('partner_accounts')
+    .select('lifetime_d3_yield, pending_usdt_yield, lifetime_usdt_yield')
+    .eq('wallet_address', wallet)
+    .single();
+
+  await sb
+    .from('partner_accounts')
+    .update({
+      lifetime_d3_yield: round6(Number(acct?.lifetime_d3_yield ?? 0) + releaseD3),
+      pending_usdt_yield: round4(Number(acct?.pending_usdt_yield ?? 0) + releaseValueUsdt),
+      lifetime_usdt_yield: round4(Number(acct?.lifetime_usdt_yield ?? 0) + releaseValueUsdt),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('wallet_address', wallet);
+}
+
 /** Create stake position when a deposit is credited. */
 export async function syncStakePositionOnCredit(sb: Sb, intentId: string): Promise<void> {
   const { data: existing } = await sb
@@ -259,22 +318,9 @@ export async function runDailyPartnerSettlement(
         d3_price: d3Price,
       });
 
-      const { data: acct } = await sb
-        .from('partner_accounts')
-        .select('pending_usdt_yield, lifetime_usdt_yield, pending_d3_yield, lifetime_d3_yield')
-        .eq('wallet_address', wallet)
-        .single();
-
-      await sb
-        .from('partner_accounts')
-        .update({
-          pending_d3_yield: round6(Number(acct?.pending_d3_yield ?? 0) + releaseD3),
-          lifetime_d3_yield: round6(Number(acct?.lifetime_d3_yield ?? 0) + releaseD3),
-          pending_usdt_yield: round4(Number(acct?.pending_usdt_yield ?? 0) + releaseValueUsdt),
-          lifetime_usdt_yield: round4(Number(acct?.lifetime_usdt_yield ?? 0) + releaseValueUsdt),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('wallet_address', wallet);
+      // NEW-1: credit the spendable pending_d3_yield ATOMICALLY (see creditSettlementYield);
+      // the read-modify-write here previously clobbered concurrent atomic withdraw debits.
+      await creditSettlementYield(sb, wallet, releaseD3, releaseValueUsdt);
 
       await sb
         .from('partner_stake_positions')

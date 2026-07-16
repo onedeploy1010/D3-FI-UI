@@ -3,6 +3,7 @@ import { writeAuditLog } from './audit.ts';
 import { postLedgerEntry } from './ledger.ts';
 import {
   BSC_CHAIN_ID,
+  BSC_MIN_CONFIRMATIONS,
   BSC_USDT_CONTRACT,
   BSC_USDT_SYMBOL,
 } from './tokens.ts';
@@ -70,8 +71,16 @@ async function waitForTxConfirmation(txHash: string, maxAttempts = 30): Promise<
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
-      if (receipt?.status === 'success') return true;
       if (receipt?.status === 'reverted') return false;
+      if (receipt?.status === 'success') {
+        // V-25/V-18: do NOT finalize a payout on a single success receipt — a short
+        // reorg could orphan it and we would credit against a rolled-back tx. Require
+        // the same BSC_MIN_CONFIRMATIONS depth deposit ingress uses (see turnkey.ts
+        // verifyUsdtTransfer) before treating it confirmed; otherwise keep polling.
+        const block = await client.getBlockNumber();
+        const confirmations = Number(block - receipt.blockNumber + 1n);
+        if (confirmations >= BSC_MIN_CONFIRMATIONS) return true;
+      }
     } catch {
       // Receipt not indexed yet — keep polling.
     }
@@ -328,6 +337,105 @@ async function executeSweepJob(sb: Sb, job: SweepJob, gasWallet: WalletRow | nul
   await finalizeSweepJob(sb, job, txHash, sweepAmount);
 }
 
+/**
+ * NEW-2 (HIGH): decide what to do with a FAILED `yield_flash_withdraw` sweep.
+ *
+ * `waitForTxConfirmation` returns false for BOTH an on-chain revert AND a 90s timeout.
+ * The old terminal-failure path unconditionally refunded the D3 (debited atomically at
+ * request time). But a timed-out tx can still be mined afterwards: the user then keeps
+ * the USDT payout AND gets the D3 back — a double payout draining the treasury.
+ *
+ * Rule:
+ *   - transient failure (status still 'queued' for retry)  -> record error only, no refund.
+ *   - terminal failure with NO broadcast tx                -> safe to refund exactly once.
+ *   - terminal failure WITH a broadcast tx                 -> escalate to manual_review,
+ *       NO auto-refund, and mark the withdrawal 'manual_review' so nothing silently
+ *       refunds it later. A human reconciles whether the USDT actually landed.
+ *
+ * `broadcast?` is read authoritatively from the sweep_jobs row (the in-memory `job` may be
+ * stale if THIS run broadcast then timed out). The single-transition guards keep it
+ * idempotent across retries and concurrent pipeline runs.
+ */
+export async function handleYieldWithdrawSweepFailure(
+  sb: Sb,
+  job: SweepJob,
+  status: 'manual_review' | 'queued',
+  message: string,
+): Promise<'refunded' | 'escalated_broadcast' | 'transient' | 'noop'> {
+  if (job.job_type !== 'yield_flash_withdraw' || !job.reference_id) return 'noop';
+  const now = new Date().toISOString();
+
+  if (status !== 'manual_review') {
+    // Transient failure: keep the withdrawal in-flight for the retry, only record the
+    // latest error. No refund yet (a retry may still confirm).
+    await sb
+      .from('partner_yield_withdrawals')
+      .update({ error_message: message.slice(0, 500), updated_at: now })
+      .eq('id', job.reference_id);
+    return 'transient';
+  }
+
+  // Terminal failure (retries exhausted). Determine authoritatively whether a tx was
+  // broadcast: re-read the job row because the in-memory `job.tx_hash` can be stale when
+  // this same run broadcast the tx and then hit the confirmation timeout.
+  const { data: freshJob } = await sb
+    .from('sweep_jobs')
+    .select('tx_hash')
+    .eq('id', job.id)
+    .maybeSingle();
+  const broadcastHash = String((freshJob?.tx_hash ?? job.tx_hash ?? '') as string).trim();
+
+  if (broadcastHash.length > 0) {
+    // A tx WAS broadcast and may still mine after our timeout. Refunding now risks a
+    // double payout, so escalate with NO auto-refund and flag the withdrawal for a human.
+    await sb
+      .from('partner_yield_withdrawals')
+      .update({
+        status: 'manual_review',
+        error_message: `broadcast tx unconfirmed — manual review, no auto-refund: ${message.slice(0, 400)}`,
+        updated_at: now,
+      })
+      .eq('id', job.reference_id)
+      .in('status', ['pending', 'signing', 'broadcasted']);
+    return 'escalated_broadcast';
+  }
+
+  // No tx broadcast -> the D3 debit has no on-chain counterpart. Refund it exactly once.
+  // The guarded update flips in-flight -> failed and only returns a row for the first
+  // caller to win that transition, so the refund is idempotent across retries/runs.
+  const { data: withdrawal } = await sb
+    .from('partner_yield_withdrawals')
+    .select('wallet_address, d3_amount')
+    .eq('id', job.reference_id)
+    .maybeSingle();
+
+  const { data: claimed } = await sb
+    .from('partner_yield_withdrawals')
+    .update({
+      status: 'failed',
+      error_message: message.slice(0, 500),
+      updated_at: now,
+    })
+    .eq('id', job.reference_id)
+    .in('status', ['pending', 'signing', 'broadcasted'])
+    .select('id');
+
+  if (withdrawal && claimed && claimed.length > 0) {
+    const wallet = withdrawal.wallet_address as string;
+    const refundD3 = Number(withdrawal.d3_amount ?? 0);
+    if (wallet && refundD3 > 0) {
+      const { error: refundErr } = await sb.rpc('credit_pending_d3_yield', {
+        p_wallet: wallet,
+        p_amount: refundD3,
+      });
+      if (refundErr) {
+        console.error('[sweep] yield_flash_withdraw refund failed:', refundErr.message);
+      }
+    }
+  }
+  return 'refunded';
+}
+
 export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: number; failed: number }> {
   const gasWallet = await getGasWallet(sb);
 
@@ -372,52 +480,10 @@ export async function processSweepJobs(sb: Sb, limit = 5): Promise<{ processed: 
         newValue: { error: message, retry },
       });
 
-      if (job.job_type === 'yield_flash_withdraw' && job.reference_id) {
-        if (status === 'manual_review') {
-          // Terminal failure (retries exhausted). Refund the D3 that was debited
-          // atomically at request time — exactly once. The guarded update below
-          // flips the row in-flight -> failed and only returns a row on the first
-          // caller to win that transition, so the refund is idempotent across
-          // retries and concurrent pipeline runs.
-          const { data: withdrawal } = await sb
-            .from('partner_yield_withdrawals')
-            .select('wallet_address, d3_amount')
-            .eq('id', job.reference_id)
-            .maybeSingle();
-
-          const { data: claimed } = await sb
-            .from('partner_yield_withdrawals')
-            .update({
-              status: 'failed',
-              error_message: message.slice(0, 500),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', job.reference_id)
-            .in('status', ['pending', 'signing', 'broadcasted'])
-            .select('id');
-
-          if (withdrawal && claimed && claimed.length > 0) {
-            const wallet = withdrawal.wallet_address as string;
-            const refundD3 = Number(withdrawal.d3_amount ?? 0);
-            if (wallet && refundD3 > 0) {
-              const { error: refundErr } = await sb.rpc('credit_pending_d3_yield', {
-                p_wallet: wallet,
-                p_amount: refundD3,
-              });
-              if (refundErr) {
-                console.error('[sweep] yield_flash_withdraw refund failed:', refundErr.message);
-              }
-            }
-          }
-        } else {
-          // Transient failure: keep the withdrawal in-flight for the retry, only
-          // record the latest error. No refund yet (a retry may still confirm).
-          await sb
-            .from('partner_yield_withdrawals')
-            .update({ error_message: message.slice(0, 500), updated_at: new Date().toISOString() })
-            .eq('id', job.reference_id);
-        }
-      }
+      // NEW-2: refund a terminal yield_flash_withdraw failure ONLY when no tx was
+      // broadcast; a broadcast-then-timed-out tx is escalated to manual review with no
+      // auto-refund (it may still mine -> double payout). See handleYieldWithdrawSweepFailure.
+      await handleYieldWithdrawSweepFailure(sb, job, status as 'manual_review' | 'queued', message);
     }
   }
 

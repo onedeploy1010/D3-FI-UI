@@ -73,11 +73,13 @@ export async function stakePartnerSd3(
   const dailyReleaseD3 = usdtToD3(dailyYield, d3Price);
   const exitCapD3 = round6(stakedD3 * UD3_EXIT_MULTIPLIER);
 
-  // V-06 ordering decision: there is NO credit_ud3_balance RPC to compensate a
-  // debit, and the status check constraint only permits 'active'/'closed' (no
-  // 'pending' state exists on this table). So we INSERT the position FIRST, then
-  // debit UD3 atomically via the RPC. If the debit fails we DELETE the just-created
-  // position (no balance moved, no double-spend). This intentionally biases any
+  // V-06 / NEW-1 ordering decision: an atomic credit_ud3_balance RPC now exists (041),
+  // but we deliberately do NOT use a debit-then-insert-then-credit-back rollback here.
+  // The status check constraint only permits 'active'/'closed' (no 'pending' state on
+  // this table), so we INSERT the position FIRST, then debit UD3 atomically via the RPC.
+  // If the debit fails we DELETE the just-created position (no balance moved, no
+  // double-spend). Crediting back after a failed insert would instead open a window
+  // where the user is debited with no backing position. This intentionally biases any
   // residual crash-window risk toward a protocol-side, un-debited position that is
   // detectable/reconcilable — never toward a user-side debit with no backing
   // position (which would be a silent user-fund loss). The RPC's conditional

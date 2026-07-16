@@ -209,33 +209,71 @@ export async function allocateUd3ForCreditedIntent(
   }
 
   for (const [walletLower, amount] of creditMap) {
-    const { data: acct } = await sb
-      .from('partner_accounts')
-      .select('wallet_address, ud3_balance, lifetime_ud3_earned')
-      .ilike('wallet_address', walletLower)
-      .maybeSingle();
-    if (!acct) {
+    if (amount <= 0) continue;
+    await creditUd3Reward(sb, walletLower, round6(amount));
+  }
+
+  return { ok: true, eventId };
+}
+
+/**
+ * NEW-1 (HIGH): credit a UD3 reward ATOMICALLY.
+ *
+ * `ud3_balance` is a spendable balance DEBITED atomically at re-stake/withdraw time
+ * (034 `debit_ud3_balance`). The old read-modify-write credit (SELECT balance;
+ * UPDATE balance+amount) races that debit — a debit landing between the read and the
+ * write-back is lost (double-spend). So the balance credit goes through the atomic
+ * `credit_ud3_balance` RPC (single UPDATE ... += under a row lock). `lifetime_ud3_earned`
+ * is a monotonic counter (no atomic debit targets it) so a plain update is fine, and
+ * `ud3_balance` is deliberately never written in that update.
+ *
+ * Credit-first, provision-on-not-found: the RPC matches case-insensitively so an
+ * existing (possibly mixed-case) row is credited without provisioning; only a genuinely
+ * absent account triggers a row insert + single retry.
+ */
+async function creditUd3Reward(sb: Sb, walletLower: string, amount: number): Promise<void> {
+  const { error: creditErr } = await sb.rpc('credit_ud3_balance', {
+    p_wallet: walletLower,
+    p_amount: amount,
+  });
+  if (creditErr) {
+    const msg = creditErr.message ?? '';
+    if (msg.includes('ACCOUNT_NOT_FOUND') || msg.includes('RECIPIENT_NOT_FOUND')) {
+      // Provision the account row WITHOUT seeding a balance (the atomic credit below
+      // owns ud3_balance), then retry once.
       await sb.from('partner_accounts').upsert(
-        {
-          wallet_address: walletLower,
-          ud3_balance: amount,
-          lifetime_ud3_earned: amount,
-        },
-        { onConflict: 'wallet_address' },
+        { wallet_address: walletLower },
+        { onConflict: 'wallet_address', ignoreDuplicates: true },
       );
-      continue;
+      const { error: retryErr } = await sb.rpc('credit_ud3_balance', {
+        p_wallet: walletLower,
+        p_amount: amount,
+      });
+      if (retryErr) {
+        console.error('[ud3] credit_ud3_balance retry:', retryErr.message);
+        return;
+      }
+    } else {
+      console.error('[ud3] credit_ud3_balance:', creditErr.message);
+      return;
     }
+  }
+
+  // Monotonic lifetime counter (not spendable, no atomic debit) — plain update.
+  const { data: acct } = await sb
+    .from('partner_accounts')
+    .select('wallet_address, lifetime_ud3_earned')
+    .ilike('wallet_address', walletLower)
+    .maybeSingle();
+  if (acct) {
     await sb
       .from('partner_accounts')
       .update({
-        ud3_balance: round6(Number(acct.ud3_balance ?? 0) + amount),
         lifetime_ud3_earned: round6(Number(acct.lifetime_ud3_earned ?? 0) + amount),
         updated_at: new Date().toISOString(),
       })
       .eq('wallet_address', acct.wallet_address as string);
   }
-
-  return { ok: true, eventId };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertSettlementDateNotFuture } from './partnerSettlement.ts';
+import { assertSettlementDateNotFuture, creditSettlementYield } from './partnerSettlement.ts';
 
 /**
  * V-11 regression: a caller-supplied settlement date must be valid YYYY-MM-DD and
@@ -48,5 +48,102 @@ describe('assertSettlementDateNotFuture', () => {
     } catch (e: any) {
       expect(e.status).toBe(400);
     }
+  });
+});
+
+/**
+ * NEW-1 regression: the daily D3 release must credit the spendable `pending_d3_yield`
+ * via the atomic `credit_pending_d3_yield` RPC — NOT a read-modify-write — so a
+ * concurrent atomic withdraw debit can't be clobbered (lost-update double-spend).
+ */
+type UpdateCall = { table: string; payload: Record<string, unknown> };
+
+function makeSb(opts: {
+  rpc?: Record<string, Array<{ data?: unknown; error?: unknown }>>;
+  acct?: unknown;
+}) {
+  const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+  const updates: UpdateCall[] = [];
+  const upserts: { table: string; payload: unknown }[] = [];
+  const rpcQueue: Record<string, Array<{ data?: unknown; error?: unknown }>> = {
+    ...(opts.rpc ?? {}),
+  };
+
+  // deno-lint-ignore no-explicit-any
+  const sb: any = {
+    rpc: (name: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ name, args });
+      const q = rpcQueue[name];
+      const resp = q && q.length ? q.shift()! : { data: null, error: null };
+      return Promise.resolve(resp);
+    },
+    from: (table: string) => {
+      const st = { op: 'select', payload: undefined as unknown };
+      // deno-lint-ignore no-explicit-any
+      const b: any = {
+        select: () => b,
+        insert: (p: unknown) => { st.op = 'insert'; st.payload = p; return b; },
+        update: (p: Record<string, unknown>) => {
+          st.op = 'update';
+          updates.push({ table, payload: p });
+          return b;
+        },
+        upsert: (p: unknown) => { st.op = 'upsert'; upserts.push({ table, payload: p }); return b; },
+        eq: () => b,
+        ilike: () => b,
+        in: () => b,
+        maybeSingle: () => Promise.resolve(resolve()),
+        single: () => Promise.resolve(resolve()),
+        then: (f: (v: unknown) => unknown, r: (e: unknown) => unknown) =>
+          Promise.resolve(resolve()).then(f, r),
+      };
+      function resolve() {
+        if (table === 'partner_accounts' && st.op === 'select') {
+          return { data: opts.acct ?? null, error: null };
+        }
+        return { data: null, error: null };
+      }
+      return b;
+    },
+  };
+  return { sb, rpcCalls, updates, upserts };
+}
+
+describe('creditSettlementYield — NEW-1 atomic pending_d3_yield credit', () => {
+  it('credits pending_d3_yield via atomic RPC and never write-backs the balance column', async () => {
+    const { sb, rpcCalls, updates } = makeSb({
+      acct: { lifetime_d3_yield: 1, pending_usdt_yield: 2, lifetime_usdt_yield: 3 },
+      rpc: { credit_pending_d3_yield: [{ data: 12.5, error: null }] },
+    });
+
+    await creditSettlementYield(sb, '0xWALLET', 2.5, 12.5);
+
+    const credit = rpcCalls.find((c) => c.name === 'credit_pending_d3_yield');
+    expect(credit).toBeTruthy();
+    expect(credit!.args.p_amount).toBe(2.5);
+    expect(String(credit!.args.p_wallet)).toBe('0xWALLET');
+
+    // No read-modify-write of the spendable balance column may remain.
+    for (const u of updates) {
+      expect(Object.keys(u.payload)).not.toContain('pending_d3_yield');
+    }
+  });
+
+  it('ACCOUNT_NOT_FOUND -> provisions the row then retries the atomic credit once', async () => {
+    const { sb, rpcCalls, upserts } = makeSb({
+      acct: { lifetime_d3_yield: 0, pending_usdt_yield: 0, lifetime_usdt_yield: 0 },
+      rpc: {
+        credit_pending_d3_yield: [
+          { data: null, error: { message: 'ACCOUNT_NOT_FOUND' } },
+          { data: 2.5, error: null },
+        ],
+      },
+    });
+
+    await creditSettlementYield(sb, '0xNEW', 2.5, 12.5);
+
+    const credits = rpcCalls.filter((c) => c.name === 'credit_pending_d3_yield');
+    expect(credits).toHaveLength(2);
+    expect(upserts.some((u) => u.table === 'partner_accounts')).toBe(true);
   });
 });
