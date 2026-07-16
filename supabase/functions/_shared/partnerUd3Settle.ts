@@ -143,6 +143,9 @@ export async function allocateUd3ForCreditedIntent(
   }
 
   const eventId = event.id as string;
+  // Rewards accrue as UNSETTLED (settled=false) and only become spendable at the
+  // daily SGT-midnight run (settle_pending_ud3). The reserve row has no recipient
+  // account, so it is marked settled immediately (informational only).
   const ledgerRows = [
     {
       event_id: eventId,
@@ -152,6 +155,7 @@ export async function allocateUd3ForCreditedIntent(
       v_share_pct: null as number | null,
       gap_pct: null as number | null,
       ud3_amount: settled.directUd3,
+      settled: false,
     },
     ...settled.network.payouts
       .filter((p) => p.ud3Amount > 0)
@@ -163,6 +167,7 @@ export async function allocateUd3ForCreditedIntent(
         v_share_pct: p.vSharePct,
         gap_pct: p.gapPct,
         ud3_amount: p.ud3Amount,
+        settled: false,
       })),
   ];
 
@@ -175,6 +180,7 @@ export async function allocateUd3ForCreditedIntent(
       v_share_pct: settled.network.remainingPct,
       gap_pct: settled.network.remainingPct,
       ud3_amount: settled.network.remainingUd3,
+      settled: true,
     });
   }
 
@@ -210,70 +216,44 @@ export async function allocateUd3ForCreditedIntent(
 
   for (const [walletLower, amount] of creditMap) {
     if (amount <= 0) continue;
-    await creditUd3Reward(sb, walletLower, round6(amount));
+    await creditPendingUd3Reward(sb, walletLower, round6(amount));
   }
 
   return { ok: true, eventId };
 }
 
 /**
- * NEW-1 (HIGH): credit a UD3 reward ATOMICALLY.
+ * Accrue a UD3 reward to the recipient's PENDING (unsettled) bucket atomically.
  *
- * `ud3_balance` is a spendable balance DEBITED atomically at re-stake/withdraw time
- * (034 `debit_ud3_balance`). The old read-modify-write credit (SELECT balance;
- * UPDATE balance+amount) races that debit — a debit landing between the read and the
- * write-back is lost (double-spend). So the balance credit goes through the atomic
- * `credit_ud3_balance` RPC (single UPDATE ... += under a row lock). `lifetime_ud3_earned`
- * is a monotonic counter (no atomic debit targets it) so a plain update is fine, and
- * `ud3_balance` is deliberately never written in that update.
+ * Two-phase settlement (043): generation credits `pending_ud3` only — the reward is
+ * not spendable until the daily SGT-midnight run moves it into `ud3_balance` and
+ * bumps `lifetime_ud3_earned` (settle_pending_ud3). The atomic `credit_pending_ud3`
+ * RPC is a single UPDATE ... += under a row lock, matching case-insensitively.
  *
- * Credit-first, provision-on-not-found: the RPC matches case-insensitively so an
- * existing (possibly mixed-case) row is credited without provisioning; only a genuinely
- * absent account triggers a row insert + single retry.
+ * Credit-first, provision-on-not-found: only a genuinely absent account triggers a
+ * row insert + single retry.
  */
-async function creditUd3Reward(sb: Sb, walletLower: string, amount: number): Promise<void> {
-  const { error: creditErr } = await sb.rpc('credit_ud3_balance', {
+async function creditPendingUd3Reward(sb: Sb, walletLower: string, amount: number): Promise<void> {
+  const { error: creditErr } = await sb.rpc('credit_pending_ud3', {
     p_wallet: walletLower,
     p_amount: amount,
   });
-  if (creditErr) {
-    const msg = creditErr.message ?? '';
-    if (msg.includes('ACCOUNT_NOT_FOUND') || msg.includes('RECIPIENT_NOT_FOUND')) {
-      // Provision the account row WITHOUT seeding a balance (the atomic credit below
-      // owns ud3_balance), then retry once.
-      await sb.from('partner_accounts').upsert(
-        { wallet_address: walletLower },
-        { onConflict: 'wallet_address', ignoreDuplicates: true },
-      );
-      const { error: retryErr } = await sb.rpc('credit_ud3_balance', {
-        p_wallet: walletLower,
-        p_amount: amount,
-      });
-      if (retryErr) {
-        console.error('[ud3] credit_ud3_balance retry:', retryErr.message);
-        return;
-      }
-    } else {
-      console.error('[ud3] credit_ud3_balance:', creditErr.message);
-      return;
-    }
-  }
+  if (!creditErr) return;
 
-  // Monotonic lifetime counter (not spendable, no atomic debit) — plain update.
-  const { data: acct } = await sb
-    .from('partner_accounts')
-    .select('wallet_address, lifetime_ud3_earned')
-    .ilike('wallet_address', walletLower)
-    .maybeSingle();
-  if (acct) {
-    await sb
-      .from('partner_accounts')
-      .update({
-        lifetime_ud3_earned: round6(Number(acct.lifetime_ud3_earned ?? 0) + amount),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('wallet_address', acct.wallet_address as string);
+  const msg = creditErr.message ?? '';
+  if (msg.includes('ACCOUNT_NOT_FOUND') || msg.includes('RECIPIENT_NOT_FOUND')) {
+    await sb.from('partner_accounts').upsert(
+      { wallet_address: walletLower },
+      { onConflict: 'wallet_address', ignoreDuplicates: true },
+    );
+    const { error: retryErr } = await sb.rpc('credit_pending_ud3', {
+      p_wallet: walletLower,
+      p_amount: amount,
+    });
+    if (retryErr) console.error('[ud3] credit_pending_ud3 retry:', retryErr.message);
+    return;
   }
+  console.error('[ud3] credit_pending_ud3:', creditErr.message);
 }
 
 /**

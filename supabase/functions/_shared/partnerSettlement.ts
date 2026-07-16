@@ -339,10 +339,38 @@ export async function runDailyPartnerSettlement(
       yieldRows++;
     }
 
-    // ── sD3 (贿赂金) daily engine DEPRECATED ──────────────────────────────────
-    // The single reward is now UD3, credited per-deposit by the upline-tier engine
-    // (`tryAllocateUd3ForCreditedIntent` in deposit.ts). No daily sD3 crediting.
-    // Legacy sd3_balance was consolidated into ud3_balance by migration 027.
+    // ── UD3 (反向金) two-phase settlement (043) ───────────────────────────────
+    // Rewards accrue to pending_ud3 at deposit time (tryAllocateUd3ForCreditedIntent)
+    // and become spendable ONLY here, at the daily SGT-midnight run: move each
+    // recipient's pending_ud3 into ud3_balance and flip their unsettled ledger rows
+    // to settled. This is what makes the reward show as 已结算 (and stake-able).
+    {
+      const { data: pendingLedger } = await sb
+        .from('partner_ud3_ledger')
+        .select('id, recipient_wallet')
+        .eq('settled', false)
+        .neq('role', 'reserve');
+      const recipients = new Set<string>();
+      const ledgerIds: string[] = [];
+      for (const row of pendingLedger ?? []) {
+        recipients.add((row.recipient_wallet as string).toLowerCase());
+        ledgerIds.push(row.id as string);
+      }
+      for (const w of recipients) {
+        const { error: settleErr } = await sb.rpc('settle_pending_ud3', { p_wallet: w });
+        if (settleErr) console.error('[ud3] settle_pending_ud3:', settleErr.message);
+      }
+      if (ledgerIds.length > 0) {
+        const nowIso = new Date().toISOString();
+        for (let i = 0; i < ledgerIds.length; i += 500) {
+          await sb
+            .from('partner_ud3_ledger')
+            .update({ settled: true, settled_at: nowIso, settlement_date: dateStr })
+            .in('id', ledgerIds.slice(i, i + 500));
+        }
+        sd3Rows = ledgerIds.length;
+      }
+    }
 
     await sb
       .from('partner_settlement_runs')
@@ -446,7 +474,8 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     return {
       id: r.id,
       recipient_wallet: r.recipient_wallet,
-      settlement_date: r.created_at,
+      // Show when it settled if already settled, else when it was generated.
+      settlement_date: (r.settled ? r.settled_at : null) ?? r.created_at,
       event_amount_usd: Number(ev.deposit_usdt ?? 0),
       tier_rate_pct: Number(ev.tier_rate_pct ?? 0),
       // Direct reward is the fixed 60% cut; network (级差) rewards carry their gap %.
@@ -454,6 +483,8 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       role: r.role,
       source_wallet: ev.depositor_wallet ?? null,
       sd3_amount: Number(r.ud3_amount ?? 0),
+      // Two-phase (043): false until the daily SGT-midnight run settles it.
+      settled: r.settled === true,
     };
   });
 

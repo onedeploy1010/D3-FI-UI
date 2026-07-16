@@ -256,6 +256,8 @@ export type PartnerSd3AllocationRow = {
   role: 'direct' | 'upline';
   sd3_amount: number;
   created_at?: string;
+  /** Two-phase settlement (043): false until the daily SGT-midnight run settles it. */
+  settled?: boolean;
 };
 
 export type PartnerDirectLineStat = {

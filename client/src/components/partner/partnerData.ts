@@ -879,6 +879,10 @@ export function hydratePartnerStateFromApi(
           role: r.role,
           sourceAddress: r.source_wallet,
           sd3Amount: Number(r.sd3_amount),
+          // Two-phase (043): unsettled until the daily SGT-midnight run flips it.
+          settlementStatus: ((r as { settled?: boolean }).settled === false
+            ? 'pending'
+            : 'settled') as 'settled' | 'pending',
         }))
       : null;
 
@@ -909,12 +913,19 @@ export function hydratePartnerStateFromApi(
       ? lifetimeSd3Earned
       : local.sd3Balance;
 
-  const serverTransfers: PartnerTransfer[] = (api.partnerSd3Transfers ?? []).map((r) => ({
-    id: r.id,
-    toAddress: r.to_wallet,
-    amountSd3: Number(r.amount_sd3),
-    at: r.created_at.slice(0, 10),
-  }));
+  const serverTransfers: PartnerTransfer[] = (api.partnerSd3Transfers ?? []).map((r) => {
+    // Column was renamed amount_sd3 -> amount_ud3; read the new name first. Reading
+    // the stale name yielded Number(undefined) = NaN ("已转账 NaN UD3").
+    const amt = Number(
+      (r as { amount_ud3?: number | string }).amount_ud3 ?? r.amount_sd3 ?? 0,
+    );
+    return {
+      id: r.id,
+      toAddress: r.to_wallet,
+      amountSd3: Number.isFinite(amt) ? amt : 0,
+      at: r.created_at.slice(0, 10),
+    };
+  });
 
   const yieldSettlementsByPosition = mapYieldSettlementsByPosition(api.partnerYieldSettlements ?? []);
 
