@@ -2,6 +2,11 @@
   command = "pnpm install --frozen-lockfile && pnpm run build"
   publish = "dist/public"
 
+# The Reown AppKit + wagmi + viem bundle is large; the default ~2GB Node heap
+# OOMs during `vite build` (exit 134). Raise it for the Netlify build container.
+[build.environment]
+  NODE_OPTIONS = "--max-old-space-size=6144"
+
 # Single Page App routing (wouter): refresh /portal, /d3fi, etc.
 [[redirects]]
   from = "/*"
