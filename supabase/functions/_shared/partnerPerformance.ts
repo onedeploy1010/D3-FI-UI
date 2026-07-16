@@ -1,18 +1,42 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { startOfSgtDayIso, sgtDayBounds } from './partnerTimezone.ts';
-import {
-  computePartnerAreaStatsFromLines,
-  getBribeTier,
-  getBribeTierSplit,
-  splitEventSd3,
-  type PartnerAreaStats,
-} from './partnerSd3Rules.ts';
-
+import { startOfSgtDayIso } from './partnerTimezone.ts';
 type Sb = SupabaseClient;
+
+/** Small/large area split of a partner's direct lines (team-performance display). */
+export type PartnerAreaStats = {
+  smallAreaUsd: number;
+  smallAreaNewUsd: number;
+  largeAreaUsd: number;
+  largeAreaNewUsd: number;
+};
+
+export function computePartnerAreaStatsFromLines(
+  lines: { teamUsd: number; dailyNewUsd: number }[],
+): PartnerAreaStats {
+  if (!lines.length) {
+    return { smallAreaUsd: 0, smallAreaNewUsd: 0, largeAreaUsd: 0, largeAreaNewUsd: 0 };
+  }
+  const sorted = [...lines].sort((a, b) => b.teamUsd - a.teamUsd);
+  return {
+    largeAreaUsd: sorted[0]?.teamUsd ?? 0,
+    largeAreaNewUsd: sorted[0]?.dailyNewUsd ?? 0,
+    smallAreaUsd: sorted.slice(1).reduce((s, c) => s + c.teamUsd, 0),
+    smallAreaNewUsd: sorted.slice(1).reduce((s, c) => s + c.dailyNewUsd, 0),
+  };
+}
 
 const CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweeping'];
 
-/** Roll up partner crowdfund / join volume to referral performance_weight and sponsors. */
+/**
+ * Roll up partner crowdfund / join volume to referral performance_weight and sponsors.
+ *
+ * NOTE (V-21 idempotency): the weight accumulation below is deliberately additive
+ * (`prev + amount`) and is therefore NOT idempotent on its own. Callers MUST invoke
+ * this at-most-once per credit event. `reportDepositTx` / `creditDepositDemo` guarantee
+ * this by only calling it when the deposit record atomically transitions into the
+ * `credited` status (a concurrent replay finds the row already credited and skips it),
+ * so this function is applied exactly once per credited deposit.
+ */
 export async function rollupPartnerPerformance(
   sb: Sb,
   walletAddress: string,
@@ -311,79 +335,6 @@ export async function isDepositorInPartnerSmallArea(
   return !largeSubtree.some((w) => w.toLowerCase() === dep);
 }
 
-export type PartnerSd3EventAllocation = {
-  wallet: string;
-  sd3: number;
-  tierRatePct: number;
-  role: 'direct' | 'upline';
-  sourceWallet: string;
-  eventAmountUsd: number;
-  rewardSharePct: number;
-  intentId?: string;
-};
-
-/** Allocate sD3 for one credited stake intent across partner uplines. */
-export async function allocatePartnerSd3ForIntent(
-  sb: Sb,
-  depositorWallet: string,
-  amountUsd: number,
-  intentId?: string,
-): Promise<PartnerSd3EventAllocation[]> {
-  if (amountUsd <= 0) return [];
-  const partners = await getPartnerUplineChain(sb, depositorWallet);
-  if (!partners.length) return [];
-
-  const directPartner = partners[0];
-  if (!(await isDepositorInPartnerSmallArea(sb, directPartner, depositorWallet))) return [];
-
-  const areas = await fetchPartnerAreaStats(sb, directPartner);
-  const split = splitEventSd3(amountUsd, areas.smallAreaUsd);
-  if (split.grossSd3 <= 0) return [];
-
-  const tier = getBribeTier(areas.smallAreaUsd);
-  if (!tier) return [];
-  const directSharePct = Math.round(getBribeTierSplit(tier).directShare * 100);
-  const uplineSharePct = Math.round(getBribeTierSplit(tier).uplineShare * 100);
-
-  const out: PartnerSd3EventAllocation[] = [
-    {
-      wallet: directPartner,
-      sd3: split.directSd3,
-      tierRatePct: split.tierRatePct,
-      role: 'direct',
-      sourceWallet: depositorWallet,
-      eventAmountUsd: amountUsd,
-      rewardSharePct: directSharePct,
-      intentId,
-    },
-  ];
-  if (partners[1] && split.uplineSd3 > 0) {
-    out.push({
-      wallet: partners[1],
-      sd3: split.uplineSd3,
-      tierRatePct: split.tierRatePct,
-      role: 'upline',
-      sourceWallet: depositorWallet,
-      eventAmountUsd: amountUsd,
-      rewardSharePct: uplineSharePct,
-      intentId,
-    });
-  }
-  return out;
-}
-
-export type PartnerSd3AllocationRow = {
-  recipientWallet: string;
-  sourceWallet: string;
-  settlementDate: string;
-  intentId?: string;
-  eventAmountUsd: number;
-  tierRatePct: number;
-  rewardSharePct: number;
-  role: 'direct' | 'upline';
-  sd3Amount: number;
-};
-
 export type PartnerDirectLineStat = {
   wallet: string;
   teamUsd: number;
@@ -406,62 +357,3 @@ export async function fetchPartnerDirectLineStats(
   );
 }
 
-/** Collect per-wallet totals and per-event allocation rows for a settlement date. */
-export async function collectPartnerSd3ForSettlementDate(
-  sb: Sb,
-  settlementDate: string,
-): Promise<{
-  byWallet: Map<string, { sd3: number; tierRatePct: number; smallAreaNewUsd: number }>;
-  events: PartnerSd3AllocationRow[];
-}> {
-  const { startIso, endIso } = sgtDayBounds(settlementDate);
-  const { data: intents } = await sb
-    .from('stake_intents')
-    .select('id, wallet_address, amount_usdt')
-    .in('status', CREDITED_STATUSES)
-    .gte('updated_at', startIso)
-    .lte('updated_at', endIso);
-
-  const accum = new Map<string, { sd3: number; tierRatePct: number; smallAreaNewUsd: number }>();
-  const events: PartnerSd3AllocationRow[] = [];
-
-  for (const intent of intents ?? []) {
-    const depositor = intent.wallet_address as string;
-    const amount = Number(intent.amount_usdt ?? 0);
-    const allocations = await allocatePartnerSd3ForIntent(
-      sb,
-      depositor,
-      amount,
-      intent.id as string,
-    );
-    for (const row of allocations) {
-      const prev = accum.get(row.wallet) ?? { sd3: 0, tierRatePct: row.tierRatePct, smallAreaNewUsd: 0 };
-      prev.sd3 = Math.round((prev.sd3 + row.sd3) * 100) / 100;
-      prev.tierRatePct = row.tierRatePct;
-      if (row.role === 'direct') prev.smallAreaNewUsd = Math.round((prev.smallAreaNewUsd + amount) * 100) / 100;
-      accum.set(row.wallet, prev);
-      events.push({
-        recipientWallet: row.wallet,
-        sourceWallet: row.sourceWallet,
-        settlementDate,
-        intentId: row.intentId,
-        eventAmountUsd: row.eventAmountUsd,
-        tierRatePct: row.tierRatePct,
-        rewardSharePct: row.rewardSharePct,
-        role: row.role,
-        sd3Amount: row.sd3,
-      });
-    }
-  }
-
-  return { byWallet: accum, events };
-}
-
-/** @deprecated use collectPartnerSd3ForSettlementDate */
-export async function sumPartnerSd3ForSettlementDate(
-  sb: Sb,
-  settlementDate: string,
-): Promise<Map<string, { sd3: number; tierRatePct: number; smallAreaNewUsd: number }>> {
-  const { byWallet } = await collectPartnerSd3ForSettlementDate(sb, settlementDate);
-  return byWallet;
-}

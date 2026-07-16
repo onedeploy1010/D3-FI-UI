@@ -223,25 +223,83 @@ export async function creditDepositDemo(sb: Sb, walletAddress: string, intentId:
     console.error('[deposit] demo UD3 allocate:', e instanceof Error ? e.message : e);
   });
 
-  await postLedgerEntry(sb, {
-    ledgerType: 'deposit_credit',
+  await postDepositCreditLedger(sb, {
     walletAddress,
-    batchId: intentId,
-    chainId: BSC_CHAIN_ID,
-    tokenSymbol: BSC_USDT_SYMBOL,
+    intentId,
     amount,
-    direction: 'credit',
-    referenceId: intentId,
   });
 
   return getDepositStatus(sb, walletAddress, intentId);
 }
+
+/** True for a PostgREST/Postgres unique-violation (duplicate key) error. */
+function isUniqueViolation(e: unknown): boolean {
+  return (e as { code?: string } | null)?.code === '23505';
+}
+
+/**
+ * Post the `deposit_credit` ledger entry with a stable `reference_id` (the intent
+ * id) and swallow the benign unique-violation raised by `treasury_ledger_dedupe_uidx`
+ * (migration 033) when the same credit was already posted. Any other error rethrows.
+ */
+export async function postDepositCreditLedger(
+  sb: Sb,
+  args: {
+    walletAddress: string;
+    intentId: string;
+    walletId?: string | null;
+    amount: string;
+    txHash?: string | null;
+  },
+): Promise<void> {
+  try {
+    await postLedgerEntry(sb, {
+      ledgerType: 'deposit_credit',
+      walletAddress: args.walletAddress,
+      batchId: args.intentId,
+      walletId: args.walletId ?? null,
+      chainId: BSC_CHAIN_ID,
+      tokenSymbol: BSC_USDT_SYMBOL,
+      amount: args.amount,
+      direction: 'credit',
+      txHash: args.txHash ?? null,
+      referenceId: args.intentId,
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      console.warn('[deposit] deposit_credit ledger already posted (dedupe):', args.intentId);
+      return;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Injectable side effects of a successful credit. Split out so the (non-idempotent)
+ * downstream effects can be spied/stubbed in tests without changing production wiring.
+ */
+export type ReportDepositDeps = {
+  rollupPartnerPerformance: typeof rollupPartnerPerformance;
+  postDepositCreditLedger: typeof postDepositCreditLedger;
+  syncStakePositionOnCredit: typeof syncStakePositionOnCredit;
+  tryAllocateUd3ForCreditedIntent: typeof tryAllocateUd3ForCreditedIntent;
+  triggerSweepPipeline: (sb: Sb) => Promise<void>;
+};
+
+const defaultReportDepositDeps: ReportDepositDeps = {
+  rollupPartnerPerformance,
+  postDepositCreditLedger,
+  syncStakePositionOnCredit,
+  tryAllocateUd3ForCreditedIntent,
+  triggerSweepPipeline,
+};
 
 export async function reportDepositTx(
   sb: Sb,
   walletAddress: string,
   intentId: string,
   txHash: string,
+  deps: ReportDepositDeps = defaultReportDepositDeps,
 ) {
   const { data: intent } = await sb
     .from('stake_intents')
@@ -255,6 +313,13 @@ export async function reportDepositTx(
     ? intent.deposit_records[0]
     : intent.deposit_records;
   if (!deposit) throw new Error('Deposit record missing');
+
+  // V-21 entry guard: if this intent/deposit is already credited, return the
+  // current status WITHOUT re-running the non-idempotent side effects
+  // (performance rollup + ledger post). This makes replays a no-op.
+  if (isIntentCredited(intent.status as string) || deposit.status === 'credited') {
+    return getDepositStatus(sb, walletAddress, intentId);
+  }
 
   const { data: dup } = await sb
     .from('deposit_records')
@@ -298,7 +363,12 @@ export async function reportDepositTx(
     return getDepositStatus(sb, walletAddress, intentId);
   }
 
-  await sb
+  // V-21 atomic conditional transition: only the caller that actually flips the
+  // deposit record from a non-credited status to `credited` proceeds to run the
+  // (non-idempotent) downstream side effects. Under a concurrent replay, the
+  // `status <> 'credited'` guard means at most one update transitions a row, so
+  // performance/ledger are applied exactly once.
+  const { data: transitioned, error: transitionErr } = await sb
     .from('deposit_records')
     .update({
       tx_hash: txHash,
@@ -309,33 +379,37 @@ export async function reportDepositTx(
       confirmed_at: now,
       credited_at: now,
     })
-    .eq('intent_id', intentId);
+    .eq('intent_id', intentId)
+    .neq('status', 'credited')
+    .select('id');
+  if (transitionErr) throw transitionErr;
+
+  const justCredited = Array.isArray(transitioned) && transitioned.length > 0;
+  if (!justCredited) {
+    // A concurrent request already credited this deposit; skip side effects.
+    return getDepositStatus(sb, walletAddress, intentId);
+  }
 
   await sb.from('stake_intents').update({ status: 'credited', updated_at: now }).eq('id', intentId);
 
-  await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
+  await deps.rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
     console.error('[deposit] partner performance rollup:', e instanceof Error ? e.message : e);
   });
 
-  await syncStakePositionOnCredit(sb, intentId).catch((e) => {
+  await deps.syncStakePositionOnCredit(sb, intentId).catch((e) => {
     console.error('[deposit] stake position sync:', e instanceof Error ? e.message : e);
   });
 
-  await tryAllocateUd3ForCreditedIntent(sb, intentId).catch((e) => {
+  await deps.tryAllocateUd3ForCreditedIntent(sb, intentId).catch((e) => {
     console.error('[deposit] UD3 allocate:', e instanceof Error ? e.message : e);
   });
 
-  await postLedgerEntry(sb, {
-    ledgerType: 'deposit_credit',
+  await deps.postDepositCreditLedger(sb, {
     walletAddress,
-    batchId: intentId,
+    intentId,
     walletId: deposit.deposit_wallet_id as string,
-    chainId: BSC_CHAIN_ID,
-    tokenSymbol: BSC_USDT_SYMBOL,
     amount: received,
-    direction: 'credit',
     txHash,
-    referenceId: intentId,
   });
 
   await writeAuditLog(sb, {
@@ -346,7 +420,7 @@ export async function reportDepositTx(
     newValue: { txHash, received },
   });
 
-  await triggerSweepPipeline(sb);
+  await deps.triggerSweepPipeline(sb);
 
   return getDepositStatus(sb, walletAddress, intentId);
 }
