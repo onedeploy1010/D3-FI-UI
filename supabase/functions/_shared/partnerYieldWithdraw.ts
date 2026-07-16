@@ -10,6 +10,7 @@ import { formatUsdtAmount, parseUsdtAmount } from './turnkey.ts';
 import { HttpError } from './wallet.ts';
 import { ensureInfrastructureWallets, getFlashSwapWallet } from './wallets.ts';
 import { d3ToUsdt, getD3PriceUsdt } from './d3Price.ts';
+import { assertWithdrawAllowed } from './riskControls.ts';
 
 type Sb = SupabaseClient;
 
@@ -176,6 +177,10 @@ export async function requestPartnerYieldWithdraw(
   if (netUsdt < MIN_WITHDRAW_USDT) {
     throw new HttpError(400, `Net payout after ${FLASH_SWAP_FEE_PCT}% fee is below minimum`);
   }
+
+  // V-09/V-10: enforce pause / caps / solvency BEFORE the atomic debit so a
+  // blocked withdrawal never touches pending_d3_yield. Throws HttpError on trip.
+  await assertWithdrawAllowed(sb, { walletAddress, amountUsdt: netUsdt });
 
   // V-03: debit the released D3 atomically BEFORE creating the withdrawal/sweep
   // rows. The DB in-flight partial-unique index is the real single-withdrawal

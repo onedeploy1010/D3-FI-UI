@@ -16,6 +16,10 @@ vi.mock('./d3Price.ts', () => ({
   usdtToD3: (usdt: number, price: number) => usdt / price,
 }));
 vi.mock('./audit.ts', () => ({ writeAuditLog: async () => {} }));
+// Risk controls (V-09/V-10) are covered by riskControls.security.test.ts; stub
+// here so these V-03 atomic-debit cases stay isolated and never hit the real
+// solvency/chain path.
+vi.mock('./riskControls.ts', () => ({ assertWithdrawAllowed: async () => {} }));
 
 import { requestPartnerYieldWithdraw } from './partnerYieldWithdraw.ts';
 import { HttpError } from './wallet.ts';
