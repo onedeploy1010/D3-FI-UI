@@ -24,6 +24,50 @@ export type PrivyWallet = {
   owner_id: string | null;
 };
 
+/** Linked-account subset we care about when enumerating a user's wallets. */
+type PrivyLinkedAccount = {
+  type?: string;
+  address?: string;
+  chain_type?: string;
+};
+
+type PrivyUser = {
+  id?: string;
+  linked_accounts?: PrivyLinkedAccount[];
+};
+
+const ETH_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/** Linked-account types that carry an on-chain wallet address for this user. */
+const WALLET_ACCOUNT_TYPES = new Set(['wallet', 'smart_wallet']);
+
+/**
+ * Fetch every wallet address linked to a Privy user (by `sub`/DID), lowercased
+ * and de-duplicated. Used to prove that a claimed header wallet actually belongs
+ * to the authenticated Privy account before we bind or authorize it.
+ *
+ * Reuses the module's existing app credentials (PRIVY_APP_ID / PRIVY_APP_SECRET);
+ * throws if the API is unreachable or misconfigured so callers can fail closed.
+ */
+export async function getPrivyUserWalletAddresses(sub: string): Promise<string[]> {
+  const user = await privyRequest<PrivyUser>(
+    'GET',
+    `/v1/users/${encodeURIComponent(sub)}`,
+  );
+  const accounts = Array.isArray(user.linked_accounts) ? user.linked_accounts : [];
+  const addresses = new Set<string>();
+  for (const acct of accounts) {
+    const type = typeof acct?.type === 'string' ? acct.type : '';
+    const address = typeof acct?.address === 'string' ? acct.address.trim() : '';
+    // Only accept true wallet accounts (email/phone linked accounts also carry
+    // an `address` field, so filter by type AND on-chain address shape).
+    if (WALLET_ACCOUNT_TYPES.has(type) && ETH_ADDRESS_RE.test(address)) {
+      addresses.add(address.toLowerCase());
+    }
+  }
+  return [...addresses];
+}
+
 async function privyRequest<T>(
   method: string,
   path: string,

@@ -90,15 +90,33 @@ function reqWith(wallet: string): Request {
 const configured = () => true;
 const verifierFor = (sub: string) => async () => ({ sub }) as { sub: string };
 
+/**
+ * Injectable Privy user->wallets lookup used to PROVE ownership before a
+ * first-touch bind. Records calls so tests can assert the fast path never
+ * hits the network.
+ */
+function makeWalletLookup(map: Record<string, string[]>) {
+  const calls: string[] = [];
+  const fn = async (sub: string): Promise<string[]> => {
+    calls.push(sub);
+    return (map[sub] ?? []).map((w) => w.toLowerCase());
+  };
+  return Object.assign(fn, { calls });
+}
+
 describe('requireActorWallet (V-01/F2)', () => {
   it('rejects when the header wallet is owned by a different Privy sub (403)', async () => {
     const sb = makeSb([{ wallet_address: OWNER_WALLET, privy_user_id: 'sub-owner' }]);
+    const lookup = makeWalletLookup({});
     await expect(
       requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
         privyConfigured: configured,
         verifyPrivy: verifierFor('sub-attacker'),
+        getUserWallets: lookup,
       }),
     ).rejects.toMatchObject({ status: 403, message: 'Wallet not owned by caller' });
+    // Already bound to a sub -> fast path, no ownership API call.
+    expect(lookup.calls).toHaveLength(0);
   });
 
   it('rejects when the session sub is already bound to another wallet (403)', async () => {
@@ -107,38 +125,101 @@ describe('requireActorWallet (V-01/F2)', () => {
       requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
         privyConfigured: configured,
         verifyPrivy: verifierFor('sub-1'),
+        getUserWallets: makeWalletLookup({ 'sub-1': [OWNER_WALLET] }),
       }),
     ).rejects.toMatchObject({ status: 403, message: 'Session bound to another wallet' });
   });
 
-  it('binds an unbound profile to the caller sub and returns the wallet', async () => {
+  it('binds an unbound profile when the header wallet IS one of the Privy user wallets', async () => {
     const sb = makeSb([{ wallet_address: UNBOUND_WALLET, privy_user_id: null }]);
+    const lookup = makeWalletLookup({ 'sub-new': [UNBOUND_WALLET] });
     const result = await requireActorWallet(sb as never, reqWith(UNBOUND_WALLET), {
       privyConfigured: configured,
       verifyPrivy: verifierFor('sub-new'),
+      getUserWallets: lookup,
     });
     expect(result).toBe(UNBOUND_WALLET);
     expect(sb._rows[0].privy_user_id).toBe('sub-new');
     expect(sb._updates).toHaveLength(1);
+    expect(lookup.calls).toEqual(['sub-new']);
   });
 
-  it('returns the header wallet for a brand-new user with no profile', async () => {
-    const sb = makeSb([]);
-    const result = await requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
-      privyConfigured: configured,
-      verifyPrivy: verifierFor('sub-fresh'),
+  it('rejects the takeover: unbound profile but header wallet NOT in Privy wallets (403)', async () => {
+    // Attacker with a fresh Privy account tries to claim a null-binding profile
+    // that referral-sync pre-created for a wallet they do not control.
+    const sb = makeSb([{ wallet_address: UNBOUND_WALLET, privy_user_id: null }]);
+    const lookup = makeWalletLookup({ 'sub-attacker': [OTHER_WALLET] });
+    await expect(
+      requireActorWallet(sb as never, reqWith(UNBOUND_WALLET), {
+        privyConfigured: configured,
+        verifyPrivy: verifierFor('sub-attacker'),
+        getUserWallets: lookup,
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Wallet not linked to this Privy account',
     });
-    expect(result).toBe(OWNER_WALLET);
+    // Must NOT have bound the profile.
+    expect(sb._rows[0].privy_user_id).toBeNull();
     expect(sb._updates).toHaveLength(0);
   });
 
-  it('accepts a matching bound profile without re-binding', async () => {
+  it('binds a brand-new user (no profile) when the header wallet is proven owned', async () => {
+    const sb = makeSb([]);
+    const lookup = makeWalletLookup({ 'sub-fresh': [OWNER_WALLET] });
+    const result = await requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
+      privyConfigured: configured,
+      verifyPrivy: verifierFor('sub-fresh'),
+      getUserWallets: lookup,
+    });
+    expect(result).toBe(OWNER_WALLET);
+    expect(sb._updates).toHaveLength(0);
+    expect(lookup.calls).toEqual(['sub-fresh']);
+  });
+
+  it('rejects a brand-new user whose header wallet is not one of their Privy wallets (403)', async () => {
+    const sb = makeSb([]);
+    const lookup = makeWalletLookup({ 'sub-fresh': [OTHER_WALLET] });
+    await expect(
+      requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
+        privyConfigured: configured,
+        verifyPrivy: verifierFor('sub-fresh'),
+        getUserWallets: lookup,
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Wallet not linked to this Privy account',
+    });
+  });
+
+  it('accepts a matching bound profile without re-binding OR calling Privy', async () => {
     const sb = makeSb([{ wallet_address: OWNER_WALLET, privy_user_id: 'sub-owner' }]);
+    const lookup = makeWalletLookup({ 'sub-owner': [OWNER_WALLET] });
     const result = await requireActorWallet(sb as never, reqWith(OWNER_WALLET), {
       privyConfigured: configured,
       verifyPrivy: verifierFor('sub-owner'),
+      getUserWallets: lookup,
     });
     expect(result).toBe(OWNER_WALLET);
+    expect(sb._updates).toHaveLength(0);
+    // Fast path: ownership already proven previously -> no Privy outage exposure.
+    expect(lookup.calls).toHaveLength(0);
+  });
+
+  it('fails CLOSED with 503 when the Privy ownership lookup throws on first touch', async () => {
+    const sb = makeSb([{ wallet_address: UNBOUND_WALLET, privy_user_id: null }]);
+    const lookup = async (): Promise<string[]> => {
+      throw new Error('privy api down');
+    };
+    await expect(
+      requireActorWallet(sb as never, reqWith(UNBOUND_WALLET), {
+        privyConfigured: configured,
+        verifyPrivy: verifierFor('sub-new'),
+        getUserWallets: lookup,
+      }),
+    ).rejects.toMatchObject({ status: 503, message: 'Cannot verify wallet ownership' });
+    // Did not bind on unverified.
+    expect(sb._rows[0].privy_user_id).toBeNull();
     expect(sb._updates).toHaveLength(0);
   });
 
