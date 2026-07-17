@@ -370,5 +370,6 @@
   "program.loadingData": "正在加载数据…",
   "assets.flashWithdrawSubmitted": "闪兑已提交，处理中（结果请在资产历史查看）",
   "stake.confirmingUd3Stake": "UD3 质押处理中，请稍候…",
-  "stake.paidWithUd3": "UD3 支付"
+  "stake.paidWithUd3": "UD3 支付",
+  "tree.detailToggle": "详情"
 }

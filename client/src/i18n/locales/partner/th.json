@@ -348,5 +348,6 @@
   "program.loadingData": "กำลังโหลดข้อมูล…",
   "assets.flashWithdrawSubmitted": "ส่งแฟลชสวॉปแล้ว กำลังดำเนินการ (ดูผลลัพธ์ในประวัติสินทรัพย์)",
   "stake.confirmingUd3Stake": "กำลังดำเนินการสเตค UD3 โปรดรอ…",
-  "stake.paidWithUd3": "ชำระด้วย UD3"
+  "stake.paidWithUd3": "ชำระด้วย UD3",
+  "tree.detailToggle": "รายละเอียด"
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Search } from 'lucide-react';
+import { ArrowUp, ChevronDown, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerUd3TransferModal } from '@/components/partner/PartnerUd3TransferModal';
@@ -178,6 +178,16 @@ export function PartnerTeamTree({
   const p = usePartnerTranslation(lang);
   const [focusId, setFocusId] = useState('me');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // Per-node detail (stat grid) expansion — collapsed by default for a cleaner tree.
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
+  const toggleNodeExpanded = useCallback((id: string) => {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
   const [q, setQ] = useState('');
   const [aliases, setAliases] = useState<Record<string, string>>({});
   const [transferTarget, setTransferTarget] = useState<PartnerTeamNode | null>(null);
@@ -322,7 +332,22 @@ export function PartnerTeamTree({
           )}
         </div>
         <AddressBlock value={node.address} isDark={isDark} compact showCopy />
-        <NodeStatGrid node={node} isDark={isDark} p={p} />
+        <button
+          type="button"
+          onClick={() => toggleNodeExpanded(node.id)}
+          className={`w-full flex items-center justify-between text-[11px] font-semibold py-0.5 ${
+            isDark ? 'text-[#E0568F]/85' : 'text-[#8A2B57]/85'
+          }`}
+          aria-expanded={expandedNodes.has(node.id)}
+        >
+          <span>{p('tree.detailToggle')}</span>
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${expandedNodes.has(node.id) ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {expandedNodes.has(node.id) && <NodeStatGrid node={node} isDark={isDark} p={p} />}
         <div className="flex gap-2 pt-1">
           <PartnerRaisedButton
             variant="secondary"

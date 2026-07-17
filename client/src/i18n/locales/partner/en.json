@@ -370,5 +370,6 @@
   "program.loadingData": "Loading data…",
   "assets.flashWithdrawSubmitted": "Flash-swap submitted — processing (check Assets history for the result)",
   "stake.confirmingUd3Stake": "Processing UD3 stake, please wait…",
-  "stake.paidWithUd3": "Paid with UD3"
+  "stake.paidWithUd3": "Paid with UD3",
+  "tree.detailToggle": "Details"
 }

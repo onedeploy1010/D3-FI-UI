@@ -368,5 +368,6 @@
   "program.loadingData": "正在載入資料…",
   "assets.flashWithdrawSubmitted": "閃兌已提交，處理中（結果請在資產歷史查看）",
   "stake.confirmingUd3Stake": "UD3 質押處理中，請稍候…",
-  "stake.paidWithUd3": "UD3 支付"
+  "stake.paidWithUd3": "UD3 支付",
+  "tree.detailToggle": "詳情"
 }
