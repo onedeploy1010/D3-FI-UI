@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Compass, UserRound } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, Compass, UserRound } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { type Ud3SettlementRecord } from '@/components/partner/partnerData';
 import { UD3_DIRECT_SHARE, UD3_NETWORK_SHARE } from '@/components/partner/ud3Rules';
@@ -71,6 +71,8 @@ export function PartnerUd3RewardRow({
   const p = usePartnerTranslation(lang);
   const isPending = row.settlementStatus === 'pending';
   const isDirect = row.role !== 'upline';
+  // Details (deposit / tier / formula) collapsed by default for a cleaner list.
+  const [expanded, setExpanded] = useState(false);
 
   const fx = useMemo(() => {
     const deposit = row.dailyNewPerformanceUsd;
@@ -101,7 +103,12 @@ export function PartnerUd3RewardRow({
     <article className={`partner-elevated-card overflow-hidden ${glassCardClass('default', '')}`}>
       <span className="ios-glass-sheen pointer-events-none" aria-hidden />
       <div className="relative px-3.5 pt-3.5 pb-3 space-y-3">
-        <div className="flex items-start justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full flex items-start justify-between gap-3 text-left"
+          aria-expanded={expanded}
+        >
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
@@ -139,20 +146,31 @@ export function PartnerUd3RewardRow({
             </div>
           </div>
 
-          <div className="text-right shrink-0">
-            <div className="text-[18px] font-bold text-[#E0568F] tabular-nums leading-none tracking-tight">
-              +{fmt(row.ud3Amount)}
+          <div className="flex items-start gap-1.5 shrink-0">
+            <div className="text-right">
+              <div className="text-[18px] font-bold text-[#E0568F] tabular-nums leading-none tracking-tight">
+                +{fmt(row.ud3Amount)}
+              </div>
+              <div
+                className={`mt-1 text-[10px] font-semibold tracking-[0.12em] ${
+                  isDark ? 'text-white/30' : 'text-[#160510]/32'
+                }`}
+              >
+                UD3
+              </div>
             </div>
-            <div
-              className={`mt-1 text-[10px] font-semibold tracking-[0.12em] ${
-                isDark ? 'text-white/30' : 'text-[#160510]/32'
+            <ChevronDown
+              size={16}
+              className={`mt-1 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''} ${
+                isDark ? 'text-white/35' : 'text-[#160510]/35'
               }`}
-            >
-              UD3
-            </div>
+              aria-hidden
+            />
           </div>
-        </div>
+        </button>
 
+        {expanded && (
+        <>
         <div className="grid grid-cols-2 gap-1.5">
           <Metric
             label={p('team.ud3FieldDeposit')}
@@ -233,6 +251,8 @@ export function PartnerUd3RewardRow({
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
     </article>
   );
