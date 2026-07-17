@@ -43,7 +43,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 /** Synthetic email domain — admins type a short username; we append this to
  *  satisfy Supabase Auth's email requirement without making them remember
  *  the full string. */
-const AUTH_DOMAIN = "@d3.local";
+const AUTH_DOMAIN = "@d3.fi";
 
 async function loadAdminProfile(authUserId: string, fallbackEmail: string): Promise<AdminUser | null> {
   const { data, error } = await supabase

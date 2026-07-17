@@ -116,10 +116,10 @@ export default function LoginPage() {
                 transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
               />
               <div className="relative w-10 h-10 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]">
-                <span className="text-primary text-base font-bold">M</span>
+                <span className="text-primary text-base font-bold">D3</span>
               </div>
             </div>
-            <span className="text-2xl font-bold tracking-wide text-foreground">MarketRune</span>
+            <span className="text-2xl font-bold tracking-wide text-foreground">D3 Finance</span>
           </motion.div>
 
           <motion.div
