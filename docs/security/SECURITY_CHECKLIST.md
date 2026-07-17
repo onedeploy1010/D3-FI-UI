@@ -20,18 +20,27 @@
 - [x] 后台不可变审计 + 付款类改动双人复核(maker-checker,先锁后执行)
 - [x] 金额输入校验、cron 常量时间比较、速率限制、demo 默认关
 
-### A2. v2 复检新增待修(2026-07-17,详见 `D3-FI-安全复检报告.pdf`)
-- [ ] R-1(High)重复迁移编号(两个 `038_*`、两个 `042_*`)重命名为唯一编号后再 `db push`
-- [ ] R-2(High/须核实)水龙头币作为主网结算资产——测试期有意;上线前钉真实 USDT 并移除 faucet 标志
-- [ ] R-3(Med)审批路由按 `action` 校验权限(`security.*`→`security.write`),防越权解除熔断/放宽限额
-- [ ] R-4(Med)删除或下线陈旧 `deploy-pages.yml` 第二公开源
-- [ ] R-5(Low-Med)`/auth/nonce`、`/auth/verify` 加限流 + nonce 过期清理(防 DoS/表膨胀)
-- [ ] R-6(Low-Med)`partner_accounts.pending_ud3` 补 `CHECK ≥ 0`
-- [ ] R-7(Low-Med)两阶段结算:`settle_pending_ud3` 成功后再标记 `settled=true`(防少记滞留)
-- [ ] R-8(Low)会话令牌加 jti/吊销或缩短 TTL
-- [ ] R-9(Low)`.env.example` 补 `SIWE_SESSION_SECRET`/`SIWE_ALLOWED_DOMAINS`/`TREASURY_CRON_SECRET`
-- [ ] R-10(Low-Med)链上核实 ReferralRegistry 角色已转多签并 renounce 热 EOA
-- [ ] R-11(Info)删除死代码(`credit_ud3_balance`、`privy.ts` 认证导出);`upsertReferralFromChain` 加自荐守卫
+### A2. v2 复检 R-1…R-11 处置(v3 更新 2026-07-18,详见 `D3-FI-安全复检报告.pdf`)
+- [x] R-1 迁移编号冲突 → 已重编号(048/049),无冲突
+- [x] R-3 审批按 action 校验权限(`security.*`→`security.write`)
+- [x] R-4 删除陈旧 `deploy-pages.yml`
+- [x] R-5 `/auth/*` 宽松限流 + `siwe_nonces` 5 分钟清理
+- [x] R-6 `pending_ud3` 补 `CHECK ≥ 0`(迁移 046)
+- [x] R-7 两阶段结算成功后才标记 `settled`
+- [x] R-9 `.env.example` 补 SIWE/CRON 变量
+- [x] R-11 `upsertReferralFromChain` 加自荐守卫
+- [ ] R-2(须核实)水龙头币作主网结算资产——测试期有意;上线前钉真实 USDT
+- [ ] R-8 会话令牌加 jti/吊销或缩短 TTL(延后,避免测试期动热认证路径)
+- [ ] R-10 链上核实 ReferralRegistry 角色已转多签并 renounce 热 EOA
+
+### A3. 【v3 新发现】金库资金管理 / 转账流(承载真实资金前必修)
+> 新增「资金管理」金库出账流:签名层依赖 Turnkey 2/3 root-quorum(正确),但应用层薄弱。
+- [ ] T-C(Critical/配置相关)生产强制拒绝金库 `dev_hd` 内联签名+即时广播;代码校验 Turnkey root quorum≥2
+- [ ] T-A(High)金库转账加专用财务权限或仅 superadmin(现仅低阶 `members.write`)
+- [ ] T-B(High)金库 propose→broadcast 走双人 maker-checker(`assertDifferentApprover`)
+- [ ] T-D(Med-High)服务端加金额上限 + 收款白名单 + 每日限额;删除误导性"已有限额"注释
+- [ ] T-E(Med)金库转账加每笔幂等键(防重复 propose → 重复链上转账)
+- [ ] T-J(Med)链上验证金库转账确实到达 Turnkey `CONSENSUS_NEEDED`(非被兜底 DENY 直接拒)
 
 ### B. 数据库(已部署线上并验证)
 - [x] 14 张暴露表启用 RLS(实测 anon 读/写/伪造均 401)

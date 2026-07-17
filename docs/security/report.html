@@ -2,125 +2,127 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>D3-FI 全面安全复检报告 (v2 · SIWE)</title>
+<title>D3-FI 全面安全复检报告 (v3)</title>
 <style>
   @page { size: A4; margin: 15mm 13mm; }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif; color:#1a1f2e; font-size:10.5px; line-height:1.55; margin:0; }
+  body { font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif; color:#1a1f2e; font-size:10.3px; line-height:1.5; margin:0; }
   h1 { font-size:21px; margin:0 0 4px; }
-  h2 { font-size:15px; margin:20px 0 8px; padding-bottom:4px; border-bottom:2px solid #2b59ff; color:#14235c; }
-  h3 { font-size:12.5px; margin:12px 0 5px; color:#14235c; }
+  h2 { font-size:14.5px; margin:18px 0 7px; padding-bottom:4px; border-bottom:2px solid #2b59ff; color:#14235c; }
+  h3 { font-size:12px; margin:11px 0 5px; color:#14235c; }
   p { margin:5px 0; }
-  code { font-family:Menlo,Consolas,monospace; font-size:9.3px; background:#eef1f7; padding:1px 4px; border-radius:3px; color:#c0341d; }
-  .cover { background:linear-gradient(135deg,#0b3d2e,#12b886); color:#fff; padding:24px; border-radius:10px; margin-bottom:14px; }
-  .cover .meta { font-size:10px; opacity:.92; margin-top:9px; }
-  .verdict { display:inline-block; font-weight:700; font-size:13px; padding:5px 12px; border-radius:6px; margin-top:10px; background:#ffd43b; color:#3a2d00; }
-  table { width:100%; border-collapse:collapse; margin:8px 0; font-size:9.5px; }
+  code { font-family:Menlo,Consolas,monospace; font-size:9.2px; background:#eef1f7; padding:1px 4px; border-radius:3px; color:#c0341d; }
+  .cover { background:linear-gradient(135deg,#14235c,#2b59ff); color:#fff; padding:22px; border-radius:10px; margin-bottom:12px; }
+  .cover .meta { font-size:9.6px; opacity:.92; margin-top:8px; }
+  .verdict { display:inline-block; font-weight:700; font-size:12.5px; padding:5px 12px; border-radius:6px; margin-top:9px; background:#ffd43b; color:#3a2d00; }
+  table { width:100%; border-collapse:collapse; margin:7px 0; font-size:9.3px; }
   th,td { border:1px solid #d3d9e6; padding:4px 6px; text-align:left; vertical-align:top; }
   th { background:#eef1f9; color:#14235c; }
   tr:nth-child(even) td { background:#f8fafd; }
-  .tag { font-weight:700; padding:1px 6px; border-radius:4px; font-size:9px; white-space:nowrap; }
+  .tag { font-weight:700; padding:1px 6px; border-radius:4px; font-size:8.8px; white-space:nowrap; }
   .closed{background:#d3f9d8;color:#1c7a35}.deploy{background:#fff3bf;color:#8a6100}.accept{background:#e7e0ff;color:#5b3fb8}
   .crit{background:#ffe3e3;color:#c0341d}.high{background:#ffe8cc;color:#b5540a}.med{background:#fff3bf;color:#8a6100}.low{background:#e6f0ff;color:#25529c}.info{background:#e9ecef;color:#495057}
   .ok{color:#1c7a35;font-weight:700}
   .box{border:1px solid #d3d9e6;border-radius:8px;padding:9px 12px;margin:8px 0;background:#fbfcfe}
+  .warn{border:1px solid #ffc9c9;background:#fff5f5}
   ul{margin:5px 0;padding-left:18px}li{margin:2px 0}
   .chk{list-style:none;padding-left:2px}.chk li:before{content:"☑ ";color:#1c7a35;font-weight:700}.chk li.todo:before{content:"☐ ";color:#b5540a}
-  .kpi{display:flex;gap:8px;margin:10px 0}.kpi div{flex:1;border:1px solid #d3d9e6;border-radius:8px;padding:8px;text-align:center;background:#fff}.kpi b{display:block;font-size:17px;color:#12b886}
-  pre{background:#0f1830;color:#d7e0f5;padding:8px 10px;border-radius:6px;font-size:8.7px;white-space:pre-wrap}
-  .foot{margin-top:14px;padding-top:8px;border-top:1px solid #d3d9e6;color:#8a93a6;font-size:8.5px}
+  .kpi{display:flex;gap:8px;margin:9px 0}.kpi div{flex:1;border:1px solid #d3d9e6;border-radius:8px;padding:7px;text-align:center;background:#fff}.kpi b{display:block;font-size:16px;color:#2b59ff}
+  pre{background:#0f1830;color:#d7e0f5;padding:8px 10px;border-radius:6px;font-size:8.6px;white-space:pre-wrap}
+  .foot{margin-top:13px;padding-top:8px;border-top:1px solid #d3d9e6;color:#8a93a6;font-size:8.3px}
 </style>
 </head>
 <body>
 
 <div class="cover">
-  <h1>D3-FI 全面安全复检报告(v2)</h1>
-  <div>针对当前代码的二次全量白盒审计 · 3 组对抗性 agent · 线上系统实测验证</div>
+  <h1>D3-FI 全面安全复检报告(v3)</h1>
+  <div>当前代码全量复核 · 新增金库资金管理流深度审计 · 线上系统实测</div>
   <div class="meta">
-    项目:D3-FI-UI(Supabase Edge Functions/Deno + BSC 合约 + React) · 分支:<code style="color:#fff;background:rgba(255,255,255,.15)">main</code><br>
-    重大变更:认证已由 Privy 迁移为 <b>Reown AppKit + SIWE</b>(EIP-4361);两阶段 UD3 结算;sD3→UD3 重命名;Cloudflare Pages 自动部署<br>
-    日期:2026-07-17 · 阶段:未上线 · 结算币:测试/水龙头币(fake USDT)
+    项目:D3-FI-UI(Supabase Edge Functions/Deno + BSC 合约 + React) · 分支:<code style="color:#fff;background:rgba(255,255,255,.15)">main</code>(origin 同步)<br>
+    认证:Reown AppKit + SIWE(EIP-4361) · 结算币:测试/水龙头币(fake USDT) · 阶段:未上线<br>
+    自 v2 变更:新增「资金管理」金库转账流、两阶段结算完善、迁移重编号(042–049 无冲突)、R-1…R-11 修复
   </div>
-  <div class="verdict">最终判定:CONDITIONAL — 核心资金安全经实测验证达标;本次新增发现为中/低危 + 运维项</div>
+  <div class="verdict">判定:CONDITIONAL — 核心资金安全经实测达标;新金库转账流需应用层加固后方可承载真实资金</div>
 </div>
 
 <div class="kpi">
-  <div><b>SIWE</b>认证已重写并经线上验证</div>
-  <div><b>全部</b>原有资金防护经重构后仍完好</div>
-  <div><b>20/20</b>新表+原表 RLS 锁定(实测 anon 0 授权)</div>
-  <div><b>0</b>新增可直接盗资金的严重漏洞</div>
+  <div><b>163</b>安全测试全绿</div>
+  <div><b>0</b>anon 可达资金表(实测)</div>
+  <div><b>8/11</b>R 系列已修复(3 项按设计延后)</div>
+  <div><b>6</b>新金库流待加固项(T-A…T-J)</div>
 </div>
 
 <h2>一、结论摘要</h2>
-<p>自上次修复后,代码发生重大演进(<b>认证从 Privy 迁移到 SIWE</b>、两阶段 UD3 结算、UD3 重命名、Cloudflare 自动部署)。本次对<strong>当前代码</strong>做了全量二次审计,并对<strong>线上运行系统做了实测验证</strong>。</p>
-<p><strong>核心结论:资金安全姿态强,且经实测验证。</strong>新的 SIWE 认证设计良好(登录时以钱包签名证明所有权,下游只信任会话令牌主体,不再信任任何可伪造请求头);上次修复的全部防护(原子借贷记、闪兑五重护栏、质押原子扣减、充值幂等、限额熔断、价格护栏、奖励幂等、推荐完整性)在重构后<strong>全部保持完好,未发现新的资金盗取/超发路径</strong>。</p>
-<p>本次新增发现集中在<strong>迁移编号冲突、CI/权限、DoS 节流、约束补齐</strong>等中低危与运维项。综合判定维持 <strong>CONDITIONAL</strong>:测试期(水龙头币)安全;承载真实资金前完成第五节部署清单即可。</p>
+<p><strong>核心资金安全姿态强,且经线上实测</strong>:SIWE 认证(登录 200、无令牌资金路由 401 失败关闭)、全库 RLS(anon 授权实测为 0)、原子借贷记、闪兑五重护栏、限额熔断、价格护栏、充值/奖励幂等——全部完好;上次 R-1…R-11 中 8 项已修复并推送。</p>
+<p class="warn box"><strong>本次重点新发现(必须知悉)</strong>:你新增的「资金管理 / 金库转账」流(<code>fundManagement.ts</code> + 迁移 047 + 后台页)是<strong>最高风险的金库出账路径</strong>,其签名层依赖 Turnkey 2/3 root-quorum(设计正确),但<strong>应用层薄弱</strong>:无独立金库权限、无 maker-checker、无金额/白名单/限额、无幂等,且存在一条 <code>dev_hd</code> 内联签名+即时广播的<strong>单人掏空</strong>旁路(配置相关)。详见第四节 T-A…T-J。</p>
+<p>综合判定维持 <strong>CONDITIONAL</strong>:测试期(水龙头币)安全;承载真实资金前须完成金库流加固(T 系列)+ 既有部署清单。</p>
 
 <h2>二、经实测验证的核心防护(CLOSED)</h2>
 <table>
 <tr><th>域</th><th>结论</th><th>证据(当前代码 / 线上实测)</th></tr>
-<tr><td>SIWE 认证</td><td><span class="tag closed">强 · 已验证</span></td><td>nonce 单次+原子消费+5min TTL;签名恢复==声明地址;域名服务端白名单(不信任请求 Host);HS256 常量时间校验、无 alg 混淆;<b>线上:登录 200、无令牌资金路由 401 失败关闭</b></td></tr>
-<tr><td>钱包身份</td><td><span class="tag closed">已关闭</span></td><td>全部资金路由身份取自会话令牌 <code>sub</code>;<code>X-Wallet-Address</code> 仅当与之匹配才接受;A 会话无法冒充 B</td></tr>
-<tr><td>原子借贷记</td><td><span class="tag closed">重构后仍完好</span></td><td><code>pending_d3_yield</code>/<code>ud3_balance</code> 全部经原子 RPC;两阶段结算未引入读改写</td></tr>
-<tr><td>闪兑</td><td><span class="tag closed">已关闭</span></td><td>请求时原子扣减+在途唯一+失败回补+仅未广播才退款+≥12 确认</td></tr>
-<tr><td>质押/充值</td><td><span class="tag closed">已关闭</span></td><td>质押原子扣减+订单去重;充值入口守卫+链上金额校验+原子跃迁幂等</td></tr>
-<tr><td>限额/熔断/价格</td><td><span class="tag closed">已关闭</span></td><td>扣减前 <code>assertWithdrawAllowed</code>(单笔/日/时/偿付率);价格失效即拒付</td></tr>
-<tr><td>数据库锁定</td><td><span class="tag closed">已验证</span></td><td>14 原表 + <code>siwe_nonces</code>/告警/风控/审批 等新表全部 RLS;<b>线上实测 anon 表授权 = 0</b></td></tr>
-<tr><td>后台/推荐</td><td><span class="tag closed">已关闭</span></td><td>admin RLS 递归修复正确;maker-checker+不可变审计;推荐防自荐/环路/双归属</td></tr>
+<tr><td>SIWE 认证</td><td><span class="tag closed">强·已验证</span></td><td>nonce 原子单次+域名服务端白名单+HS256 常量时间;<b>线上:登录 200、无令牌资金路由 401</b></td></tr>
+<tr><td>数据库锁定</td><td><span class="tag closed">已验证</span></td><td>14 原表 + siwe_nonces/告警/风控/审批/<b>treasury_transfer_requests</b> 全 RLS;<b>线上 anon 授权=0</b></td></tr>
+<tr><td>原子借贷记</td><td><span class="tag closed">完好</span></td><td>pending_d3_yield/ud3_balance/pending_ud3 全经原子 RPC;两阶段结算无读改写</td></tr>
+<tr><td>闪兑 / 质押 / 充值</td><td><span class="tag closed">完好</span></td><td>请求时原子扣减+在途唯一+失败回补+仅未广播才退款+≥12 确认;充值入口守卫+链上校验+原子跃迁</td></tr>
+<tr><td>限额/熔断/价格</td><td><span class="tag closed">完好</span></td><td>扣减前 assertWithdrawAllowed(单笔/日/时/偿付率);价格失效即拒付</td></tr>
+<tr><td>后台/推荐/迁移</td><td><span class="tag closed">已验证</span></td><td>admin RLS 递归修复正确;admin_users 授权仍受 RLS 约束仅可读自身行;推荐防自荐/环路;<b>迁移无编号冲突</b></td></tr>
 </table>
 
-<h2>三、本次新增 / 遗留发现</h2>
+<h2>三、R-1…R-11 处置状态(v2 发现)</h2>
 <table>
-<tr><th>ID</th><th>发现</th><th>严重度</th><th>状态</th><th>修复</th></tr>
-<tr><td>R-1</td><td>迁移编号冲突:两个 <code>038_*</code>、两个 <code>042_*</code>,<code>db push</code> 以 version 为主键,安全关键迁移(<code>038_risk_controls</code>/<code>042_siwe_auth</code>)可能被静默跳过或阻断部署</td><td><span class="tag high">High</span></td><td><span class="tag deploy">待修</span></td><td>重命名为唯一编号(如 044/045)后再 push;线上对象已存在,仅修文件与迁移记录</td></tr>
-<tr><td>R-2</td><td>水龙头币("USDT" 可任意 mint)作为结算资产写入<b>主网生产构建</b>(<code>VITE_BSC_USDT_ADDRESS</code>+<code>VITE_USDT_IS_FAUCET=true</code>, chain 56)</td><td><span class="tag high">High(须核实)</span></td><td><span class="tag accept">测试期有意</span></td><td>此为你既定"测试期 fake 币"策略;上线前钉真实 USDT、移除 faucet 标志;确认测试期未开启真实价值提现</td></tr>
-<tr><td>R-3</td><td>跨权限审批:<code>/approvals/:id/approve</code> 仅校验 <code>subsidies.write</code>,却可执行 <code>security.unpause</code>/<code>risk_limits.update</code> → 无 <code>security.write</code> 的管理员可批准解除熔断/放宽限额</td><td><span class="tag med">Med</span></td><td><span class="tag deploy">待修</span></td><td>审批路由按审批 <code>action</code> 校验对应权限(security.* 需 security.write)</td></tr>
-<tr><td>R-4</td><td>陈旧 <code>deploy-pages.yml</code> 仍在 push 时发布第二个(Privy 时代)公开源,可能是过期登录面</td><td><span class="tag med">Med</span></td><td><span class="tag deploy">待修</span></td><td>删除该 workflow 或确认该源已下线,且不在 <code>SIWE_ALLOWED_DOMAINS</code></td></tr>
-<tr><td>R-5</td><td><code>/auth/nonce</code> 与 <code>/auth/verify</code> 无 apikey、无限流 → nonce 表无限增长 + 签名恢复 CPU DoS</td><td><span class="tag med">Low-Med</span></td><td><span class="tag deploy">待修</span></td><td>按 IP/地址限流 + nonce 过期清理任务</td></tr>
-<tr><td>R-6</td><td>043 新增 <code>partner_accounts.pending_ud3</code> 缺 <code>CHECK ≥ 0</code>(其余余额列均有)</td><td><span class="tag low">Low-Med</span></td><td><span class="tag deploy">待修</span></td><td>补非负约束(防御性,当前代码不会致负)</td></tr>
-<tr><td>R-7</td><td>两阶段结算:<code>settle_pending_ud3</code> 出错被吞但 ledger 仍标记 <code>settled=true</code> → 奖励滞留 <code>pending_ud3</code>(用户少记,金库安全)</td><td><span class="tag low">Low-Med</span></td><td><span class="tag deploy">待修</span></td><td>仅在 settle 成功后再标记 settled</td></tr>
-<tr><td>R-8</td><td>会话令牌 7 天且无吊销/jti/轮换 → 泄露后 7 天有效</td><td><span class="tag low">Low</span></td><td><span class="tag deploy">待修</span></td><td>加 jti+吊销表或缩短 TTL+轮换</td></tr>
-<tr><td>R-9</td><td><code>.env.example</code> 未列 <code>SIWE_SESSION_SECRET</code>/<code>SIWE_ALLOWED_DOMAINS</code>/<code>TREASURY_CRON_SECRET</code>(线上已设,仅文档缺失,易致新环境误配)</td><td><span class="tag low">Low</span></td><td><span class="tag deploy">待修</span></td><td>补入 .env.example(占位)</td></tr>
-<tr><td>R-10</td><td>ReferralRegistry 三角色(含 UPGRADER/REBIND)在 backfill 期由单一热 EOA 持有</td><td><span class="tag low">Low-Med</span></td><td><span class="tag deploy">链上核实</span></td><td>核实已转多签并 renounce 热 EOA</td></tr>
-<tr><td>R-11</td><td>信息项:<code>upsertReferralFromChain</code> 缺自身 <code>user!==upline</code> 自荐守卫(依赖合约);死代码 <code>credit_ud3_balance</code>(041)、<code>privy.ts</code> 认证导出未引用</td><td><span class="tag info">Info</span></td><td><span class="tag deploy">清理</span></td><td>加防御性自荐检查;删除死代码</td></tr>
+<tr><th>ID</th><th>发现</th><th>状态</th></tr>
+<tr><td>R-1</td><td>迁移编号重复(038/042)</td><td><span class="tag closed">已修复(重编号 048/049,无冲突)</span></td></tr>
+<tr><td>R-3</td><td>审批越权(subsidies.write 可解熔断)</td><td><span class="tag closed">已修复(按 action 校验权限)</span></td></tr>
+<tr><td>R-4</td><td>陈旧 deploy-pages.yml 第二源</td><td><span class="tag closed">已删除</span></td></tr>
+<tr><td>R-5</td><td>/auth/* 无限流(DoS)</td><td><span class="tag closed">已修复(宽松限流+nonce 清理)</span></td></tr>
+<tr><td>R-6</td><td>pending_ud3 缺 CHECK≥0</td><td><span class="tag closed">已修复(迁移 046)</span></td></tr>
+<tr><td>R-7</td><td>结算出错仍标记 settled</td><td><span class="tag closed">已修复(成功才标记)</span></td></tr>
+<tr><td>R-9</td><td>.env.example 缺 SIWE/CRON</td><td><span class="tag closed">已补</span></td></tr>
+<tr><td>R-11</td><td>推荐链自荐守卫 / 死代码</td><td><span class="tag closed">已加自荐守卫</span></td></tr>
+<tr><td>R-2</td><td>水龙头币作主网结算资产</td><td><span class="tag accept">按设计(测试期);上线前钉真实 USDT</span></td></tr>
+<tr><td>R-8</td><td>会话 7 天无吊销/jti</td><td><span class="tag deploy">延后(避免测试期动热认证路径)</span></td></tr>
+<tr><td>R-10</td><td>推荐合约角色在热 EOA</td><td><span class="tag deploy">你的链上操作(转多签)</span></td></tr>
 </table>
 
-<h2>四、线上系统实测验证结果</h2>
-<pre>登录     POST /union/auth/nonce            -> 200  {"nonce":"..."}         (SIWE 正常)
-资金路由 POST /treasury/partner/sd3-stake  -> 401  Session token required (失败关闭,非 503)
-匿名直连 anon key -> d3_price_settings 读/改 -> 401 permission denied      (RLS 生效)
-匿名直连 anon key -> multisig_signatures 伪造 -> 401 permission denied     (RLS 生效)
-线上库   siwe_nonces RLS=on, anon 授权=0 ; 全 schema anon 表授权 = 0
-线上库   5 个原子余额 RPC 均 security definer ; 6/6 新表 RLS 开启
-边缘函数 treasury /health -> 200 (钱包基础设施、金库、闪兑均 configured)
-密钥     SIWE_SESSION_SECRET / SIWE_ALLOWED_DOMAINS / TREASURY_CRON_SECRET 均已部署</pre>
-<p class="muted">说明:审计 agent 曾据 <code>.env.example</code> 未列 SIWE 变量而推断"生产未配置导致认证宕机";经上述<strong>线上实测证伪</strong>——密钥已设、登录与失败关闭均正常。这正是对线上验证的价值。</p>
+<h2>四、【本次新发现】金库资金管理 / 转账流(T 系列)</h2>
+<p>架构:后台管理员 → <code>submitTreasuryTransfer</code> 构造 BSC 交易(BNB/USDT)→ 提交 Turnkey <code>SIGN_TRANSACTION</code> → 因金库钱包(应)受 2/3 root-quorum 保护而返回 <code>CONSENSUS_NEEDED</code>,由 3 名 root 中 2 名在 Turnkey 面板批准后广播。<strong>签名层设计正确,但应用层缺乏独立控制,"非单人可掏空"完全依赖链下 Turnkey 配置,代码不强制。</strong></p>
+<table>
+<tr><th>ID</th><th>发现</th><th>严重度</th><th>证据 / 修复</th></tr>
+<tr><td>T-C</td><td><code>dev_hd</code> 内联签名+即时广播<b>绕过全部 consensus</b>:若金库钱包被 dev 方式provision 或 2/3 阈值未提升,单一 <code>members.write</code> 管理员一次调用即可把金库全额转到任意地址</td><td><span class="tag crit">Critical(配置相关)</span></td><td><code>turnkey.ts:549</code>、<code>fundManagement.ts:155</code>。修复:生产强制拒绝金库 <code>dev_hd</code>;代码断言/校验 Turnkey 阈值≥2</td></tr>
+<tr><td>T-A</td><td>金库出账仅由低阶共享权限 <code>members.write</code> 门控(与普通会员管理/生成充值地址同权);无专用财务/金库权限;superadmin 全绕过</td><td><span class="tag high">High</span></td><td><code>admin/index.ts:1066,1101</code>。修复:新增专用 treasury/finance 权限或仅 superadmin</td></tr>
+<tr><td>T-B</td><td>金库转账<b>无应用层 maker-checker</b>:同一管理员可 propose 又 broadcast;<code>assertDifferentApprover</code> 未接入金库流(其余高危面都有)</td><td><span class="tag high">High</span></td><td><code>admin/index.ts</code> 未走 <code>createApproval</code>。修复:propose→broadcast 走双人审批</td></tr>
+<tr><td>T-D</td><td>无金额上限 / 收款白名单 / 每日限额;且 <code>turnkey-setup-policies.ts:72</code> 注释<b>谎称</b>"应用层已有单笔/每日限额"——实际不存在</td><td><span class="tag high">Med-High</span></td><td><code>fundManagement.ts:118</code>。修复:服务端加最大额+白名单+日限;删除误导注释</td></tr>
+<tr><td>T-E</td><td>无每笔幂等键:两次相同 propose → 两条记录 → 两个 Turnkey 活动 → 若都被批准则两笔链上转账</td><td><span class="tag med">Med</span></td><td>迁移 047 无幂等键。修复:加 request idempotency key 唯一约束</td></tr>
+<tr><td>T-J</td><td>Turnkey 策略兜底 <code>DENY(condition:'true')</code> 与"金库应 fall-through 到 root-quorum"的 DSL 语义未在仓内验证</td><td><span class="tag med">Med(运维/正确性)</span></td><td>链上实测确认金库转账确实到达 <code>CONSENSUS_NEEDED</code> 而非被直接拒</td></tr>
+<tr><td>—</td><td>正面:<code>to</code>/<code>amount</code> 编入 Turnkey 签名载荷、广播不重读 DB(无 TOCTOU);047 有 amount&gt;0/asset/status CHECK + RLS anon 撤销;propose/broadcast 均写审计</td><td><span class="tag info">GOOD</span></td><td>—</td></tr>
+</table>
+<div class="box warn"><strong>净新增风险</strong>:一条金库出账路径,唯一实质保障是链下 Turnkey 2/3 consensus;应用层无 maker-checker、低阶共享权限、无额度/白名单/幂等,并有 <code>dev_hd</code> 单人掏空旁路。<strong>建议在承载真实资金前按上表修复,并链上核实金库确为真实 2/3 Turnkey 钱包。</strong></div>
 
-<h2>五、部署 / 运维检查清单(承载真实资金前)</h2>
+<h2>五、线上系统实测验证</h2>
+<pre>登录     POST /union/auth/nonce            -> 200                     (SIWE 正常)
+资金路由 POST /treasury/partner/sd3-stake  -> 401 Session token required(失败关闭)
+线上库   anon schema 表授权 = 0 ; treasury_transfer_requests RLS = on
+线上库   admin_users 仅 authenticated 授权(RLS 约束仅可读自身行)
+迁移     042–049 无编号冲突 ; 安全回归测试 20 文件 / 163 全绿</pre>
+
+<h2>六、上线前检查清单(承载真实资金)</h2>
 <ul class="chk">
-<li class="todo">R-1:重命名重复迁移编号(038/042),再 <code>supabase db push</code> 对齐迁移记录</li>
-<li class="todo">R-2:上线前 <code>BSC_USDT_CONTRACT</code>/<code>VITE_BSC_USDT_ADDRESS</code> 钉真实 USDT、移除 faucet 标志与 <code>ALLOW_MAINNET_FAUCET_TOKEN</code>;确认测试期无真实价值提现</li>
-<li class="todo">R-3:审批路由按 action 校验权限(security.* → security.write)</li>
-<li class="todo">R-4:删除或下线陈旧 <code>deploy-pages.yml</code> 第二源</li>
-<li class="todo">R-5:给 <code>/auth/*</code> 加限流 + nonce 清理;R-6:补 <code>pending_ud3 ≥ 0</code>;R-7:settle 成功才标记;R-8:会话吊销/短 TTL;R-9:补 .env.example</li>
-<li class="todo">R-10:ReferralRegistry 角色转多签 + renounce 热 EOA(链上核实)</li>
-<li class="todo">凭证隔离:Turnkey root quorum≥2,金库/cosigner 密钥不与边缘环境共存</li>
-<li class="todo">部署边缘函数 <code>npm run supabase:deploy</code>(本次已部署 6 个函数);执行 <code>npm run turnkey:policies</code></li>
-<li class="todo">配置告警推送 <code>SECURITY_*</code> 密钥;确认 <code>d3-security-scan</code> cron(每 5 分钟,已注册)</li>
+<li class="todo"><b>T-C</b> 生产强制拒绝金库 <code>dev_hd</code>;代码校验 Turnkey root quorum≥2(不假设手动步骤已做)</li>
+<li class="todo"><b>T-A/T-B</b> 金库转账加专用权限 + propose→broadcast 双人 maker-checker</li>
+<li class="todo"><b>T-D/T-E</b> 服务端金额上限+收款白名单+日限;每笔幂等键;删误导注释;<b>T-J</b> 链上验证 consensus 语义</li>
+<li class="todo"><b>R-2</b> 钉真实 USDT、移除 <code>ALLOW_MAINNET_FAUCET_TOKEN</code>;<b>R-8</b> 会话 jti/吊销;<b>R-10</b> 推荐合约角色转多签</li>
+<li class="todo">凭证隔离:金库/cosigner 密钥移出边缘环境;部署边缘函数 <code>npm run supabase:deploy</code>;<code>npm run turnkey:policies</code></li>
+<li class="todo">上线前跑 <code>npm run security:preflight</code> 要求 PASS;配置告警推送 <code>SECURITY_*</code></li>
 </ul>
 <h3>已完成 / 已验证</h3>
 <ul class="chk">
-<li>SIWE 认证(线上登录/失败关闭正常)· 全库 RLS + anon 授权清零(实测)</li>
-<li>原子借贷记 / 闪兑五重护栏 / 质押原子 / 充值幂等 / 限额熔断 / 价格护栏(重构后仍完好)</li>
-<li>后台 maker-checker + 不可变审计 · 监控引擎 + 熔断开关 + 安全中心页 · 部署前 preflight</li>
+<li>SIWE 认证 + 全库 RLS + anon 授权清零(线上实测)· 原子账本 / 闪兑护栏 / 限额熔断 / 价格护栏 / 幂等</li>
+<li>R-1/3/4/5/6/7/9/11 修复 · 监控引擎+熔断开关+安全中心页+preflight · 迁移无冲突</li>
 </ul>
 
-<h2>六、监控与守护(现状)</h2>
-<p>监控引擎(偿付率击穿自动暂停闪兑、闪兑量激增、价格异常、充值异常、待审批、熔断提醒)、Telegram/Slack 推送、admin「安全中心」熔断页、每 5 分钟扫描 cron 均已就位;暂停可单人即时,<strong>恢复须双人审批</strong>。事件响应见 <code>INCIDENT_RUNBOOK.md</code>,清单见 <code>SECURITY_CHECKLIST.md</code>。</p>
-
 <div class="foot">
-本报告基于当前 <code>main</code> 分支代码 + 线上数据库/边缘函数实测 + 3 组对抗性 agent 复检生成。"已验证"结论均有 file:line 证据或线上响应支撑。上一版报告(Privy 时代)已按要求删除并由本报告替代。生成于 2026-07-17。
+基于当前 <code>main</code>(origin 同步)代码 + 线上库/边缘函数实测 + 新金库流专项对抗审计生成。"已验证"均有 file:line 证据或线上响应支撑。本报告替代 v2。生成于 2026-07-18。
 </div>
 
 </body>
