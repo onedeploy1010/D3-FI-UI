@@ -273,8 +273,32 @@ export function getStakeExitYieldCap(order: { kind: StakeOrderKind | string; pri
   return Math.round(order.principalUsdt * getStakeExitMultiplier(order.kind) * 100) / 100;
 }
 
+/** Date portion of a timestamp in SGT (UTC+8) — the settlement timezone — so stake
+ *  dates line up with the daily SGT-midnight settlement (a 21:53 UTC stake is the
+ *  next SGT day, not the UTC day). Pure date strings pass through unchanged. */
+export function toSgtDateLabel(iso: string): string {
+  if (typeof iso !== 'string') return iso;
+  // Already a bare YYYY-MM-DD (no time/zone) — keep as-is.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso.trim())) return iso.trim();
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.length >= 10 ? iso.slice(0, 10) : iso;
+  return new Date(d.getTime() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 function toDateLabel(iso: string): string {
-  return iso.length >= 10 ? iso.slice(0, 10) : iso;
+  return toSgtDateLabel(iso);
+}
+
+/** Today's date (YYYY-MM-DD) in SGT. */
+export function sgtTodayStr(): string {
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** Add `n` days to a YYYY-MM-DD string (tz-safe via UTC anchor). */
+function addDaysStr(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 export function mapStakePositionToOrder(p: PartnerStakePositionRow): PartnerStakeOrder {
@@ -395,20 +419,12 @@ export type PartnerState = {
   yieldSettlementsByPosition: Record<string, YieldReleaseRecord[]>;
 };
 
-/** Format a Date as YYYY-MM-DD in LOCAL time (avoids the UTC shift toISOString
- *  introduces — e.g. 2026-07-16 00:00 SGT becoming 2026-07-15 in UTC). */
-function toLocalDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 export function buildStakeOrderYieldHistory(
   order: PartnerStakeOrder,
   settlements: PartnerYieldSettlementRow[] = [],
 ): YieldReleaseRecord[] {
   // Days the daily run has already settled (authoritative, source='settled').
+  // settlement_date is already the SGT day it settled.
   const settledRows = settlements
     .filter((r) => r.position_id === order.id)
     .map((r) => ({
@@ -419,22 +435,23 @@ export function buildStakeOrderYieldHistory(
     }));
   const settledDates = new Set(settledRows.map((r) => r.date));
 
-  const start = new Date(`${order.startedAt}T00:00:00`);
-  const end = new Date();
-  end.setHours(0, 0, 0, 0);
-  const unlock = new Date(`${order.unlockAt}T23:59:59`);
+  // All dates are SGT day-strings — the settlement timezone — so a position started
+  // 21:53 UTC (= next SGT day) shows the correct start day, and estimated rows never
+  // predate the SGT stake day. Estimated (未结算) rows cover every SGT day from the
+  // stake day through today (SGT) that the daily run has not settled yet.
+  const startStr = order.startedAt; // already SGT via toSgtDateLabel
+  const unlockStr = order.unlockAt;
+  const todayStr = sgtTodayStr();
 
-  // Estimated (未结算) rows for every day from the stake date through today that the
-  // daily run has not settled yet. Dates are formatted in local time so a position
-  // started on the 16th never renders a phantom 15th row.
   const accrued: YieldReleaseRecord[] = [];
-  if (!Number.isNaN(start.getTime()) && order.dailyYieldUsdt > 0) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(startStr) && order.dailyYieldUsdt > 0) {
     const exitCap = getStakeExitYieldCap(order);
-    const cursor = new Date(start);
+    let cursor = startStr;
     let running = settledRows.reduce((s, r) => s + r.yieldUsdt, 0);
-    while (cursor <= end && cursor <= unlock && running < exitCap - 1e-9) {
-      const date = toLocalDateStr(cursor);
-      cursor.setDate(cursor.getDate() + 1);
+    let guard = 0;
+    while (cursor <= todayStr && cursor <= unlockStr && running < exitCap - 1e-9 && guard++ < 1000) {
+      const date = cursor;
+      cursor = addDaysStr(cursor, 1);
       if (settledDates.has(date)) continue; // real settlement already covers this day
       const dayYield = Math.min(order.dailyYieldUsdt, Math.round((exitCap - running) * 100) / 100);
       if (dayYield <= 0) break;
