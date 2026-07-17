@@ -1,15 +1,16 @@
 # D3-FI 安全检查清单(上线前 / 上线后 / 安全告警守护)
 
 > 状态图例:`[x]` 已完成并验证 · `[ ]` 待办(需你操作) · `[~]` 已具备能力,需配置/启用
-> 关联文档:`REMEDIATION_PLAN.md`(修复计划)、`DB_VERIFICATION.md`(库校验)、`MONITORING_PLAN.md`(监控)、`D3-FI-安全修复复检报告.pdf`(总报告)
+> 关联文档:`REMEDIATION_PLAN.md`(修复计划)、`DB_VERIFICATION.md`(库校验)、`MONITORING_PLAN.md`(监控)、`INCIDENT_RUNBOOK.md`(事件手册)、`D3-FI-安全复检报告.pdf`(v2 总报告)
+> **v2 更新(2026-07-17)**:认证已由 Privy 迁移为 **SIWE(EIP-4361)**,已重新审计并线上验证;本次新增待修 R-1…R-11 见下方 A2 与 v2 报告。
 
 ---
 
 ## 一、上线前安全检查清单(Pre-Launch)
 
 ### A. 代码与账本安全(已完成)
-- [x] 认证与钱包所有权绑定:`requireActorWallet` 经 Privy API 证明 header 钱包属该用户(封堵冒充 + TOFU 劫持)
-- [x] treasury 资金路由已强制认证(此前完全无 JWT)
+- [x] **SIWE 认证(v2)**:登录以钱包签名(EIP-4361)证明所有权,nonce 原子单次消费 + 域名服务端白名单 + HS256 常量时间校验;下游只信任会话令牌主体,不信任任何可伪造请求头。**线上实测:登录 200、无令牌资金路由 401 失败关闭**
+- [x] treasury 资金路由已强制认证(SIWE 会话)
 - [x] 闪兑先扣后付 + 并发在途唯一约束 + 失败回补(无双花)
 - [x] 借记与贷记全部走原子 RPC(消除丢失更新双花)
 - [x] 慢确认交易退款门控 + 付款 ≥12 确认深度(无退款双付/浅 reorg)
@@ -18,6 +19,19 @@
 - [x] 奖励/业绩幂等唯一约束;推荐禁自荐
 - [x] 后台不可变审计 + 付款类改动双人复核(maker-checker,先锁后执行)
 - [x] 金额输入校验、cron 常量时间比较、速率限制、demo 默认关
+
+### A2. v2 复检新增待修(2026-07-17,详见 `D3-FI-安全复检报告.pdf`)
+- [ ] R-1(High)重复迁移编号(两个 `038_*`、两个 `042_*`)重命名为唯一编号后再 `db push`
+- [ ] R-2(High/须核实)水龙头币作为主网结算资产——测试期有意;上线前钉真实 USDT 并移除 faucet 标志
+- [ ] R-3(Med)审批路由按 `action` 校验权限(`security.*`→`security.write`),防越权解除熔断/放宽限额
+- [ ] R-4(Med)删除或下线陈旧 `deploy-pages.yml` 第二公开源
+- [ ] R-5(Low-Med)`/auth/nonce`、`/auth/verify` 加限流 + nonce 过期清理(防 DoS/表膨胀)
+- [ ] R-6(Low-Med)`partner_accounts.pending_ud3` 补 `CHECK ≥ 0`
+- [ ] R-7(Low-Med)两阶段结算:`settle_pending_ud3` 成功后再标记 `settled=true`(防少记滞留)
+- [ ] R-8(Low)会话令牌加 jti/吊销或缩短 TTL
+- [ ] R-9(Low)`.env.example` 补 `SIWE_SESSION_SECRET`/`SIWE_ALLOWED_DOMAINS`/`TREASURY_CRON_SECRET`
+- [ ] R-10(Low-Med)链上核实 ReferralRegistry 角色已转多签并 renounce 热 EOA
+- [ ] R-11(Info)删除死代码(`credit_ud3_balance`、`privy.ts` 认证导出);`upsertReferralFromChain` 加自荐守卫
 
 ### B. 数据库(已部署线上并验证)
 - [x] 14 张暴露表启用 RLS(实测 anon 读/写/伪造均 401)
