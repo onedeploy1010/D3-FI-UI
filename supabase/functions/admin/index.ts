@@ -14,6 +14,8 @@ import {
   writeAdminAudit,
 } from '../_shared/audit.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
+import { getInfraWalletBalances } from '../_shared/fundManagement.ts';
+import { deriveDepositAccounts } from '../_shared/depositsHd.ts';
 
 type Sb = ReturnType<typeof getSupabaseAdmin>;
 
@@ -1022,6 +1024,30 @@ Deno.serve(async (req) => {
 
     if (req.method === 'GET' && path === '/dashboard') {
       return jsonResponse({ ok: true, ...(await dashboardStats(sb)) });
+    }
+
+    // ── Fund management: infra wallet balances (gas/treasury/settlement/flash) ──
+    if (req.method === 'GET' && path === '/wallets') {
+      return jsonResponse({ ok: true, ...(await getInfraWalletBalances(sb)) });
+    }
+
+    // One-click deposit-pool growth: derive N more deposit addresses (Turnkey HD).
+    if (req.method === 'POST' && path === '/wallets/deposit-pool') {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Insufficient permission');
+      }
+      const body = await readJson<{ count?: number }>(req).catch(() => ({}));
+      const count = Math.max(1, Math.min(200, Math.floor(Number(body.count ?? 10))));
+      const created = await deriveDepositAccounts(sb, count);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'deposit_pool_generate',
+        entityType: 'wallet_accounts',
+        entityId: null,
+        newValue: { requested: count, created: created.length },
+      });
+      return jsonResponse({ ok: true, created: created.length });
     }
 
     if (req.method === 'GET' && path === '/members') {

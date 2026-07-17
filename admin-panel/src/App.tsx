@@ -10,6 +10,7 @@ import MembersPage from '@/pages/admin/members';
 import ReferralsPage from '@/pages/admin/referrals';
 import PartnersPage from '@/pages/admin/partners';
 import StakesPage from '@/pages/admin/stakes';
+import FundsPage from '@/pages/admin/funds';
 import SubsidiesPage from '@/pages/admin/subsidies';
 import SecurityPage from '@/pages/admin/security';
 
@@ -27,6 +28,7 @@ function AdminRoutes() {
           <Route path="/referrals" component={ReferralsPage} />
           <Route path="/partners" component={PartnersPage} />
           <Route path="/stakes" component={StakesPage} />
+          <Route path="/funds" component={FundsPage} />
           <Route path="/subsidies" component={SubsidiesPage} />
           <Route path="/security" component={SecurityPage} />
           <Route path="/">
