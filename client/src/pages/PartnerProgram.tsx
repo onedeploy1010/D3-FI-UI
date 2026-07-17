@@ -49,7 +49,7 @@ export default function PartnerProgram() {
   const { wallet, isDemo, demoSessionKey } = useWallet();
   const isDark = theme === 'dark';
 
-  const { hasReferralBound, loading: referralLoading } = useReferralStatus(wallet);
+  const { hasReferralBound, loading: referralLoading, error: referralError } = useReferralStatus(wallet);
   const { payForJoin, payForStake, paying: depositPaying, lastIntent } = useDepositPayment(wallet);
 
   const {
@@ -231,6 +231,7 @@ export default function PartnerProgram() {
                   state={state}
                   hasReferralBound={hasReferralBound}
                   referralLoading={referralLoading}
+                  referralError={referralError}
                   minCrowdfundUsdt={minCrowdfundUsdt}
                   isDemo={isDemo}
                   paying={depositPaying}

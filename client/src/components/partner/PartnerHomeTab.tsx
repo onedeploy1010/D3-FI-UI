@@ -38,6 +38,7 @@ export function PartnerHomeTab({
   state,
   hasReferralBound,
   referralLoading,
+  referralError,
   minCrowdfundUsdt,
   isDemo = false,
   paying,
@@ -51,6 +52,7 @@ export function PartnerHomeTab({
   state: PartnerState;
   hasReferralBound: boolean;
   referralLoading?: boolean;
+  referralError?: boolean;
   minCrowdfundUsdt: number;
   isDemo?: boolean;
   paying: boolean;
@@ -150,7 +152,10 @@ export function PartnerHomeTab({
     return <PartnerReferralLoading label={p('referral.checking')} isDark={isDark} className="min-h-[55vh]" />;
   }
 
-  if (!hasReferralBound) {
+  // Only prompt to bind when the status was actually resolved as unbound. A fetch
+  // error (session/network) must NOT show "please bind" to an already-bound user —
+  // the app-level ReferralBindGate handles retry; here we just render the content.
+  if (!hasReferralBound && !referralError) {
     return (
       <div className={`text-center py-16 text-sm ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
         {p('referral.required')}

@@ -317,7 +317,8 @@ export function ReferralBindGate({ children }: { children: ReactNode }) {
   const { lang } = useAppLang();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const { hasReferralBound, loading, refetch } = useReferralStatus(wallet);
+  const { hasReferralBound, loading, error, refetch } = useReferralStatus(wallet);
+  const isZh = toLegacyLang(lang) === 'zh';
 
   // The authed /profile fetch needs the SIWE session, which is established
   // asynchronously on connect. Re-check referral status once sign-in settles so a
@@ -336,6 +337,25 @@ export function ReferralBindGate({ children }: { children: ReactNode }) {
     return (
       <div className={`min-h-[100dvh] flex items-center justify-center ${isDark ? 'bg-dark-gradient' : 'bg-light-gradient'}`}>
         <PartnerReferralLoading label={t(lang, 'loading')} isDark={isDark} />
+      </div>
+    );
+  }
+
+  // A fetch failure (expired session / network) is NOT "unbound" — never show the
+  // bind screen here, or an already-bound user would be told to bind again. Offer retry.
+  if (error) {
+    return (
+      <div
+        className={`min-h-[100dvh] flex flex-col items-center justify-center gap-4 px-6 text-center ${
+          isDark ? 'bg-dark-gradient text-white/70' : 'bg-light-gradient text-[#160510]/70'
+        }`}
+      >
+        <p className="text-sm">
+          {isZh ? '加载账户信息失败，请重试。' : 'Failed to load your account. Please retry.'}
+        </p>
+        <GlassButton variant="primary" className="!px-6 !py-3" onClick={() => refetch()}>
+          {isZh ? '重试' : 'Retry'}
+        </GlassButton>
       </div>
     );
   }
