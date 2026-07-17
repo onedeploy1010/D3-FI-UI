@@ -2,7 +2,6 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   collectPartnerDownlineWallets,
   fetchDirectPartnerReferrals,
-  fetchPartnerMemberWallets,
 } from './partnerPerformance.ts';
 
 type Sb = SupabaseClient;
@@ -41,16 +40,12 @@ async function sumDownlineReferralPerformance(sb: Sb, wallet: string): Promise<n
   return round2((refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0));
 }
 
-/** 伞下合伙人业绩去重：每条直推合伙人线只计该线分支总量一次。 */
+/** 伞下业绩去重：每条直推线只计该线分支总量一次。 */
 export async function computeDedupPartnerSubsidyPerformance(sb: Sb, wallet: string): Promise<number> {
   const directs = await fetchDirectPartnerReferrals(sb, wallet);
   if (!directs.length) return 0;
-  const partnerSet = new Set(
-    (await fetchPartnerMemberWallets(sb, directs)).map((w) => w.toLowerCase()),
-  );
   let total = 0;
   for (const child of directs) {
-    if (!partnerSet.has(child.toLowerCase())) continue;
     total += await getPartnerBranchTeamVolume(sb, child);
   }
   return round2(total);

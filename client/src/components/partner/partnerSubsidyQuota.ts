@@ -19,7 +19,7 @@ function branchVolume(node: PartnerTeamNode): number {
   return round2(node.personalUsd + node.teamUsd);
 }
 
-/** 伞下合伙人业绩去重：每条直推合伙人线只计分支总量一次。 */
+/** 伞下业绩去重：每条直推线只计该分支总量一次。 */
 export function computeDedupPartnerPerformanceFromTree(
   nodes: Record<string, PartnerTeamNode>,
   rootId = 'me',
@@ -29,7 +29,7 @@ export function computeDedupPartnerPerformanceFromTree(
   return round2(
     root.childrenIds.reduce((sum, id) => {
       const child = nodes[id];
-      if (!child?.isPartner) return sum;
+      if (!child) return sum;
       return sum + branchVolume(child);
     }, 0),
   );

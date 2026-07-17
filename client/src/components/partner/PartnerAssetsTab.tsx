@@ -133,7 +133,9 @@ export function PartnerAssetsTab({
     if (usdtAmt < MIN_YIELD_WITHDRAW_USDT || flashSubmitting || yieldWithdrawing) return;
     setFlashSubmitting(true);
     try {
-      const ok = await onWithdrawYield(usdtAmt);
+      // Flash-swap is denominated in released D3 quantity; the backend values it
+      // at the current D3 price - 3% fee. usdtAmt above only gates the min payout.
+      const ok = await onWithdrawYield(d3Amt);
       if (ok) {
         setFlashAmount('');
         setFlashOpen(false);

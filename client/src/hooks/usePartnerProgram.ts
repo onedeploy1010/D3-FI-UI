@@ -11,7 +11,6 @@ import {
   applyUd3Stake,
   isValidUd3StakeAmount,
   resolveFlashYieldBalances,
-  MIN_YIELD_WITHDRAW_USDT,
   GUEST_PARTNER_STATE,
   DEMO_PARTNER_BASELINE,
   hydratePartnerStateFromApi,
@@ -353,14 +352,14 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
   const [yieldWithdrawing, setYieldWithdrawing] = useState(false);
 
   const withdrawYield = useCallback(
-    async (amount: number) => {
-      if (!wallet || !state.isPartner || amount < MIN_YIELD_WITHDRAW_USDT) return false;
-      const { claimable } = resolveFlashYieldBalances(state);
-      if (amount > claimable + 0.0001) return false;
+    async (amountD3: number) => {
+      if (!wallet || !state.isPartner) return false;
+      const { claimableD3, minWithdrawD3 } = resolveFlashYieldBalances(state);
+      if (amountD3 < minWithdrawD3 || amountD3 > claimableD3 + 0.0001) return false;
 
       setYieldWithdrawing(true);
       try {
-        await withdrawPartnerYield(wallet, amount);
+        await withdrawPartnerYield(wallet, amountD3);
         await refreshTeamProfile();
         return true;
       } catch {

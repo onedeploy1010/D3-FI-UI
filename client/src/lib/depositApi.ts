@@ -106,10 +106,13 @@ export type YieldWithdrawResponse = {
   txHash?: string | null;
 };
 
-export function withdrawPartnerYield(wallet: string, amountUsdt: number) {
+export function withdrawPartnerYield(wallet: string, amountD3: number) {
+  // Flash-swap is denominated in released D3 QUANTITY (backend values it at the
+  // current D3 price - 3% fee). Sending amountUsdt here would be re-read as a D3
+  // quantity and rejected as "Insufficient released D3".
   return treasuryFetch<YieldWithdrawResponse>(wallet, '/partner/yield-withdraw', {
     method: 'POST',
-    body: JSON.stringify({ amountUsdt }),
+    body: JSON.stringify({ amountD3 }),
   });
 }
 

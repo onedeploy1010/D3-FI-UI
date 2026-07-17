@@ -1,4 +1,4 @@
-# D3-FI 安全检查清单(上线前 / 上线后 / 安全告警守护)
+可以# D3-FI 安全检查清单(上线前 / 上线后 / 安全告警守护)
 
 > 状态图例:`[x]` 已完成并验证 · `[ ]` 待办(需你操作) · `[~]` 已具备能力,需配置/启用
 > 关联文档:`REMEDIATION_PLAN.md`(修复计划)、`DB_VERIFICATION.md`(库校验)、`MONITORING_PLAN.md`(监控)、`INCIDENT_RUNBOOK.md`(事件手册)、`D3-FI-安全复检报告.pdf`(v2 总报告)
