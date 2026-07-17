@@ -274,12 +274,12 @@ export function settleUd3DepositEvent(input: {
   networkChainAboveReferrer: Ud3UplineNode[];
 }) {
   const gen = generateUd3FromDeposit(input.depositUsdt, input.referrerTotalPerfUsdt);
-  const floorSharePct =
-    input.referrerNetworkSharePct ??
-    (resolveUd3SLevel({
-      totalPerfUsdt: input.referrerTotalPerfUsdt,
-      smallAreaPerfUsdt: 0,
-    })?.sharePct ?? 0);
+  // The 引路人 already took the 60% direct — they do NOT occupy a share of the 40%
+  // network pool. So the 级差 floor starts at 0: distribution begins at the 引路人's
+  // OWN upline's tier. The first upline earns their full tier share of the pool,
+  // higher uplines earn the incremental gap above them. (Callers may still override
+  // via referrerNetworkSharePct, but the default no longer blocks same-tier uplines.)
+  const floorSharePct = input.referrerNetworkSharePct ?? 0;
   const network = allocateNetworkDifferential(
     gen.networkPoolUd3,
     input.networkChainAboveReferrer,
