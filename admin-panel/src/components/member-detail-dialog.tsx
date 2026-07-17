@@ -24,7 +24,7 @@ type Detail = {
   referral: Record<string, unknown> | null;
   downlines: Array<Record<string, unknown>>;
   stakes: Array<Record<string, unknown>>;
-  sd3Transfers: Array<Record<string, unknown>>;
+  ud3Transfers: Array<Record<string, unknown>>;
   yieldWithdrawals: Array<Record<string, unknown>>;
   subsidyTickets: Array<Record<string, unknown>>;
   teamStats: {
@@ -121,9 +121,9 @@ export function MemberDetailDialog({
                 </p>
               )}
               <div>
-                <p className="text-xs font-semibold mb-2">直推 ({data.downlines.length})</p>
+                <p className="text-xs font-semibold mb-2">直推 ({(data.downlines ?? []).length})</p>
                 <div className="max-h-32 overflow-y-auto text-xs font-mono space-y-1">
-                  {data.downlines.map((d) => (
+                  {(data.downlines ?? []).map((d) => (
                     <div key={String(d.wallet_address)}>{shortAddr(String(d.wallet_address))}</div>
                   ))}
                 </div>
@@ -141,7 +141,7 @@ export function MemberDetailDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.stakes.map((s) => (
+                  {(data.stakes ?? []).map((s) => (
                     <TableRow key={String(s.id)}>
                       <TableCell>{String(s.kind)}</TableCell>
                       <TableCell>${fmtUsd(Number(s.principal_usdt))}</TableCell>
@@ -164,7 +164,7 @@ export function MemberDetailDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.sd3Transfers.map((t) => {
+                  {(data.ud3Transfers ?? []).map((t) => {
                     const from = String(t.from_wallet).toLowerCase();
                     const isOut = wallet && from === wallet.toLowerCase();
                     return (
@@ -177,7 +177,7 @@ export function MemberDetailDialog({
                         <TableCell className="font-mono text-xs">
                           {shortAddr(isOut ? String(t.to_wallet) : String(t.from_wallet))}
                         </TableCell>
-                        <TableCell>{fmtUsd(Number(t.amount_sd3), 4)} sD3</TableCell>
+                        <TableCell>{fmtUsd(Number(t.amount_ud3 ?? t.amount_sd3), 4)} UD3</TableCell>
                         <TableCell className="text-xs">{String(t.created_at).slice(0, 19)}</TableCell>
                       </TableRow>
                     );
@@ -196,7 +196,7 @@ export function MemberDetailDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.yieldWithdrawals.map((w) => (
+                  {(data.yieldWithdrawals ?? []).map((w) => (
                     <TableRow key={String(w.id)}>
                       <TableCell>${fmtUsd(Number(w.amount_usdt), 4)}</TableCell>
                       <TableCell>{String(w.status)}</TableCell>
@@ -208,7 +208,7 @@ export function MemberDetailDialog({
             </TabsContent>
 
             <TabsContent value="subsidies">
-              {data.subsidyTickets.map((t) => (
+              {(data.subsidyTickets ?? []).map((t) => (
                 <div key={String(t.id)} className="border rounded-lg p-3 mb-2 text-sm">
                   <div className="flex justify-between">
                     <span>{String(t.kind)}</span>
