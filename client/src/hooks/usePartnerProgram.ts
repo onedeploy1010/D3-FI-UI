@@ -299,7 +299,10 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
 
   const stakeUd3 = useCallback(
     async (amount: number) => {
-      if (!wallet || !state.isPartner) return false;
+      // Any account holding UD3 may stake it (e.g. a non-partner downline that
+      // received a UD3 transfer) — the backend places no partner requirement on
+      // staking, so the client must not either.
+      if (!wallet) return false;
       const available = getUd3Available(state);
       if (!isValidUd3StakeAmount(amount, available)) return false;
 
