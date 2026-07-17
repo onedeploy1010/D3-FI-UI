@@ -206,7 +206,7 @@ export function PartnerDualAnimatedBar({
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className={cn(
-              'text-xs font-bold tracking-wide truncate',
+              'text-sm font-bold tracking-wide truncate',
               featured
                 ? isDark
                   ? 'text-[#f9a8d4]'
@@ -228,13 +228,13 @@ export function PartnerDualAnimatedBar({
 
       <div className="grid grid-cols-2 gap-2 mb-2.5">
         <div className="partner-metric-stat rounded-lg px-2.5 py-1.5">
-          <div className={`text-[10px] font-semibold mb-0.5 ${muted}`}>{totalLabel}</div>
-          <div className="text-xs font-bold leading-tight tracking-tight" style={{ color: totalAccent }}>
+          <div className={`text-[11px] font-semibold mb-1 ${muted}`}>{totalLabel}</div>
+          <div className="text-base font-bold leading-tight tracking-tight" style={{ color: totalAccent }}>
             {totalDisplay}
           </div>
         </div>
         <div className="partner-metric-stat rounded-lg px-2.5 py-1.5">
-          <div className={`text-[10px] font-semibold mb-0.5 flex items-center flex-wrap gap-1 ${muted}`}>
+          <div className={`text-[11px] font-semibold mb-1 flex items-center flex-wrap gap-1 ${muted}`}>
             <span>{newLabel}</span>
             {badge && (
               <span className="text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none scale-95 origin-left">
@@ -242,7 +242,7 @@ export function PartnerDualAnimatedBar({
               </span>
             )}
           </div>
-          <div className="text-xs font-bold leading-tight tracking-tight" style={{ color: newAccent }}>
+          <div className="text-base font-bold leading-tight tracking-tight" style={{ color: newAccent }}>
             {newDisplay}
           </div>
         </div>
