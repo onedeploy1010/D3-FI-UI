@@ -1,6 +1,14 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { formatUnits } from 'npm:viem@2';
-import { getBscPublicClient } from './turnkey.ts';
+import { formatUnits, isAddress } from 'npm:viem@2';
+import {
+  broadcastSignedTransaction,
+  getBscPublicClient,
+  pollTurnkeyActivity,
+  submitTreasuryTransfer,
+  walletContextFromDbRow,
+  type TreasuryTransferAsset,
+} from './turnkey.ts';
+import { getTreasuryWallet } from './wallets.ts';
 import { BSC_USDT_CONTRACT, BSC_USDT_DECIMALS } from './tokens.ts';
 
 type Sb = SupabaseClient;
@@ -80,4 +88,147 @@ export async function getInfraWalletBalances(sb: Sb): Promise<{
   );
 
   return { wallets, depositCount: depositCount ?? 0, usdtContract: BSC_USDT_CONTRACT };
+}
+
+export type TreasuryTransferRow = {
+  id: string;
+  asset: string;
+  to_address: string;
+  amount: number;
+  status: string;
+  turnkey_activity_id: string | null;
+  tx_hash: string | null;
+  note: string | null;
+  error: string | null;
+  created_at: string;
+  broadcast_at: string | null;
+};
+
+/**
+ * Propose an outbound treasury transfer. Records a request row and submits a
+ * Turnkey SIGN_TRANSACTION activity against the 2/3 multisig treasury wallet.
+ * The activity comes back as CONSENSUS_NEEDED — the row is stored as
+ * `awaiting_consensus` with its activityId for later broadcast. Dev single-signer
+ * wallets sign+broadcast inline (status → confirmed).
+ */
+export async function proposeTreasuryTransfer(
+  sb: Sb,
+  opts: { asset: TreasuryTransferAsset; toAddress: string; amount: number; createdBy?: string; note?: string },
+): Promise<TreasuryTransferRow> {
+  const to = opts.toAddress.trim();
+  if (!isAddress(to)) throw new Error('无效的收款地址');
+  if (!(opts.amount > 0)) throw new Error('转账金额必须大于 0');
+  if (opts.asset !== 'usdt' && opts.asset !== 'bnb') throw new Error('不支持的资产类型');
+
+  const treasury = await getTreasuryWallet(sb);
+  if (!treasury) throw new Error('未找到金库钱包');
+
+  // Record the request first so a Turnkey failure still leaves an audit trail.
+  const { data: inserted, error: insErr } = await sb
+    .from('treasury_transfer_requests')
+    .insert({
+      asset: opts.asset,
+      to_address: to,
+      amount: opts.amount,
+      from_wallet_id: treasury.id,
+      from_address: treasury.address,
+      status: 'awaiting_consensus',
+      note: opts.note ?? null,
+      created_by: opts.createdBy ?? null,
+    })
+    .select('*')
+    .single();
+  if (insErr || !inserted) throw new Error(insErr?.message ?? '写入转账申请失败');
+
+  try {
+    const submission = await submitTreasuryTransfer({
+      from: walletContextFromDbRow({ address: treasury.address, metadata: treasury.metadata }),
+      asset: opts.asset,
+      to,
+      amount: String(opts.amount),
+    });
+
+    const patch: Record<string, unknown> = {
+      turnkey_activity_id: submission.activityId ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (submission.txHash) {
+      patch.status = 'confirmed';
+      patch.tx_hash = submission.txHash;
+      patch.broadcast_at = new Date().toISOString();
+    } else if (submission.awaitingConsensus) {
+      patch.status = 'awaiting_consensus';
+    } else {
+      patch.status = 'submitted';
+    }
+
+    const { data: updated } = await sb
+      .from('treasury_transfer_requests')
+      .update(patch)
+      .eq('id', inserted.id)
+      .select('*')
+      .single();
+    return (updated ?? inserted) as TreasuryTransferRow;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : '提交 Turnkey 签名失败';
+    await sb
+      .from('treasury_transfer_requests')
+      .update({ status: 'failed', error: message, updated_at: new Date().toISOString() })
+      .eq('id', inserted.id);
+    throw new Error(message);
+  }
+}
+
+/** List recent treasury transfer requests (most recent first). */
+export async function listTreasuryTransfers(sb: Sb, limit = 30): Promise<TreasuryTransferRow[]> {
+  const { data } = await sb
+    .from('treasury_transfer_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return (data ?? []) as TreasuryTransferRow[];
+}
+
+/**
+ * Poll a pending transfer's Turnkey activity; once the 2/3 quorum has approved
+ * it, broadcast the signed transaction and record the hash. Returns the updated
+ * row. Safe to call repeatedly — it no-ops if not yet approved.
+ */
+export async function broadcastTreasuryTransfer(sb: Sb, id: string): Promise<TreasuryTransferRow> {
+  const { data: row } = await sb
+    .from('treasury_transfer_requests')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (!row) throw new Error('未找到转账申请');
+  if (row.status === 'confirmed' || row.status === 'broadcast') return row as TreasuryTransferRow;
+  if (!row.turnkey_activity_id) throw new Error('该申请没有关联 Turnkey 活动');
+
+  const activity = await pollTurnkeyActivity(row.turnkey_activity_id);
+  if (activity.failure || activity.status === 'ACTIVITY_STATUS_FAILED' || activity.status === 'ACTIVITY_STATUS_REJECTED') {
+    const { data: failed } = await sb
+      .from('treasury_transfer_requests')
+      .update({ status: 'failed', error: activity.failure ?? activity.status ?? '多签被拒绝', updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    return (failed ?? row) as TreasuryTransferRow;
+  }
+  if (activity.status !== 'ACTIVITY_STATUS_COMPLETED' || !activity.signedTransaction) {
+    throw new Error('多签尚未批准（仍在等待签署人确认）');
+  }
+
+  const txHash = await broadcastSignedTransaction(activity.signedTransaction);
+  const { data: confirmed } = await sb
+    .from('treasury_transfer_requests')
+    .update({
+      status: 'confirmed',
+      tx_hash: txHash,
+      broadcast_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  return (confirmed ?? row) as TreasuryTransferRow;
 }

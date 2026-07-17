@@ -14,7 +14,12 @@ import {
   writeAdminAudit,
 } from '../_shared/audit.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
-import { getInfraWalletBalances } from '../_shared/fundManagement.ts';
+import {
+  getInfraWalletBalances,
+  proposeTreasuryTransfer,
+  listTreasuryTransfers,
+  broadcastTreasuryTransfer,
+} from '../_shared/fundManagement.ts';
 import { deriveDepositAccounts } from '../_shared/depositsHd.ts';
 
 type Sb = ReturnType<typeof getSupabaseAdmin>;
@@ -1048,6 +1053,64 @@ Deno.serve(async (req) => {
         newValue: { requested: count, created: created.length },
       });
       return jsonResponse({ ok: true, created: created.length });
+    }
+
+    // ── Treasury transfers (2/3 multisig) ──
+    if (req.method === 'GET' && path === '/treasury/transfers') {
+      const transfers = await listTreasuryTransfers(sb);
+      return jsonResponse({ ok: true, transfers });
+    }
+
+    // Propose an outbound treasury transfer → submits a Turnkey multisig request.
+    if (req.method === 'POST' && path === '/treasury/transfers') {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Insufficient permission');
+      }
+      const body = await readJson<{
+        asset?: string;
+        toAddress?: string;
+        amount?: number | string;
+        note?: string;
+      }>(req).catch(() => ({}));
+      const asset = body.asset === 'bnb' ? 'bnb' : 'usdt';
+      const amount = Number(body.amount);
+      if (!body.toAddress || !Number.isFinite(amount) || amount <= 0) {
+        throw new HttpError(400, '收款地址与金额必填');
+      }
+      const row = await proposeTreasuryTransfer(sb, {
+        asset,
+        toAddress: String(body.toAddress),
+        amount,
+        createdBy: admin.userId,
+        note: body.note,
+      });
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'treasury_transfer_propose',
+        entityType: 'treasury_transfer_requests',
+        entityId: row.id,
+        newValue: { asset, to: row.to_address, amount, status: row.status },
+      });
+      return jsonResponse({ ok: true, transfer: row });
+    }
+
+    // Broadcast an approved (2/3 quorum) transfer.
+    const broadcastMatch = path.match(/^\/treasury\/transfers\/([0-9a-f-]{36})\/broadcast$/);
+    if (req.method === 'POST' && broadcastMatch) {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Insufficient permission');
+      }
+      const row = await broadcastTreasuryTransfer(sb, broadcastMatch[1]);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'treasury_transfer_broadcast',
+        entityType: 'treasury_transfer_requests',
+        entityId: row.id,
+        newValue: { status: row.status, txHash: row.tx_hash },
+      });
+      return jsonResponse({ ok: true, transfer: row });
     }
 
     if (req.method === 'GET' && path === '/members') {

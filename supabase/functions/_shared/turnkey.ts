@@ -6,6 +6,7 @@ import {
   http,
   parseAbi,
   parseAbiItem,
+  parseUnits,
   serializeTransaction,
   type Address,
   type Hash,
@@ -69,14 +70,18 @@ const evmAccountTemplate = {
   addressFormat: 'ADDRESS_FORMAT_ETHEREUM',
 } as const;
 
-async function stampAndPost(path: string, body: Record<string, unknown>): Promise<unknown> {
+async function stampAndSend(
+  segment: 'submit' | 'query',
+  path: string,
+  body: Record<string, unknown>,
+): Promise<unknown> {
   const apiPublicKey = Deno.env.get('TURNKEY_API_PUBLIC_KEY')!;
   const apiPrivateKey = Deno.env.get('TURNKEY_API_PRIVATE_KEY')!;
   const bodyStr = JSON.stringify(body);
   const stamper = new ApiKeyStamper({ apiPublicKey, apiPrivateKey });
   const { stampHeaderValue } = await stamper.stamp(bodyStr);
 
-  const res = await fetch(`https://api.turnkey.com/public/v1/submit/${path}`, {
+  const res = await fetch(`https://api.turnkey.com/public/v1/${segment}/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,6 +97,14 @@ async function stampAndPost(path: string, body: Record<string, unknown>): Promis
     );
   }
   return json;
+}
+
+function stampAndPost(path: string, body: Record<string, unknown>): Promise<unknown> {
+  return stampAndSend('submit', path, body);
+}
+
+function stampAndQuery(path: string, body: Record<string, unknown>): Promise<unknown> {
+  return stampAndSend('query', path, body);
 }
 
 export function getActivityEnvelope(json: unknown): {
@@ -478,6 +491,141 @@ export function walletContextFromDbRow(row: {
   return signingContextFromRow({
     address: row.address,
     metadata: row.metadata as { provider?: string; hd_index?: number } | null,
+  });
+}
+
+export type TreasuryTransferAsset = 'usdt' | 'bnb';
+
+export type TreasuryTransferSubmission = {
+  activityId?: string;
+  status?: string;
+  signedTransaction?: string;
+  txHash?: string;
+  /** True when the wallet is protected by a Turnkey consensus policy and the
+   *  request now awaits the remaining signer approvals in the Turnkey panel. */
+  awaitingConsensus: boolean;
+};
+
+/**
+ * Propose an outbound transfer from a multisig-protected treasury wallet.
+ *
+ * Builds the BSC transaction (native BNB or USDT ERC-20), then submits a
+ * Turnkey SIGN_TRANSACTION activity. Unlike buildAndSignTx this does NOT assert
+ * completion: when the wallet is guarded by a 2/3 consensus policy Turnkey
+ * returns ACTIVITY_STATUS_CONSENSUS_NEEDED, and we surface that as
+ * `awaitingConsensus` so callers can persist the activityId and broadcast later
+ * once the quorum approves. Dev-HD wallets (no consensus) sign+broadcast inline.
+ */
+export async function submitTreasuryTransfer(opts: {
+  from: WalletSigningContext;
+  asset: TreasuryTransferAsset;
+  to: string;
+  /** Human-readable amount, e.g. "125.5". */
+  amount: string;
+}): Promise<TreasuryTransferSubmission> {
+  const client = getBscPublicClient();
+
+  const request =
+    opts.asset === 'bnb'
+      ? {
+          account: opts.from.address as Address,
+          to: opts.to as Address,
+          value: parseUnits(opts.amount, 18),
+        }
+      : {
+          account: opts.from.address as Address,
+          to: BSC_USDT_CONTRACT as Address,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'transfer',
+            args: [opts.to as Address, parseUnits(opts.amount, BSC_USDT_DECIMALS)],
+          }),
+        };
+
+  const prepared = await client.prepareTransactionRequest({ ...request, chain: bsc });
+
+  // Dev fallback: no multisig, sign + broadcast immediately.
+  if (opts.from.provider === 'dev_hd') {
+    if (opts.from.hdIndex === undefined) throw new Error('Missing hd_index for dev wallet');
+    const account = getDevAccount(opts.from.hdIndex);
+    const signed = await account.signTransaction(prepared);
+    const txHash = await client.sendRawTransaction({
+      serializedTransaction: normalizeHex(signed),
+    });
+    return { status: 'ACTIVITY_STATUS_COMPLETED', txHash, awaitingConsensus: false };
+  }
+
+  const unsigned = serializeTransaction(prepared);
+  const json = await stampAndPost('sign_transaction', {
+    type: 'ACTIVITY_TYPE_SIGN_TRANSACTION_V2',
+    organizationId: Deno.env.get('TURNKEY_ORGANIZATION_ID')!,
+    parameters: {
+      signWith: opts.from.address,
+      unsignedTransaction: unsigned,
+      type: 'TRANSACTION_TYPE_ETHEREUM',
+    },
+    timestampMs: String(Date.now()),
+  });
+
+  const env = getActivityEnvelope(json);
+  if (env.failure) throw new Error(`Turnkey sign_transaction failed: ${env.failure}`);
+
+  const result = parseActivityResult<{ signedTransaction?: string }>(
+    json,
+    'signTransactionResult',
+  );
+  const signedTransaction = result?.signedTransaction
+    ? normalizeHex(result.signedTransaction)
+    : undefined;
+
+  // Single-signer wallet: activity completes instantly, broadcast now.
+  if (env.status === 'ACTIVITY_STATUS_COMPLETED' && signedTransaction) {
+    const txHash = await client.sendRawTransaction({ serializedTransaction: signedTransaction });
+    return { activityId: env.activityId, status: env.status, signedTransaction, txHash, awaitingConsensus: false };
+  }
+
+  return {
+    activityId: env.activityId,
+    status: env.status,
+    signedTransaction,
+    awaitingConsensus: env.status === 'ACTIVITY_STATUS_CONSENSUS_NEEDED',
+  };
+}
+
+/**
+ * Poll a pending Turnkey SIGN_TRANSACTION activity (used to check whether the
+ * quorum has approved a treasury transfer). Returns the current status and, once
+ * approved, the signed transaction ready to broadcast.
+ */
+export async function pollTurnkeyActivity(activityId: string): Promise<{
+  status?: string;
+  signedTransaction?: string;
+  failure?: string;
+}> {
+  const json = await stampAndQuery('get_activity', {
+    organizationId: Deno.env.get('TURNKEY_ORGANIZATION_ID')!,
+    activityId,
+  });
+  const env = getActivityEnvelope(json);
+  const result = parseActivityResult<{ signedTransaction?: string }>(
+    json,
+    'signTransactionResult',
+  );
+  return {
+    status: env.status,
+    signedTransaction: result?.signedTransaction
+      ? normalizeHex(result.signedTransaction)
+      : undefined,
+    failure: env.failure,
+  };
+}
+
+/** Broadcast an already-signed (quorum-approved) serialized transaction. */
+export async function broadcastSignedTransaction(signedTransaction: string): Promise<string> {
+  const client = getBscPublicClient();
+  return client.sendRawTransaction({
+    serializedTransaction: normalizeHex(signedTransaction),
   });
 }
 
