@@ -14,6 +14,7 @@ import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useDepositPayment } from '@/hooks/useDepositPayment';
 import { PARTNER_ENTRY_USDT } from '@/components/partner/partnerData';
 import { PartnerHomeTab } from '@/components/partner/PartnerHomeTab';
+import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerStakeTab } from '@/components/partner/PartnerStakeTab';
 import { PartnerAssetsTab } from '@/components/partner/PartnerAssetsTab';
 import { PartnerTeamTab } from '@/components/partner/PartnerTeamTab';
@@ -239,17 +240,31 @@ export default function PartnerProgram() {
                   onGoTeamTransferGuide={handleGoTeamTransferGuide}
                 />
               )}
-              {tab === 'stake' && (
-                <PartnerStakeTab
-                  lang={lang}
+              {tab === 'stake' &&
+                (teamLoading && state.stakeOrders.length === 0 ? (
+                  <PartnerReferralLoading
+                    label={p('program.loadingData')}
+                    isDark={isDark}
+                    className="min-h-[50vh]"
+                  />
+                ) : (
+                  <PartnerStakeTab
+                    lang={lang}
+                    isDark={isDark}
+                    state={state}
+                    hasReferralBound={hasReferralBound}
+                    referralLoading={referralLoading}
+                    onGoHome={() => setTab('home')}
+                  />
+                ))}
+              {tab === 'assets' && canSeeAssets && teamLoading && state.stakeOrders.length === 0 && (
+                <PartnerReferralLoading
+                  label={p('program.loadingData')}
                   isDark={isDark}
-                  state={state}
-                  hasReferralBound={hasReferralBound}
-                  referralLoading={referralLoading}
-                  onGoHome={() => setTab('home')}
+                  className="min-h-[50vh]"
                 />
               )}
-              {tab === 'assets' && canSeeAssets && (
+              {tab === 'assets' && canSeeAssets && !(teamLoading && state.stakeOrders.length === 0) && (
                 <PartnerAssetsTab
                   lang={lang}
                   isDark={isDark}

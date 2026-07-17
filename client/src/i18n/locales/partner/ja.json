@@ -340,6 +340,10 @@
   "team.ud3JumpDepositor": "入金下線",
   "team.ud3JumpGuide": "案内人",
   "team.totalPerf": "総業績",
-  "team.ud3Rewards": "UD3 報酬",
-  "ud3.assessBadge": "考核"
+  "ud3.assessBadge": "考核",
+  "stake.payFromWallet": "ウォレットから支払う",
+  "stake.payFromWalletHint": "確認すると接続中のウォレットから {amount} USDT（BSC）を送金します",
+  "stake.confirmingPayment": "支払いを確認中…",
+  "stake.confirmingPaymentHint": "ウォレットで取引を承認してください。まもなく完了します",
+  "program.loadingData": "データを読み込み中…"
 }

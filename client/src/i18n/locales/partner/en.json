@@ -362,6 +362,10 @@
   "team.ud3JumpDepositor": "Depositor",
   "team.ud3JumpGuide": "Guide",
   "team.totalPerf": "Total performance",
-  "team.ud3Rewards": "UD3 rewards",
-  "ud3.assessBadge": "Basis"
+  "ud3.assessBadge": "Basis",
+  "stake.payFromWallet": "Pay from your wallet",
+  "stake.payFromWalletHint": "On confirm, a {amount} USDT (BSC) payment is sent from your connected wallet",
+  "stake.confirmingPayment": "Confirming payment…",
+  "stake.confirmingPaymentHint": "Approve the transaction in your wallet; this will finish shortly",
+  "program.loadingData": "Loading data…"
 }

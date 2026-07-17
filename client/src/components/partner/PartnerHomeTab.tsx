@@ -457,6 +457,7 @@ export function PartnerHomeTab({
             isDemo={isDemo}
             amountUsdt={stakeAmount}
             depositIntent={lastDepositIntent}
+            paying={paying}
             isDark={isDark}
             label={p}
           />

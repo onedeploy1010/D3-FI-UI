@@ -362,6 +362,10 @@
   "team.ud3JumpDepositor": "入金下线",
   "team.ud3JumpGuide": "引路人",
   "team.totalPerf": "总业绩",
-  "team.ud3Rewards": "UD3 奖励",
-  "ud3.assessBadge": "考核"
+  "ud3.assessBadge": "考核",
+  "stake.payFromWallet": "从您的钱包支付",
+  "stake.payFromWalletHint": "确认后将从您连接的钱包发起 {amount} USDT（BSC）支付",
+  "stake.confirmingPayment": "正在确认支付…",
+  "stake.confirmingPaymentHint": "请在钱包中确认交易，稍候即可完成",
+  "program.loadingData": "正在加载数据…"
 }

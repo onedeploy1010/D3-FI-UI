@@ -1,26 +1,42 @@
-import { FlaskConical } from 'lucide-react';
+import { FlaskConical, Loader2, Wallet } from 'lucide-react';
 import type { DepositIntent } from '@/lib/depositApi';
 
-function RealDepositHint({
-  intent,
+/**
+ * Payment is sent directly from the user's connected wallet (BSC USDT) — there is
+ * no manual "deposit to this address" step anymore. Show a wallet-pay hint before
+ * confirming and a waiting animation while the transaction is in flight.
+ */
+function RealPaymentHint({
+  amountUsdt,
+  paying,
   isDark,
   label,
 }: {
-  intent: DepositIntent | null | undefined;
+  amountUsdt: number;
+  paying: boolean;
   isDark: boolean;
-  label: (key: string) => string;
+  label: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  if (!intent) return null;
   return (
     <div
-      className={`partner-depth-inset rounded-xl p-3 mb-4 text-left ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}
+      className={`partner-depth-inset rounded-xl p-4 mb-4 flex items-center gap-3 ${
+        isDark ? 'text-white/70' : 'text-[#160510]/70'
+      }`}
     >
-      <div className="text-[10px] uppercase tracking-widest mb-1">{label('stake.depositAddress')}</div>
-      <div className={`text-xs font-mono break-all ${isDark ? 'text-white/80' : 'text-[#160510]/80'}`}>
-        {intent.depositAddress}
-      </div>
-      <div className="text-[10px] mt-2">
-        {label('stake.depositHint')} · BSC USDT · {intent.expectedAmount} USDT
+      {paying ? (
+        <Loader2 size={20} className="shrink-0 text-[#E0568F] animate-spin" aria-hidden />
+      ) : (
+        <Wallet size={20} className="shrink-0 text-[#E0568F]" aria-hidden />
+      )}
+      <div className="min-w-0">
+        <div className={`text-sm font-semibold ${isDark ? 'text-white/90' : 'text-[#160510]/90'}`}>
+          {paying ? label('stake.confirmingPayment') : label('stake.payFromWallet')}
+        </div>
+        <div className="text-[11px] mt-0.5 leading-relaxed">
+          {paying
+            ? label('stake.confirmingPaymentHint')
+            : label('stake.payFromWalletHint', { amount: amountUsdt.toLocaleString() })}
+        </div>
       </div>
     </div>
   );
@@ -62,18 +78,20 @@ function DemoPaymentHint({
 export function PartnerPaymentConfirmSection({
   isDemo,
   amountUsdt,
-  depositIntent,
+  depositIntent: _depositIntent,
+  paying = false,
   isDark,
   label,
 }: {
   isDemo: boolean;
   amountUsdt: number;
   depositIntent?: DepositIntent | null;
+  paying?: boolean;
   isDark: boolean;
   label: (key: string, params?: Record<string, string | number>) => string;
 }) {
   if (isDemo) {
     return <DemoPaymentHint amountUsdt={amountUsdt} isDark={isDark} label={label} />;
   }
-  return <RealDepositHint intent={depositIntent} isDark={isDark} label={label} />;
+  return <RealPaymentHint amountUsdt={amountUsdt} paying={paying} isDark={isDark} label={label} />;
 }
