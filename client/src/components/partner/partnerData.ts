@@ -391,46 +391,60 @@ export type PartnerState = {
   yieldSettlementsByPosition: Record<string, YieldReleaseRecord[]>;
 };
 
+/** Format a Date as YYYY-MM-DD in LOCAL time (avoids the UTC shift toISOString
+ *  introduces — e.g. 2026-07-16 00:00 SGT becoming 2026-07-15 in UTC). */
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function buildStakeOrderYieldHistory(
   order: PartnerStakeOrder,
   settlements: PartnerYieldSettlementRow[] = [],
 ): YieldReleaseRecord[] {
-  const rows = settlements
+  // Days the daily run has already settled (authoritative, source='settled').
+  const settledRows = settlements
     .filter((r) => r.position_id === order.id)
     .map((r) => ({
       id: r.id,
       date: r.settlement_date,
       yieldUsdt: Number(r.yield_usdt),
       source: 'settled' as const,
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  if (rows.length > 0) return rows;
+    }));
+  const settledDates = new Set(settledRows.map((r) => r.date));
 
   const start = new Date(`${order.startedAt}T00:00:00`);
   const end = new Date();
   end.setHours(0, 0, 0, 0);
   const unlock = new Date(`${order.unlockAt}T23:59:59`);
-  if (Number.isNaN(start.getTime()) || order.dailyYieldUsdt <= 0) return [];
 
-  const exitCap = getStakeExitYieldCap(order);
+  // Estimated (未结算) rows for every day from the stake date through today that the
+  // daily run has not settled yet. Dates are formatted in local time so a position
+  // started on the 16th never renders a phantom 15th row.
   const accrued: YieldReleaseRecord[] = [];
-  const cursor = new Date(start);
-  let running = 0;
-  while (cursor <= end && cursor <= unlock && running < exitCap - 1e-9) {
-    const date = cursor.toISOString().slice(0, 10);
-    const dayYield = Math.min(order.dailyYieldUsdt, Math.round((exitCap - running) * 100) / 100);
-    if (dayYield <= 0) break;
-    accrued.push({
-      id: `accrued-${order.id}-${date}`,
-      date,
-      yieldUsdt: dayYield,
-      source: 'accrued',
-    });
-    running = Math.round((running + dayYield) * 100) / 100;
-    cursor.setDate(cursor.getDate() + 1);
+  if (!Number.isNaN(start.getTime()) && order.dailyYieldUsdt > 0) {
+    const exitCap = getStakeExitYieldCap(order);
+    const cursor = new Date(start);
+    let running = settledRows.reduce((s, r) => s + r.yieldUsdt, 0);
+    while (cursor <= end && cursor <= unlock && running < exitCap - 1e-9) {
+      const date = toLocalDateStr(cursor);
+      cursor.setDate(cursor.getDate() + 1);
+      if (settledDates.has(date)) continue; // real settlement already covers this day
+      const dayYield = Math.min(order.dailyYieldUsdt, Math.round((exitCap - running) * 100) / 100);
+      if (dayYield <= 0) break;
+      accrued.push({
+        id: `accrued-${order.id}-${date}`,
+        date,
+        yieldUsdt: dayYield,
+        source: 'accrued',
+      });
+      running = Math.round((running + dayYield) * 100) / 100;
+    }
   }
-  return accrued.sort((a, b) => b.date.localeCompare(a.date));
+
+  return [...settledRows, ...accrued].sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export function mapYieldSettlementsByPosition(
