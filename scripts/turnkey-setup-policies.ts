@@ -176,9 +176,28 @@ async function resolveBackendUserId(creds: {
   throw new Error('Backend API public key is not attached to any Turnkey user.');
 }
 
+async function listExistingPolicyNames(creds: {
+  orgId: string;
+  apiPublicKey: string;
+  apiPrivateKey: string;
+}): Promise<Set<string>> {
+  try {
+    const json = await tk('query', 'list_policies', { organizationId: creds.orgId }, creds);
+    return new Set<string>((json.policies ?? []).map((p: { policyName?: string }) => p.policyName ?? ''));
+  } catch {
+    return new Set<string>();
+  }
+}
+
 async function createPolicy(
   p: { policyName: string; effect: string; consensus: string; condition: string; notes: string },
-  ctx: { orgId: string; apiPublicKey: string; apiPrivateKey: string; execute: boolean },
+  ctx: {
+    orgId: string;
+    apiPublicKey: string;
+    apiPrivateKey: string;
+    execute: boolean;
+    existing?: Set<string>;
+  },
 ) {
   const body = {
     type: 'ACTIVITY_TYPE_CREATE_POLICY_V3',
@@ -187,7 +206,9 @@ async function createPolicy(
     parameters: {
       policyName: p.policyName,
       effect: p.effect,
-      consensus: p.consensus,
+      // Turnkey rejects an empty consensus expression ("Unrecognized EOF"); a DENY
+      // catch-all needs no approver quorum, so omit the field entirely when empty.
+      ...(p.consensus ? { consensus: p.consensus } : {}),
       condition: p.condition,
       notes: p.notes,
     },
@@ -195,6 +216,11 @@ async function createPolicy(
   if (!ctx.execute) {
     console.log(`\n[dry-run] would create policy "${p.policyName}":`);
     console.log(JSON.stringify(body.parameters, null, 2));
+    return;
+  }
+  // Idempotent: skip a policy that already exists so the script can be re-run safely.
+  if (ctx.existing?.has(p.policyName)) {
+    console.log(`  • ${p.policyName} → already exists (skipped)`);
     return;
   }
   const json = await tk('submit', 'create_policy', body, ctx);
@@ -234,7 +260,7 @@ async function main() {
   }
 
   const creds = { orgId, apiPublicKey, apiPrivateKey };
-  const ctx = { ...creds, execute };
+  const ctx = { ...creds, execute, existing: new Set<string>() };
   const treasuryLc = treasury.toLowerCase();
 
   const usdtContract = (process.env.TURNKEY_USDT_CONTRACT?.trim() || BSC_USDT_MAINNET_CONTRACT).toLowerCase();
@@ -242,6 +268,7 @@ async function main() {
   const gasMaxWei = process.env.TURNKEY_GAS_MAX_WEI?.trim() || '50000000000000000'; // 0.05 BNB
 
   const backendUserId = await resolveBackendUserId(creds);
+  if (execute) ctx.existing = await listExistingPolicyNames(creds);
   console.log(`Backend Turnkey user: ${backendUserId}`);
   console.log(`Treasury (excluded):  ${treasury}`);
   console.log(`Settlement token:     ${usdtContract}`);
