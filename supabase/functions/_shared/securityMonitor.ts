@@ -2,6 +2,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { computeSolvency as realComputeSolvency } from './solvency.ts';
 import { notify as realNotify } from './notifier.ts';
 import { raiseAlert, type AlertInput } from './securityAlerts.ts';
+import { reapExpiredNonces } from './siwe.ts';
 
 type Sb = SupabaseClient;
 
@@ -39,6 +40,7 @@ export type ScanSummary = {
   raised: string[]; // rule_ids of newly-created alerts
   notified: string[]; // rule_ids that were pushed (or attempted) via notifier
   autoPaused: string[]; // circuit-breaker flags auto-paused this scan
+  noncesReaped: number; // expired siwe_nonces rows deleted this scan (housekeeping)
   errors: Array<{ rule: string; message: string }>;
 };
 
@@ -54,6 +56,7 @@ export async function runSecurityScan(sb: Sb, deps: MonitorDeps = DEFAULT_DEPS):
     raised: [],
     notified: [],
     autoPaused: [],
+    noncesReaped: 0,
     errors: [],
   };
 
@@ -271,6 +274,14 @@ export async function runSecurityScan(sb: Sb, deps: MonitorDeps = DEFAULT_DEPS):
     }
   } catch (e) {
     record('system_paused', e);
+  }
+
+  // ── Housekeeping: keep the unauthenticated SIWE nonce table bounded ─────────
+  // Opportunistic on the 5-min cron; fail-soft (reapExpiredNonces never throws).
+  try {
+    summary.noncesReaped = await reapExpiredNonces(sb);
+  } catch (e) {
+    record('nonce_reaper', e);
   }
 
   return summary;

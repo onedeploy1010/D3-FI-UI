@@ -5,7 +5,12 @@ import {
   buildAdminAuditRow,
   writeAdminAudit,
 } from '../_shared/audit.ts';
-import { approveApproval, type ApproveDeps } from './index.ts';
+import {
+  approveApproval,
+  rejectApproval,
+  requiredPermissionForApprovalAction,
+  type ApproveDeps,
+} from './index.ts';
 
 describe('V-08 maker-checker — assertDifferentApprover (separation of duties)', () => {
   it('throws 403 when approver equals requester', () => {
@@ -120,6 +125,121 @@ describe('V-08 admin audit — writeAdminAudit builds the correct immutable row'
     expect(inserts[0].table).toBe('audit_logs');
     expect((inserts[0].payload as { actor_type: string }).actor_type).toBe('admin');
     expect((inserts[0].payload as { actor_id: string }).actor_id).toBe('admin-9');
+  });
+});
+
+describe('R-3 — requiredPermissionForApprovalAction (checker perm matches action)', () => {
+  it('maps security.* actions to security.write', () => {
+    expect(requiredPermissionForApprovalAction('security.unpause')).toBe('security.write');
+  });
+  it('maps risk_limits.* actions to security.write', () => {
+    expect(requiredPermissionForApprovalAction('risk_limits.update')).toBe('security.write');
+  });
+  it('keeps subsidy/program actions on subsidies.write', () => {
+    expect(requiredPermissionForApprovalAction('subsidy_ticket.patch')).toBe('subsidies.write');
+    expect(requiredPermissionForApprovalAction('program_settings.update')).toBe('subsidies.write');
+  });
+});
+
+describe('R-3 — approve/reject of a security action require security.write (not subsidies.write)', () => {
+  const pending = {
+    id: 'apr-sec',
+    action: 'security.unpause',
+    target_type: 'system_pause_flags',
+    target_id: 'flash_swap',
+    payload: { flag: 'flash_swap', reason: 'recovered' },
+    requested_by: 'admin-1',
+    status: 'pending',
+  };
+
+  function fakeSb(auditInserts: unknown[]) {
+    // deno-lint-ignore no-explicit-any
+    return {
+      from: (table: string) => {
+        if (table === 'admin_action_approvals') {
+          return {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: pending, error: null }) }),
+            }),
+          };
+        }
+        if (table === 'audit_logs') {
+          return {
+            insert: (payload: unknown) => {
+              auditInserts.push(payload);
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+      // deno-lint-ignore no-explicit-any
+    } as any;
+  }
+
+  const subsidiesOnly = {
+    userId: 'admin-2', username: 'bob', role: 'admin', permissions: ['subsidies.write'],
+  } as never;
+  const securityWriter = {
+    userId: 'admin-3', username: 'carol', role: 'admin', permissions: ['security.write'],
+  } as never;
+  const superadmin = {
+    userId: 'admin-4', username: 'dave', role: 'superadmin', permissions: [],
+  } as never;
+
+  function makeDeps(overrides: Partial<ApproveDeps> = {}): ApproveDeps {
+    return {
+      claimApproval: vi.fn().mockResolvedValue({ ...pending, status: 'executed' }),
+      applyProgramSettings: vi.fn(),
+      applySubsidyTicket: vi.fn(),
+      applySecurityUnpause: vi.fn().mockResolvedValue({ before: { paused: true }, after: { paused: false } }),
+      applyRiskLimits: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it('approveApproval → 403 for a subsidies.write-only approver, and claims/applies NOTHING', async () => {
+    const auditInserts: unknown[] = [];
+    const deps = makeDeps({ claimApproval: vi.fn(), applySecurityUnpause: vi.fn() });
+
+    await expect(
+      approveApproval(fakeSb(auditInserts), 'apr-sec', subsidiesOnly, deps),
+    ).rejects.toMatchObject({ status: 403, message: 'Missing security.write permission' });
+
+    expect(deps.claimApproval).not.toHaveBeenCalled();
+    expect(deps.applySecurityUnpause).not.toHaveBeenCalled();
+    expect(auditInserts).toHaveLength(0);
+  });
+
+  it('approveApproval → security.write approver passes (claim + apply run once)', async () => {
+    const auditInserts: unknown[] = [];
+    const deps = makeDeps();
+
+    const res = await approveApproval(fakeSb(auditInserts), 'apr-sec', securityWriter, deps);
+
+    expect(deps.claimApproval).toHaveBeenCalledTimes(1);
+    expect(deps.applySecurityUnpause).toHaveBeenCalledTimes(1);
+    expect((res.approval as { status: string }).status).toBe('executed');
+    expect(auditInserts).toHaveLength(1);
+  });
+
+  it('approveApproval → superadmin bypasses the permission gate', async () => {
+    const auditInserts: unknown[] = [];
+    const deps = makeDeps();
+
+    await approveApproval(fakeSb(auditInserts), 'apr-sec', superadmin, deps);
+
+    expect(deps.applySecurityUnpause).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejectApproval → 403 for a subsidies.write-only approver on a security action', async () => {
+    const auditInserts: unknown[] = [];
+
+    await expect(
+      rejectApproval(fakeSb(auditInserts), 'apr-sec', subsidiesOnly, 'nope'),
+    ).rejects.toMatchObject({ status: 403, message: 'Missing security.write permission' });
+
+    expect(auditInserts).toHaveLength(0);
   });
 });
 

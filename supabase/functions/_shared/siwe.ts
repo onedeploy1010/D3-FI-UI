@@ -250,6 +250,51 @@ export function getSessionToken(req: Request): string | null {
 }
 
 /**
+ * Best-effort client IP for rate-limit bucketing. Trusts the FIRST hop of the
+ * `x-forwarded-for` chain (the original client as recorded by the edge proxy),
+ * falling back to `x-real-ip`, then a constant so the limiter still buckets
+ * requests when no forwarding header is present. Never throws — purely a keying
+ * helper, never an auth/identity source.
+ */
+export function clientIpFromRequest(req: Request): string {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) {
+    const first = xff.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  const real = req.headers.get('x-real-ip')?.trim();
+  if (real) return real;
+  return 'unknown';
+}
+
+/**
+ * Delete stale rows from `siwe_nonces` so the table stays bounded under
+ * unauthenticated `/auth/nonce` traffic. Removes every row whose `expires_at`
+ * is already in the past (this also sweeps used nonces once they lapse). Pass
+ * `olderThanMs` to widen the cutoff further into the past.
+ *
+ * Fails SOFT: returns the number of deleted rows, or 0 on any infra/driver
+ * error — it is opportunistic housekeeping and must never abort its caller.
+ */
+export async function reapExpiredNonces(
+  sb: SupabaseClient,
+  opts: { olderThanMs?: number } = {},
+): Promise<number> {
+  const cutoff = new Date(Date.now() - Math.max(0, opts.olderThanMs ?? 0)).toISOString();
+  try {
+    const { data, error } = await sb
+      .from('siwe_nonces')
+      .delete()
+      .lt('expires_at', cutoff)
+      .select('nonce');
+    if (error) return 0;
+    return Array.isArray(data) ? data.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Verify the X-Session-Token JWT and return the proven wallet address
  * (lowercased). Throws HttpError(401) on any missing/malformed/invalid/expired
  * token. HMAC signature is compared in constant time.

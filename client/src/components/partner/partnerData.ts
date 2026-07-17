@@ -389,6 +389,8 @@ export type PartnerState = {
   ud3SettlementHistory: Ud3SettlementRecord[];
   /** Server-settled USDT yield available to withdraw. */
   pendingUsdtYield: number;
+  /** Settled, withdrawable D3 yield (flash-swap uses this; 0 until settlement). */
+  pendingD3Yield: number;
   /** Daily USDT yield release rows keyed by stake position id. */
   yieldSettlementsByPosition: Record<string, YieldReleaseRecord[]>;
 };
@@ -522,24 +524,30 @@ export function resolveFlashYieldBalances(
   d3PriceUsdt = CROWDFUND_UNIT_PRICE_USDT,
 ) {
   const computed = computeYieldBalances(state.stakeOrders, now);
-  const serverPending = Number(state.pendingUsdtYield ?? 0);
-  const claimableUsdt = serverPending > 0 ? serverPending : computed.claimable;
+  // Authoritative withdrawable amount = the server's SETTLED pending_d3_yield. It is
+  // credited only by the daily SGT-midnight settlement, so it is 0 for a freshly
+  // staked position. The client-side accrued estimate (computed.claimable) must NOT
+  // drive the withdrawable figure — the backend only lets you flash-swap the settled
+  // D3, so showing the estimate made the button offer an amount the backend rejects.
+  const claimableD3 = Math.max(0, Number(state.pendingD3Yield ?? 0));
+  const claimableUsdt = d3ToUsdt(claimableD3, d3PriceUsdt);
   const accruedUsdt = Math.max(computed.accruedTotal, Number(state.lifetimeUsdtYield ?? 0));
   const claimedUsdt = computed.claimedYieldUsdt;
   const dailyUsdtYield = computed.dailyUsdtYield;
+  const minWithdrawD3 = usdtToD3(MIN_YIELD_WITHDRAW_USDT, d3PriceUsdt);
   return {
     ...computed,
     claimable: claimableUsdt,
     claimableUsdt,
     accruedTotal: accruedUsdt,
     d3PriceUsdt,
-    claimableD3: usdtToD3(claimableUsdt, d3PriceUsdt),
+    claimableD3,
     accruedD3: usdtToD3(accruedUsdt, d3PriceUsdt),
     claimedD3: usdtToD3(claimedUsdt, d3PriceUsdt),
     dailyD3: usdtToD3(dailyUsdtYield, d3PriceUsdt),
     minWithdrawUsdt: MIN_YIELD_WITHDRAW_USDT,
-    minWithdrawD3: usdtToD3(MIN_YIELD_WITHDRAW_USDT, d3PriceUsdt),
-    canWithdraw: claimableUsdt >= MIN_YIELD_WITHDRAW_USDT,
+    minWithdrawD3,
+    canWithdraw: claimableD3 >= minWithdrawD3,
   };
 }
 
@@ -761,6 +769,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
   /** Demo UD3：直推 60% + 下层网体级差（由 settleUd3DepositEvent 生成）。 */
   ud3SettlementHistory: DEMO_UD3_HISTORY,
   pendingUsdtYield: 0,
+  pendingD3Yield: 0,
   yieldSettlementsByPosition: {},
 };
 
@@ -778,6 +787,7 @@ export const DEMO_PARTNER_BASELINE: PartnerState = {
   ud3StakedFromRewards: 0,
   lifetimeUsdtYield: 0,
   pendingUsdtYield: 0,
+  pendingD3Yield: 0,
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
@@ -803,6 +813,7 @@ export const GUEST_PARTNER_STATE: PartnerState = {
   marketSubsidyPerformanceUsed: 0,
   ud3SettlementHistory: [],
   pendingUsdtYield: 0,
+  pendingD3Yield: 0,
   yieldSettlementsByPosition: {},
 };
 
@@ -831,6 +842,7 @@ export function migratePartnerState(raw: unknown): PartnerState {
       ud3SettlementHistory: s.ud3SettlementHistory ?? [],
       yieldWithdrawals: s.yieldWithdrawals ?? [],
       pendingUsdtYield: s.pendingUsdtYield ?? 0,
+      pendingD3Yield: s.pendingD3Yield ?? 0,
       yieldSettlementsByPosition: s.yieldSettlementsByPosition ?? {},
     } as PartnerState;
   }
@@ -971,6 +983,7 @@ export function hydratePartnerStateFromApi(
     lifetimeUd3Earned,
     lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,
+    pendingD3Yield: account ? Number(account.pending_d3_yield ?? 0) : local.pendingD3Yield,
     stakeOrders: mergedStakeOrders,
     transfers: serverTransfers.length > 0 ? serverTransfers : local.transfers,
     yieldSettlementsByPosition,

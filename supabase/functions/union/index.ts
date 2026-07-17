@@ -2,7 +2,7 @@ import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
 import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
 import { resetDemoPartnerSession } from '../_shared/demoPartnerReset.ts';
 import { getPrivyToken } from '../_shared/privy.ts';
-import { issueNonce, verifySiweAndIssueToken, verifySiweSession } from '../_shared/siwe.ts';
+import { clientIpFromRequest, issueNonce, verifySiweAndIssueToken, verifySiweSession } from '../_shared/siwe.ts';
 import {
   createPrivyTreasuryWallet,
   executePrivyWalletRpc,
@@ -734,14 +734,28 @@ Deno.serve(async (req) => {
 
     // POST /auth/nonce — issue a single-use SIWE nonce for {address}.
     if (req.method === 'POST' && path === '/auth/nonce') {
+      // This handshake runs pre-auth (verify_jwt=false), so throttle it to keep
+      // the siwe_nonces table from being spammed unbounded. Generous limits so
+      // real users/testers are never blocked; keyed by client IP AND address.
+      const ip = clientIpFromRequest(req);
+      await enforceRateLimit(sb, { key: `union:/auth/nonce:ip:${ip}`, limit: 30, windowSec: 60 });
       const body = await req.json().catch(() => ({}));
       const { address } = body as { address?: string };
       if (!address || !isEthAddress(address)) throw new HttpError(400, 'Invalid address');
+      await enforceRateLimit(sb, {
+        key: `union:/auth/nonce:addr:${address.toLowerCase()}`,
+        limit: 30,
+        windowSec: 60,
+      });
       return jsonResponse(await issueNonce(sb, address));
     }
 
     // POST /auth/verify — verify the SIWE signature and mint a session token.
     if (req.method === 'POST' && path === '/auth/verify') {
+      // Pre-auth route that runs viem signature recovery (CPU) per call — throttle
+      // by client IP to blunt a DoS. Generous limit so legit retries are fine.
+      const ip = clientIpFromRequest(req);
+      await enforceRateLimit(sb, { key: `union:/auth/verify:ip:${ip}`, limit: 20, windowSec: 60 });
       const body = await req.json().catch(() => ({}));
       const { message, signature } = body as { message?: string; signature?: string };
       if (typeof message !== 'string' || typeof signature !== 'string') {

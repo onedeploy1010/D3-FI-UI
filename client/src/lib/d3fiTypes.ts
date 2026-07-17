@@ -216,6 +216,8 @@ export type PartnerAccountRow = {
   is_partner: boolean;
   sd3_balance: number;
   pending_usdt_yield: number;
+  /** Settled, withdrawable D3 yield (authoritative for flash-swap; 0 until settlement). */
+  pending_d3_yield?: number;
   lifetime_sd3_earned: number;
   lifetime_usdt_yield: number;
   joined_at: string | null;

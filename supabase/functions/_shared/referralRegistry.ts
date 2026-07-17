@@ -7,6 +7,7 @@ import {
   type Hash,
 } from 'npm:viem@2';
 import { getBscPublicClient } from './turnkey.ts';
+import { walletEquals } from './wallet.ts';
 
 type Sb = SupabaseClient;
 
@@ -163,6 +164,11 @@ export async function upsertReferralFromChain(
   uplineAddr: string,
   txHash?: string,
 ): Promise<void> {
+  // R-11: defense-in-depth self-referral guard. The on-chain ReferralRegistry already
+  // rejects self-edges, but a self-binding must never be indexed into `referrals` — skip
+  // before touching any row (case-insensitive; matches the contract's address equality).
+  if (walletEquals(userAddr, uplineAddr)) return;
+
   const user = await ensureMinimalProfile(sb, userAddr);
   const sponsor = await ensureMinimalProfile(sb, uplineAddr);
 

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { assertSettlementDateNotFuture, creditSettlementYield } from './partnerSettlement.ts';
+import {
+  assertSettlementDateNotFuture,
+  creditSettlementYield,
+  settleUd3Ledger,
+} from './partnerSettlement.ts';
 
 /**
  * V-11 regression: a caller-supplied settlement date must be valid YYYY-MM-DD and
@@ -145,5 +149,104 @@ describe('creditSettlementYield — NEW-1 atomic pending_d3_yield credit', () =>
     const credits = rpcCalls.filter((c) => c.name === 'credit_pending_d3_yield');
     expect(credits).toHaveLength(2);
     expect(upserts.some((u) => u.table === 'partner_accounts')).toBe(true);
+  });
+});
+
+/**
+ * R-7 regression: the UD3 two-phase settlement loop must mark a recipient's ledger rows
+ * settled=true ONLY when its settle_pending_ud3 succeeded. A failed settle must leave the
+ * rows settled=false (so the next daily run retries) — otherwise the reward is stuck in
+ * pending_ud3 yet flagged settled, and the user is silently under-credited.
+ */
+type LedgerUpdate = { payload: Record<string, unknown>; ids: string[] };
+
+function makeLedgerSb(rpcResultsByWallet: Record<string, { error?: unknown }>) {
+  const rpcWallets: string[] = [];
+  const ledgerUpdates: LedgerUpdate[] = [];
+
+  // deno-lint-ignore no-explicit-any
+  const sb: any = {
+    rpc: (name: string, args: Record<string, unknown>) => {
+      const w = String(args.p_wallet).toLowerCase();
+      if (name === 'settle_pending_ud3') rpcWallets.push(w);
+      const r = rpcResultsByWallet[w];
+      return Promise.resolve({ data: null, error: r?.error ?? null });
+    },
+    from: (table: string) => {
+      let pending: Record<string, unknown> | null = null;
+      // deno-lint-ignore no-explicit-any
+      const b: any = {
+        update: (p: Record<string, unknown>) => {
+          pending = p;
+          return b;
+        },
+        // `.in('id', ids)` is the terminal awaited call for the settled-update.
+        in: (_col: string, ids: string[]) => {
+          if (table === 'partner_ud3_ledger' && pending) {
+            ledgerUpdates.push({ payload: pending, ids });
+          }
+          return Promise.resolve({ data: null, error: null });
+        },
+      };
+      return b;
+    },
+  };
+  return { sb, rpcWallets, ledgerUpdates };
+}
+
+describe('settleUd3Ledger — R-7 settled-flag gated on settle success', () => {
+  const ROWS = [
+    { id: 'A1', recipient_wallet: '0xAAA' },
+    { id: 'A2', recipient_wallet: '0xAAA' },
+    { id: 'B1', recipient_wallet: '0xBBB' },
+  ];
+
+  it('does NOT mark rows settled for a wallet whose settle_pending_ud3 rejected, but DOES for a successful one', async () => {
+    // 0xAAA succeeds, 0xBBB fails.
+    const { sb, rpcWallets, ledgerUpdates } = makeLedgerSb({
+      '0xbbb': { error: { message: 'boom' } },
+    });
+
+    const res = await settleUd3Ledger(sb, ROWS, '2026-07-16');
+
+    // Both wallets were attempted.
+    expect(rpcWallets.sort()).toEqual(['0xaaa', '0xbbb']);
+
+    // Only the successful wallet's rows are settled; the failed wallet is reported.
+    expect(res.settledRows).toBe(2);
+    expect(res.failedWallets).toEqual(['0xbbb']);
+
+    const settledIds = ledgerUpdates.flatMap((u) => u.ids);
+    expect(settledIds).toContain('A1');
+    expect(settledIds).toContain('A2');
+    // The failed wallet's ledger row must NOT be flipped settled.
+    expect(settledIds).not.toContain('B1');
+
+    // Every issued update sets settled=true (never settled=false).
+    for (const u of ledgerUpdates) expect(u.payload.settled).toBe(true);
+  });
+
+  it('all recipients fail -> issues NO settled-update at all (rows retried next run)', async () => {
+    const { sb, ledgerUpdates } = makeLedgerSb({
+      '0xaaa': { error: { message: 'x' } },
+      '0xbbb': { error: { message: 'y' } },
+    });
+
+    const res = await settleUd3Ledger(sb, ROWS, '2026-07-16');
+
+    expect(res.settledRows).toBe(0);
+    expect(res.failedWallets.sort()).toEqual(['0xaaa', '0xbbb']);
+    expect(ledgerUpdates).toHaveLength(0);
+  });
+
+  it('all recipients succeed -> every row flipped settled', async () => {
+    const { sb, ledgerUpdates } = makeLedgerSb({});
+
+    const res = await settleUd3Ledger(sb, ROWS, '2026-07-16');
+
+    expect(res.settledRows).toBe(3);
+    expect(res.failedWallets).toEqual([]);
+    const settledIds = ledgerUpdates.flatMap((u) => u.ids);
+    expect(settledIds.sort()).toEqual(['A1', 'A2', 'B1']);
   });
 });

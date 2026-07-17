@@ -214,7 +214,67 @@ export type PartnerSettlementResult = {
   yieldRows: number;
   ud3Rows: number;
   skipped: boolean;
+  /** R-7: recipients whose settle_pending_ud3 failed this run (rows left unsettled to retry). */
+  ud3FailedWallets?: string[];
 };
+
+export type Ud3LedgerRow = { id: string; recipient_wallet: string };
+
+/**
+ * R-7: UD3 two-phase settlement — for each recipient move pending_ud3 into ud3_balance
+ * via the atomic `settle_pending_ud3` RPC, then flip that recipient's unsettled ledger
+ * rows to settled=true.
+ *
+ * The key invariant: a recipient's ledger rows are marked settled=true ONLY when its
+ * settle_pending_ud3 SUCCEEDED. Previously the loop flagged every selected row settled
+ * unconditionally, so a failed settle left the reward stuck in pending_ud3 yet marked the
+ * rows settled — never retried, user under-credited. On failure we log, record the wallet,
+ * and leave its rows settled=false so the next daily run retries them.
+ *
+ * Pure w.r.t. amounts (it does not change any credited amount) and testable with an
+ * inline fake sb: rows are grouped by recipient, then only succeeded recipients' ids
+ * are passed to the settled-update.
+ */
+export async function settleUd3Ledger(
+  sb: Sb,
+  ledgerRows: Ud3LedgerRow[],
+  dateStr: string,
+): Promise<{ settledRows: number; failedWallets: string[] }> {
+  // Group ledger row ids by their (lowercased) recipient so we can flip ONLY the rows
+  // whose settle_pending_ud3 call succeeded.
+  const idsByRecipient = new Map<string, string[]>();
+  for (const row of ledgerRows) {
+    const w = (row.recipient_wallet as string).toLowerCase();
+    const list = idsByRecipient.get(w);
+    if (list) list.push(row.id as string);
+    else idsByRecipient.set(w, [row.id as string]);
+  }
+
+  const settledIds: string[] = [];
+  const failedWallets: string[] = [];
+  for (const [w, ids] of idsByRecipient) {
+    const { error: settleErr } = await sb.rpc('settle_pending_ud3', { p_wallet: w });
+    if (settleErr) {
+      // Leave this wallet's ledger rows settled=false so the next daily run retries.
+      console.error('[ud3] settle_pending_ud3:', settleErr.message);
+      failedWallets.push(w);
+      continue;
+    }
+    for (const id of ids) settledIds.push(id);
+  }
+
+  if (settledIds.length > 0) {
+    const nowIso = new Date().toISOString();
+    for (let i = 0; i < settledIds.length; i += 500) {
+      await sb
+        .from('partner_ud3_ledger')
+        .update({ settled: true, settled_at: nowIso, settlement_date: dateStr })
+        .in('id', settledIds.slice(i, i + 500));
+    }
+  }
+
+  return { settledRows: settledIds.length, failedWallets };
+}
 
 export async function runDailyPartnerSettlement(
   sb: Sb,
@@ -245,6 +305,7 @@ export async function runDailyPartnerSettlement(
 
   let yieldRows = 0;
   let ud3Rows = 0;
+  let ud3FailedWallets: string[] = [];
 
   try {
     const settlementEnd = new Date(`${dateStr}T23:59:59.999+08:00`);
@@ -350,26 +411,15 @@ export async function runDailyPartnerSettlement(
         .select('id, recipient_wallet')
         .eq('settled', false)
         .neq('role', 'reserve');
-      const recipients = new Set<string>();
-      const ledgerIds: string[] = [];
-      for (const row of pendingLedger ?? []) {
-        recipients.add((row.recipient_wallet as string).toLowerCase());
-        ledgerIds.push(row.id as string);
-      }
-      for (const w of recipients) {
-        const { error: settleErr } = await sb.rpc('settle_pending_ud3', { p_wallet: w });
-        if (settleErr) console.error('[ud3] settle_pending_ud3:', settleErr.message);
-      }
-      if (ledgerIds.length > 0) {
-        const nowIso = new Date().toISOString();
-        for (let i = 0; i < ledgerIds.length; i += 500) {
-          await sb
-            .from('partner_ud3_ledger')
-            .update({ settled: true, settled_at: nowIso, settlement_date: dateStr })
-            .in('id', ledgerIds.slice(i, i + 500));
-        }
-        ud3Rows = ledgerIds.length;
-      }
+      // R-7: only mark a recipient's rows settled=true when its settle_pending_ud3
+      // succeeded; failed wallets keep settled=false so the next daily run retries.
+      const { settledRows, failedWallets } = await settleUd3Ledger(
+        sb,
+        (pendingLedger ?? []) as Ud3LedgerRow[],
+        dateStr,
+      );
+      ud3Rows = settledRows;
+      ud3FailedWallets = failedWallets;
     }
 
     await sb
@@ -404,7 +454,17 @@ export async function runDailyPartnerSettlement(
     console.warn('[partner-settlement] demo tick skipped:', e instanceof Error ? e.message : e);
   }
 
-  return { settlementDate: dateStr, yieldRows, ud3Rows, skipped: false };
+  if (ud3FailedWallets.length > 0) {
+    console.error('[ud3] settle_pending_ud3 failed for wallets (left unsettled to retry):', ud3FailedWallets);
+  }
+
+  return {
+    settlementDate: dateStr,
+    yieldRows,
+    ud3Rows,
+    skipped: false,
+    ...(ud3FailedWallets.length > 0 ? { ud3FailedWallets } : {}),
+  };
 }
 
 export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {

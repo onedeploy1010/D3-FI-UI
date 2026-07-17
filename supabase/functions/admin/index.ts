@@ -471,6 +471,20 @@ const APPROVAL_SUBSIDY_TICKET = 'subsidy_ticket.patch';
 const APPROVAL_SECURITY_UNPAUSE = 'security.unpause';
 const APPROVAL_RISK_LIMITS = 'risk_limits.update';
 
+// R-3: the CHECKER-side permission required to approve/reject depends on the
+// action being approved. Security circuit-breaker unpauses and risk-limit
+// relaxations are created by the maker under `security.write`, so the checker
+// must ALSO hold `security.write` — otherwise a `subsidies.write`-only admin
+// could unpause a breaker or relax a risk cap they cannot create. Subsidy /
+// program actions stay on `subsidies.write`. Superadmin bypasses via
+// adminHasPermission regardless.
+export function requiredPermissionForApprovalAction(action: string): string {
+  if (action.startsWith('security.') || action.startsWith('risk_limits.')) {
+    return 'security.write';
+  }
+  return 'subsidies.write';
+}
+
 async function createApproval(
   sb: Sb,
   input: {
@@ -675,6 +689,14 @@ export async function approveApproval(
     throw new HttpError(400, `Unknown approval action: ${action}`);
   }
 
+  // R-3: cross-permission guard — the checker must hold the permission that
+  // MATCHES the pending action, not merely `subsidies.write`. Enforced BEFORE
+  // the claim so an under-privileged approver can never flip the row.
+  const requiredPerm = requiredPermissionForApprovalAction(action);
+  if (!adminHasPermission(admin, requiredPerm)) {
+    throw new HttpError(403, `Missing ${requiredPerm} permission`);
+  }
+
   // CLAIM FIRST: atomically move pending -> executed. Losers of a concurrent
   // race get null here and apply NOTHING.
   const claimed = await deps.claimApproval(sb, id, admin.userId);
@@ -736,6 +758,13 @@ export async function rejectApproval(
   const approval = await loadPendingApproval(sb, id);
   // Separation of duties applies to rejection too.
   assertDifferentApprover(approval.requested_by as string, admin.userId);
+
+  // R-3: same cross-permission guard as approve — rejecting a security /
+  // risk-limits action requires `security.write`, not `subsidies.write`.
+  const requiredPerm = requiredPermissionForApprovalAction(approval.action as string);
+  if (!adminHasPermission(admin, requiredPerm)) {
+    throw new HttpError(403, `Missing ${requiredPerm} permission`);
+  }
 
   const claimed = await claimApproval(sb, id, 'rejected', admin.userId, {
     reason: reason ?? null,
@@ -1183,17 +1212,16 @@ Deno.serve(async (req) => {
 
     const approveMatch = path.match(/^\/approvals\/([0-9a-f-]{36})\/approve$/);
     if (req.method === 'POST' && approveMatch) {
-      if (!adminHasPermission(admin, 'subsidies.write')) {
-        throw new HttpError(403, 'Missing subsidies.write permission');
-      }
+      // R-3: the permission required depends on the pending action, so the
+      // check is done inside approveApproval once the approval is loaded
+      // (subsidies.write for subsidy/program actions, security.write for
+      // security/risk_limits actions). No coarse pre-gate here.
       return jsonResponse({ ok: true, ...(await approveApproval(sb, approveMatch[1], admin)) });
     }
 
     const rejectMatch = path.match(/^\/approvals\/([0-9a-f-]{36})\/reject$/);
     if (req.method === 'POST' && rejectMatch) {
-      if (!adminHasPermission(admin, 'subsidies.write')) {
-        throw new HttpError(403, 'Missing subsidies.write permission');
-      }
+      // R-3: same action-matched permission check inside rejectApproval.
       const body = await readJson<{ reason?: string }>(req).catch(() => ({}));
       return jsonResponse({ ok: true, ...(await rejectApproval(sb, rejectMatch[1], admin, body.reason)) });
     }
