@@ -618,6 +618,18 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
   }));
   const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
 
+  // Full multi-level downline edges (wallet -> sponsor) so the client can nest the
+  // referral tree beyond direct referrals (下下线 and deeper), even when team_nodes
+  // has no rows for these wallets.
+  const partnerDownlineTree = partnerDownlineWallets.length > 0
+    ? ((await sb
+        .from('referrals')
+        .select('wallet_address, sponsor_wallet_address, performance_weight')
+        .in('wallet_address', partnerDownlineWallets)
+        .eq('referral_type', 'partner')
+        .eq('status', 'active')).data ?? [])
+    : [];
+
   const isPartner = Boolean(partnerBundle.account?.is_partner);
   // Daily UD3 (贿赂金) is abolished; the reward is now UD3 credited per deposit.
   // Field kept at 0 for client compatibility until Batch B renames the response.
@@ -651,6 +663,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     partnerUd3Transfers: partnerBundle.ud3Transfers,
     partnerYieldSettlements: partnerBundle.yieldSettlements,
     partnerDownlineWallets,
+    partnerDownlineTree,
   };
 }
 

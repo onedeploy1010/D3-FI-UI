@@ -429,6 +429,71 @@ export function buildPartnerTeamNodes(
     (r) => r.referral_type === 'partner' && r.status === 'active',
   );
   const tn = bundle.teamNode;
+
+  // Full multi-level tree from downline edges (wallet -> sponsor): nest 下下线 and
+  // deeper under their sponsor. Falls back to direct-only when no edges are present.
+  const edges = (bundle.partnerDownlineTree ?? []).filter((e) => e.wallet_address);
+  if (edges.length > 0) {
+    const meLower = wallet.toLowerCase();
+    const directPerf = new Map(
+      partnerRefs.map((r) => [
+        r.wallet_address.toLowerCase(),
+        num((r as DirectReferral).personal_performance_usd ?? (r as { performance_weight?: number }).performance_weight),
+      ]),
+    );
+    const me: PartnerTeamNode = {
+      id: 'me',
+      address: wallet,
+      short: shortWallet(wallet),
+      label: meDisplay,
+      parentId: null,
+      childrenIds: [],
+      teamUsd: num(partnerStats?.teamPerformanceUsd ?? tn?.team_usd),
+      dailyNewUsd: num(partnerStats?.dailyNewPerformanceUsd),
+      personalUsd: num(partnerStats?.personalPerformanceUsd ?? tn?.personal_usd),
+      directCount: 0,
+      teamCount: edges.length,
+      isDirect: false,
+      isPartner: isPartnerWallet(wallet),
+    };
+    const byAddr = new Map<string, PartnerTeamNode>([[meLower, me]]);
+    for (const e of edges) {
+      const lower = e.wallet_address.toLowerCase();
+      if (lower === meLower || byAddr.has(lower)) continue;
+      byAddr.set(lower, {
+        id: lower,
+        address: e.wallet_address,
+        short: shortWallet(e.wallet_address),
+        label: shortWallet(e.wallet_address),
+        parentId: null,
+        childrenIds: [],
+        teamUsd: 0,
+        dailyNewUsd: 0,
+        personalUsd: num(directPerf.get(lower) ?? e.performance_weight),
+        directCount: 0,
+        teamCount: 0,
+        isDirect: false,
+        isPartner: isPartnerWallet(e.wallet_address),
+      });
+    }
+    for (const e of edges) {
+      const child = byAddr.get(e.wallet_address.toLowerCase());
+      const parent = byAddr.get((e.sponsor_wallet_address ?? '').toLowerCase());
+      if (!child || !parent) continue;
+      child.parentId = parent.id;
+      child.isDirect = parent.id === 'me';
+      parent.childrenIds.push(child.id);
+    }
+    for (const node of byAddr.values()) {
+      node.directCount = node.childrenIds.length;
+      if (node.teamCount === 0) node.teamCount = node.childrenIds.length;
+    }
+    me.directCount = me.childrenIds.length;
+    const map: Record<string, PartnerTeamNode> = {};
+    for (const node of byAddr.values()) map[node.id] = node;
+    return applyDirectLineStats(map);
+  }
+
   const me: PartnerTeamNode = {
     id: 'me',
     address: wallet,

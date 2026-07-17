@@ -315,4 +315,10 @@ export type UnionProfileBundle = {
   partnerYieldSettlements?: PartnerYieldSettlementRow[];
   /** All partner-referral downline wallet addresses (umbrella tree). */
   partnerDownlineWallets?: string[];
+  /** Multi-level downline edges (wallet -> sponsor) to nest the tree past direct referrals. */
+  partnerDownlineTree?: Array<{
+    wallet_address: string;
+    sponsor_wallet_address: string | null;
+    performance_weight?: number | null;
+  }>;
 };
