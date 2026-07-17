@@ -369,6 +369,8 @@ export type PartnerState = {
   joinedAt: string | null;
   stakeOrders: PartnerStakeOrder[];
   ud3Balance: number;
+  /** Unsettled (未结算) UD3 awaiting the daily SGT-midnight settlement (043). */
+  pendingUd3: number;
   ud3StakedFromRewards: number;
   teamPerformanceUsd: number;
   dailyNewPerformanceUsd: number;
@@ -710,6 +712,7 @@ export const DEMO_PARTNER_STATE: PartnerState = {
     },
   ],
   ud3Balance: DEMO_UD3_LIFETIME,
+  pendingUd3: 0,
   ud3StakedFromRewards: 0,
   /** Demo 总业绩 = 伞下个人质押合计（见 partnerTeamNodes）。 */
   teamPerformanceUsd: 5700,
@@ -771,6 +774,7 @@ export const DEMO_PARTNER_BASELINE: PartnerState = {
   yieldWithdrawals: [],
   dtPreorderEligible: false,
   ud3Balance: DEMO_UD3_LIFETIME,
+  pendingUd3: 0,
   ud3StakedFromRewards: 0,
   lifetimeUsdtYield: 0,
   pendingUsdtYield: 0,
@@ -781,6 +785,7 @@ export const GUEST_PARTNER_STATE: PartnerState = {
   joinedAt: null,
   stakeOrders: [],
   ud3Balance: 0,
+  pendingUd3: 0,
   ud3StakedFromRewards: 0,
   teamPerformanceUsd: 0,
   dailyNewPerformanceUsd: 0,
@@ -926,6 +931,8 @@ export function hydratePartnerStateFromApi(
     : lifetimeUd3Earned > 0
       ? lifetimeUd3Earned
       : local.ud3Balance;
+  // Unsettled UD3 (未结算) — authoritative from the account; 0 when no server account.
+  const pendingUd3 = account ? Number(account.pending_ud3 ?? 0) : local.pendingUd3;
 
   const serverTransfers: PartnerTransfer[] = (api.partnerUd3Transfers ?? []).map((r) => {
     // Column was renamed amount_sd3 -> amount_ud3; read the new name first. Reading
@@ -948,6 +955,7 @@ export function hydratePartnerStateFromApi(
     isPartner: account?.is_partner ?? local.isPartner,
     joinedAt: account?.joined_at ?? local.joinedAt,
     ud3Balance,
+    pendingUd3,
     lifetimeUd3Earned,
     lifetimeUsdtYield: account ? Number(account.lifetime_usdt_yield) : local.lifetimeUsdtYield,
     pendingUsdtYield: account ? Number(account.pending_usdt_yield) : local.pendingUsdtYield,

@@ -7,8 +7,22 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Settled (已结算) UD3 from the reward list — excludes rows still pending (未结算). */
 export function sumSettledUd3(state: PartnerState): number {
-  return round2((state.ud3SettlementHistory ?? []).reduce((s, r) => s + r.ud3Amount, 0));
+  return round2(
+    (state.ud3SettlementHistory ?? [])
+      .filter((r) => r.settlementStatus !== 'pending')
+      .reduce((s, r) => s + r.ud3Amount, 0),
+  );
+}
+
+/** Unsettled (未结算) UD3 from the reward list. */
+export function sumPendingUd3(state: PartnerState): number {
+  return round2(
+    (state.ud3SettlementHistory ?? [])
+      .filter((r) => r.settlementStatus === 'pending')
+      .reduce((s, r) => s + r.ud3Amount, 0),
+  );
 }
 
 export function sumUd3Transferred(state: PartnerState): number {
@@ -76,13 +90,24 @@ export function resolvePartnerUd3Metrics(
 ): PartnerUd3Metrics {
   const fromStats = areasFromTeamStats(teamStats);
   const areas = fromStats ?? computePartnerAreaStats(teamNodes);
-  /** Pending UD3：按各节点当日新增，直推 60% + 网体级差（与结算引擎一致）。 */
+  // 未结算 (pending) UD3: authoritative from the account's pending_ud3; fall back to
+  // the reward-list pending sum, then the demo/team estimate. Kept in sync with the
+  // reward list's 未结算 rows so the summary and list never disagree.
   const pendingFromRules = estimatePendingUd3ForMe(teamNodes);
+  const pendingFromHistory = sumPendingUd3(state);
   const pendingUd3 =
-    pendingFromApi != null && pendingFromApi > 0 ? pendingFromApi : pendingFromRules;
+    state.pendingUd3 > 0
+      ? round2(state.pendingUd3)
+      : pendingFromHistory > 0
+        ? pendingFromHistory
+        : pendingFromApi != null && pendingFromApi > 0
+          ? pendingFromApi
+          : pendingFromRules;
+  // 已结算 (settled) UD3: the settled cumulative from the account; fall back to the
+  // settled-only reward-list sum. Pending rewards must NOT count here.
   const settled = sumSettledUd3(state);
   const lifetimeUd3 =
-    state.lifetimeUd3Earned > 0 ? state.lifetimeUd3Earned : settled > 0 ? settled : 0;
+    state.lifetimeUd3Earned > 0 ? state.lifetimeUd3Earned : settled;
   return {
     pendingUd3,
     lifetimeUd3,
