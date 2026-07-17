@@ -203,9 +203,9 @@ export type PartnerTeamStats = {
   /** 伞下累计业绩 */
   teamPerformanceUsd: number;
   dailyNewPerformanceUsd: number;
-  /** 小区累计业绩（sD3 等级依据） */
+  /** 小区累计业绩（UD3 等级依据） */
   smallAreaPerformanceUsd?: number;
-  /** 小区当日新增（sD3 计算基数之一） */
+  /** 小区当日新增（UD3 计算基数之一） */
   smallAreaNewPerformanceUsd?: number;
   largeAreaPerformanceUsd?: number;
   largeAreaNewPerformanceUsd?: number;
@@ -235,7 +235,7 @@ export type PartnerStakePositionRow = {
   status: string;
 };
 
-export type PartnerSd3SettlementRow = {
+export type PartnerUd3SettlementRow = {
   id: string;
   settlement_date: string;
   team_performance_usd: number;
@@ -244,7 +244,7 @@ export type PartnerSd3SettlementRow = {
   sd3_amount: number;
 };
 
-export type PartnerSd3AllocationRow = {
+export type PartnerUd3AllocationRow = {
   id: string;
   recipient_wallet: string;
   source_wallet: string;
@@ -266,7 +266,7 @@ export type PartnerDirectLineStat = {
   dailyNewUsd: number;
 };
 
-export type PartnerSd3TransferRow = {
+export type PartnerUd3TransferRow = {
   id: string;
   from_wallet: string;
   to_wallet: string;
@@ -303,15 +303,15 @@ export type UnionProfileBundle = {
   pocScore: PocScoreRow | null;
   partnerTeamStats?: PartnerTeamStats;
   partnerDirectLineStats?: PartnerDirectLineStat[];
-  /** Today's unsettled sD3 estimate (small-area basis). */
-  pendingSd3Earned?: number;
+  /** Today's unsettled UD3 estimate (small-area basis). */
+  pendingUd3Earned?: number;
   /** Wallets with completed partner join (入盟). */
   partnerMemberWallets?: string[];
   partnerAccount?: PartnerAccountRow | null;
   partnerStakePositions?: PartnerStakePositionRow[];
-  partnerSd3Settlements?: PartnerSd3SettlementRow[];
-  partnerSd3Allocations?: PartnerSd3AllocationRow[];
-  partnerSd3Transfers?: PartnerSd3TransferRow[];
+  partnerUd3Settlements?: PartnerUd3SettlementRow[];
+  partnerUd3Allocations?: PartnerUd3AllocationRow[];
+  partnerUd3Transfers?: PartnerUd3TransferRow[];
   partnerYieldSettlements?: PartnerYieldSettlementRow[];
   /** All partner-referral downline wallet addresses (umbrella tree). */
   partnerDownlineWallets?: string[];

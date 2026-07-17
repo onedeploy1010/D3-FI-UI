@@ -113,35 +113,35 @@ export function withdrawPartnerYield(wallet: string, amountUsdt: number) {
   });
 }
 
-export type Sd3TransferResponse = {
+export type Ud3TransferResponse = {
   ok: boolean;
   transferId: string;
   fromWallet: string;
   toWallet: string;
-  amountSd3: number;
+  amountUd3: number;
   senderBalance: number;
   recipientBalance: number;
 };
 
-export function transferPartnerSd3(wallet: string, toWallet: string, amountSd3: number) {
-  return treasuryFetch<Sd3TransferResponse>(wallet, '/partner/sd3-transfer', {
+export function transferPartnerUd3(wallet: string, toWallet: string, amountUd3: number) {
+  return treasuryFetch<Ud3TransferResponse>(wallet, '/partner/sd3-transfer', {
     method: 'POST',
-    body: JSON.stringify({ toWallet, amountSd3 }),
+    body: JSON.stringify({ toWallet, amountUd3 }),
   });
 }
 
-export type Sd3StakeResponse = {
+export type Ud3StakeResponse = {
   ok: boolean;
   positionId: string;
-  amountSd3: number;
-  sd3Balance: number;
+  amountUd3: number;
+  ud3Balance: number;
   unlockAt: string;
 };
 
-export function stakePartnerSd3(wallet: string, amountSd3: number) {
-  return treasuryFetch<Sd3StakeResponse>(wallet, '/partner/sd3-stake', {
+export function stakePartnerUd3(wallet: string, amountUd3: number) {
+  return treasuryFetch<Ud3StakeResponse>(wallet, '/partner/sd3-stake', {
     method: 'POST',
-    body: JSON.stringify({ amountSd3 }),
+    body: JSON.stringify({ amountUd3 }),
   });
 }
 

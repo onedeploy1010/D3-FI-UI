@@ -37,7 +37,7 @@ type HistoryRow = {
   teamPerformanceUsd: number;
   dailyNewPerformanceUsd: number;
   tierRatePct: number;
-  sd3Amount: number;
+  ud3Amount: number;
   role?: 'direct' | 'upline';
   rewardSharePct?: number;
   gapPct?: number;
@@ -199,7 +199,7 @@ function creditRows(
         teamPerformanceUsd: me.teamUsd,
         dailyNewPerformanceUsd: dep.amountUsdt,
         tierRatePct: event.tierRatePct,
-        sd3Amount: round2(event.directUd3),
+        ud3Amount: round2(event.directUd3),
         role: 'direct',
         rewardSharePct: 60,
         sourceDepth: depth,
@@ -220,7 +220,7 @@ function creditRows(
       teamPerformanceUsd: me.teamUsd,
       dailyNewPerformanceUsd: dep.amountUsdt,
       tierRatePct: event.tierRatePct,
-      sd3Amount: round2(myPay.ud3Amount),
+      ud3Amount: round2(myPay.ud3Amount),
       role: 'upline',
       rewardSharePct: myPay.gapPct,
       gapPct: myPay.gapPct,
@@ -392,7 +392,7 @@ function createBootstrap(): PartnerDemoSimState {
     settledHistory,
     pendingDeposits: pending,
     nextMemberSeq: 1,
-    lifetimeUd3: round2(settledHistory.reduce((s, r) => s + r.sd3Amount, 0)),
+    lifetimeUd3: round2(settledHistory.reduce((s, r) => s + r.ud3Amount, 0)),
   };
 }
 
@@ -404,7 +404,7 @@ function tickOneDay(state: PartnerDemoSimState, day: string): PartnerDemoSimStat
     'settled',
   );
   const settledHistory = [...settledFromPending, ...state.settledHistory];
-  const lifetimeUd3 = round2(settledHistory.reduce((s, r) => s + r.sd3Amount, 0));
+  const lifetimeUd3 = round2(settledHistory.reduce((s, r) => s + r.ud3Amount, 0));
 
   let nodes = cloneNodes(state.nodes);
   for (const id of Object.keys(nodes)) nodes[id] = { ...nodes[id]!, dailyNewUsd: 0 };

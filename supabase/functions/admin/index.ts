@@ -92,7 +92,7 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
       return {
         walletAddress: pk,
         isPartner: Boolean(a?.is_partner),
-        sd3Balance: Number(a?.sd3_balance ?? 0),
+        ud3Balance: Number(a?.sd3_balance ?? 0),
         pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
         marketLeaderStatus: a?.market_leader_status ?? 'none',
         joinedAt: a?.joined_at ?? null,
@@ -152,7 +152,7 @@ async function getMemberDetail(sb: Sb, wallet: string) {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  const { data: sd3Transfers } = await sb
+  const { data: ud3Transfers } = await sb
     .from('partner_ud3_transfers')
     .select('*')
     .or(`from_wallet.ilike.${pk},to_wallet.ilike.${pk}`)
@@ -166,7 +166,7 @@ async function getMemberDetail(sb: Sb, wallet: string) {
     .order('settlement_date', { ascending: false })
     .limit(60);
 
-  const { data: sd3Settlements } = await sb
+  const { data: ud3Settlements } = await sb
     .from('partner_sd3_settlements')
     .select('*')
     .ilike('wallet_address', pk)
@@ -195,9 +195,9 @@ async function getMemberDetail(sb: Sb, wallet: string) {
     downlines: downlines ?? [],
     stakes: stakes ?? [],
     stakeIntents: intents ?? [],
-    sd3Transfers: sd3Transfers ?? [],
+    ud3Transfers: ud3Transfers ?? [],
     yieldSettlements: yieldSettlements ?? [],
-    sd3Settlements: sd3Settlements ?? [],
+    ud3Settlements: ud3Settlements ?? [],
     yieldWithdrawals: withdrawals ?? [],
     subsidyTickets: tickets ?? [],
     teamStats: stats,
@@ -264,7 +264,7 @@ async function listStakes(sb: Sb, params: URLSearchParams) {
     if (error) throw error;
     return {
       kind: 'sd3',
-      note: 'sD3 质押通过伞下转账入众筹；以下为 sD3 转账记录。',
+      note: 'UD3 质押通过伞下转账入众筹；以下为 UD3 转账记录。',
       rows: transfers ?? [],
     };
   }

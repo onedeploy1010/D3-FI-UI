@@ -4,7 +4,7 @@ import { glassCardClass } from '@/components/ui/GlassSurface';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { type PartnerState } from '@/components/partner/partnerData';
 import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
-import { resolvePartnerSd3Metrics } from '@/components/partner/partnerSd3View';
+import { resolvePartnerUd3Metrics } from '@/components/partner/partnerUd3View';
 import {
   getUd3Tier,
   resolveUd3SLevel,
@@ -21,7 +21,7 @@ export function PartnerTeamDashboard({
   state,
   teamStats,
   teamNodes,
-  pendingSd3Earned = 0,
+  pendingUd3Earned = 0,
 }: {
   lang: AppLang;
   isDark: boolean;
@@ -29,12 +29,12 @@ export function PartnerTeamDashboard({
   state: PartnerState;
   teamStats: PartnerTeamStats;
   teamNodes: Record<string, PartnerTeamNode>;
-  pendingSd3Earned?: number;
+  pendingUd3Earned?: number;
 }) {
   const p = usePartnerTranslation(lang);
   const metrics = useMemo(
-    () => resolvePartnerSd3Metrics(state, teamNodes, teamStats, pendingSd3Earned),
-    [state, teamNodes, teamStats, pendingSd3Earned],
+    () => resolvePartnerUd3Metrics(state, teamNodes, teamStats, pendingUd3Earned),
+    [state, teamNodes, teamStats, pendingUd3Earned],
   );
   const areas = metrics.areas;
   /** Prefer tree-derived demo/total performance — API stats can be 0 and falsely show「未达级」. */
@@ -56,8 +56,8 @@ export function PartnerTeamDashboard({
     smallAreaPerfUsdt: areas.smallAreaUsd,
   });
 
-  const lifetimeUd3 = metrics.lifetimeSd3;
-  const pendingUd3 = metrics.pendingSd3;
+  const lifetimeUd3 = metrics.lifetimeUd3;
+  const pendingUd3 = metrics.pendingUd3;
 
   return (
     <motion.div

@@ -55,14 +55,14 @@ export default function PartnerProgram() {
     state,
     teamNodes,
     teamStats,
-    pendingSd3Earned,
+    pendingUd3Earned,
     teamLoading,
     downlineWallets,
     refreshTeamProfile,
     crowdfundStake,
     joinPartner,
-    stakeSd3,
-    transferSd3,
+    stakeUd3,
+    transferUd3,
     withdrawYield,
     yieldWithdrawing,
     submitPartnerSubsidy,
@@ -111,9 +111,9 @@ export default function PartnerProgram() {
     [p],
   );
 
-  const handleTransferSd3 = useCallback(
+  const handleTransferUd3 = useCallback(
     async (toAddress: string, amount: number) => {
-      const ok = await transferSd3(toAddress, amount);
+      const ok = await transferUd3(toAddress, amount);
       if (ok) {
         toast.success(isDemo ? p('assets.demoTransferSuccess') : p('assets.transferSuccess'));
       } else {
@@ -123,7 +123,7 @@ export default function PartnerProgram() {
       }
       return ok;
     },
-    [transferSd3, p, isDemo],
+    [transferUd3, p, isDemo],
   );
 
   const handleHomeStake = useCallback(
@@ -158,18 +158,18 @@ export default function PartnerProgram() {
     ],
   );
 
-  const handleStakeSd3 = useCallback(
+  const handleStakeUd3 = useCallback(
     async (amount: number) => {
       if (!hasReferralBound) return false;
-      const ok = await stakeSd3(amount);
+      const ok = await stakeUd3(amount);
       if (ok) {
-        toast.success(isDemo ? p('stake.demoPaySuccess') : p('home.sd3StakeSuccess'));
+        toast.success(isDemo ? p('stake.demoPaySuccess') : p('home.ud3StakeSuccess'));
       } else {
-        toast.error(p('home.sd3StakeFailed'));
+        toast.error(p('home.ud3StakeFailed'));
       }
       return ok;
     },
-    [hasReferralBound, stakeSd3, isDemo, p],
+    [hasReferralBound, stakeUd3, isDemo, p],
   );
 
   const handleGoTeamTransferGuide = useCallback(() => {
@@ -235,7 +235,7 @@ export default function PartnerProgram() {
                   paying={depositPaying}
                   lastDepositIntent={lastIntent}
                   onHomeStake={handleHomeStake}
-                  onStakeSd3={handleStakeSd3}
+                  onStakeUd3={handleStakeUd3}
                   onGoTeamTransferGuide={handleGoTeamTransferGuide}
                 />
               )}
@@ -257,12 +257,12 @@ export default function PartnerProgram() {
                   state={state}
                   hasStake={hasStake}
                   teamStats={teamStats}
-                  pendingSd3Earned={pendingSd3Earned}
+                  pendingUd3Earned={pendingUd3Earned}
                   subsidySettings={subsidySettings}
                   teamNodes={teamNodes}
                   downlineWallets={downlineWallets}
-                  onStakeSd3={stakeSd3}
-                  onTransferSd3={handleTransferSd3}
+                  onStakeUd3={stakeUd3}
+                  onTransferUd3={handleTransferUd3}
                   onWithdrawYield={handleWithdrawYield}
                   yieldWithdrawing={yieldWithdrawing}
                   onPartnerSubsidy={submitPartnerSubsidy}
@@ -278,9 +278,9 @@ export default function PartnerProgram() {
                   wallet={wallet}
                   teamNodes={teamNodes}
                   teamStats={teamStats}
-                  pendingSd3Earned={pendingSd3Earned}
+                  pendingUd3Earned={pendingUd3Earned}
                   teamLoading={teamLoading}
-                  onTransferSd3={handleTransferSd3}
+                  onTransferUd3={handleTransferUd3}
                   transferGuideActive={teamTransferGuide}
                   onTransferGuideComplete={() => setTeamTransferGuide(false)}
                 />

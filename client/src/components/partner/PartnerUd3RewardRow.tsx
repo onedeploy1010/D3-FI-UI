@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Compass, UserRound } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
-import { type Sd3SettlementRecord } from '@/components/partner/partnerData';
+import { type Ud3SettlementRecord } from '@/components/partner/partnerData';
 import { UD3_DIRECT_SHARE, UD3_NETWORK_SHARE } from '@/components/partner/ud3Rules';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
@@ -61,7 +61,7 @@ export function PartnerUd3RewardRow({
   onOpenDepositor,
   onOpenGuide,
 }: {
-  row: Sd3SettlementRecord;
+  row: Ud3SettlementRecord;
   lang: AppLang;
   isDark: boolean;
   last?: boolean;
@@ -86,10 +86,10 @@ export function PartnerUd3RewardRow({
   }, [row, isDirect]);
 
   const attrLabel = isDirect
-    ? p('team.sd3RoleDirect')
+    ? p('team.ud3RoleDirect')
     : fx.depth != null
       ? p('team.ud3FromLayer', { n: fx.depth })
-      : p('team.sd3RoleUpline');
+      : p('team.ud3RoleUpline');
 
   const iconBtn = `inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ios-glass-pressable ${
     isDark
@@ -141,7 +141,7 @@ export function PartnerUd3RewardRow({
 
           <div className="text-right shrink-0">
             <div className="text-[18px] font-bold text-[#E0568F] tabular-nums leading-none tracking-tight">
-              +{fmt(row.sd3Amount)}
+              +{fmt(row.ud3Amount)}
             </div>
             <div
               className={`mt-1 text-[10px] font-semibold tracking-[0.12em] ${
@@ -191,13 +191,13 @@ export function PartnerUd3RewardRow({
               ? p('team.ud3EqDirect', {
                   bribe: fmt(fx.generated),
                   share: Math.round(UD3_DIRECT_SHARE * 100),
-                  amount: fmt(row.sd3Amount),
+                  amount: fmt(row.ud3Amount),
                 })
               : p('team.ud3EqUpline', {
                   bribe: fmt(fx.generated),
                   pool: Math.round(UD3_NETWORK_SHARE * 100),
                   gap: fx.gapPct,
-                  amount: fmt(row.sd3Amount),
+                  amount: fmt(row.ud3Amount),
                 })}
           </p>
           <div className="flex items-center gap-1 shrink-0">

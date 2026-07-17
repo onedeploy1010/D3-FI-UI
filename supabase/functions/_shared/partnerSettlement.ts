@@ -212,7 +212,7 @@ export async function syncAllStakePositions(sb: Sb): Promise<number> {
 export type PartnerSettlementResult = {
   settlementDate: string;
   yieldRows: number;
-  sd3Rows: number;
+  ud3Rows: number;
   skipped: boolean;
 };
 
@@ -231,7 +231,7 @@ export async function runDailyPartnerSettlement(
     .eq('settlement_date', dateStr)
     .maybeSingle();
   if (prior) {
-    return { settlementDate: dateStr, yieldRows: 0, sd3Rows: 0, skipped: true };
+    return { settlementDate: dateStr, yieldRows: 0, ud3Rows: 0, skipped: true };
   }
 
   await syncAllStakePositions(sb);
@@ -244,7 +244,7 @@ export async function runDailyPartnerSettlement(
   });
 
   let yieldRows = 0;
-  let sd3Rows = 0;
+  let ud3Rows = 0;
 
   try {
     const settlementEnd = new Date(`${dateStr}T23:59:59.999+08:00`);
@@ -368,7 +368,7 @@ export async function runDailyPartnerSettlement(
             .update({ settled: true, settled_at: nowIso, settlement_date: dateStr })
             .in('id', ledgerIds.slice(i, i + 500));
         }
-        sd3Rows = ledgerIds.length;
+        ud3Rows = ledgerIds.length;
       }
     }
 
@@ -377,7 +377,7 @@ export async function runDailyPartnerSettlement(
       .update({
         status: 'completed',
         yield_rows: yieldRows,
-        sd3_rows: sd3Rows,
+        sd3_rows: ud3Rows,
         ran_at: new Date().toISOString(),
       })
       .eq('settlement_date', dateStr);
@@ -389,7 +389,7 @@ export async function runDailyPartnerSettlement(
         status: 'failed',
         error_message: errorMessage.slice(0, 500),
         yield_rows: yieldRows,
-        sd3_rows: sd3Rows,
+        sd3_rows: ud3Rows,
         ran_at: new Date().toISOString(),
       })
       .eq('settlement_date', dateStr);
@@ -404,7 +404,7 @@ export async function runDailyPartnerSettlement(
     console.warn('[partner-settlement] demo tick skipped:', e instanceof Error ? e.message : e);
   }
 
-  return { settlementDate: dateStr, yieldRows, sd3Rows, skipped: false };
+  return { settlementDate: dateStr, yieldRows, ud3Rows, skipped: false };
 }
 
 export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
@@ -418,7 +418,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
-  const [account, positions, sd3History, ud3Ledger, yieldHistory, sd3Transfers] = await Promise.all([
+  const [account, positions, ud3History, ud3Ledger, yieldHistory, ud3Transfers] = await Promise.all([
     sb.from('partner_accounts').select('*').ilike('wallet_address', w).maybeSingle(),
     sb
       .from('partner_stake_positions')
@@ -469,7 +469,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .in('id', eventIds);
     eventsById = Object.fromEntries((evs ?? []).map((e) => [e.id as string, e]));
   }
-  const sd3Allocations = ledgerRows.map((r) => {
+  const ud3Allocations = ledgerRows.map((r) => {
     const ev = eventsById[r.event_id as string] ?? {};
     return {
       id: r.id,
@@ -491,9 +491,9 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
   return {
     account: account.data,
     stakePositions: positions.data ?? [],
-    sd3Settlements: sd3History.data ?? [],
-    sd3Allocations,
+    ud3Settlements: ud3History.data ?? [],
+    ud3Allocations,
     yieldSettlements: yieldHistory.data ?? [],
-    sd3Transfers: sd3Transfers.data ?? [],
+    ud3Transfers: ud3Transfers.data ?? [],
   };
 }

@@ -14,20 +14,20 @@ import {
   DAILY_YIELD_PCT,
   formatD3Amount,
   isValidRegularStakeAmount,
-  isValidSd3StakeAmount,
+  isValidUd3StakeAmount,
   PARTNER_ENTRY_USDT,
   REGULAR_STAKE_MIN_USDT,
   REGULAR_STAKE_STEP_USDT,
-  SD3_STAKE_MIN,
-  SD3_STAKE_STEP,
+  UD3_STAKE_MIN,
+  UD3_STAKE_STEP,
   STAKE_EXIT_MULTIPLIER_DEFAULT,
   STAKE_EXIT_MULTIPLIER_SD3,
   STAKE_LOCK_DAYS,
   usdtToD3,
   type PartnerState,
 } from '@/components/partner/partnerData';
-import { getSd3Available } from '@/components/partner/partnerSd3View';
-import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
+import { getUd3Available } from '@/components/partner/partnerUd3View';
+import { PartnerUd3Amount } from '@/components/partner/partnerUiKit';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 import type { DepositIntent } from '@/lib/depositApi';
@@ -43,7 +43,7 @@ export function PartnerHomeTab({
   paying,
   lastDepositIntent,
   onHomeStake,
-  onStakeSd3,
+  onStakeUd3,
   onGoTeamTransferGuide,
 }: {
   lang: AppLang;
@@ -56,38 +56,38 @@ export function PartnerHomeTab({
   paying: boolean;
   lastDepositIntent?: DepositIntent | null;
   onHomeStake: (amount: number, withPartnerJoin: boolean) => Promise<boolean>;
-  onStakeSd3: (amount: number) => Promise<boolean>;
+  onStakeUd3: (amount: number) => Promise<boolean>;
   onGoTeamTransferGuide?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const [amount, setAmount] = useState(String(DEFAULT_HOME_STAKE_USDT));
   const [becomePartner, setBecomePartner] = useState(true);
-  const [useSd3, setUseSd3] = useState(false);
+  const [useUd3, setUseUd3] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const availableSd3 = getSd3Available(state);
+  const availableUd3 = getUd3Available(state);
   const numAmount = Number(amount);
-  const isRegularMode = !state.isPartner && !becomePartner && !useSd3;
-  const withPartnerJoin = !state.isPartner && becomePartner && !useSd3;
+  const isRegularMode = !state.isPartner && !becomePartner && !useUd3;
+  const withPartnerJoin = !state.isPartner && becomePartner && !useUd3;
   const stakeAmount = withPartnerJoin ? PARTNER_ENTRY_USDT : numAmount;
-  const exitMultiplier = useSd3 ? STAKE_EXIT_MULTIPLIER_SD3 : STAKE_EXIT_MULTIPLIER_DEFAULT;
+  const exitMultiplier = useUd3 ? STAKE_EXIT_MULTIPLIER_SD3 : STAKE_EXIT_MULTIPLIER_DEFAULT;
 
   const isValidAmount = useMemo(() => {
     if (withPartnerJoin) return true;
     if (!Number.isFinite(numAmount)) return false;
-    if (useSd3) return isValidSd3StakeAmount(numAmount, availableSd3);
+    if (useUd3) return isValidUd3StakeAmount(numAmount, availableUd3);
     if (isRegularMode) return isValidRegularStakeAmount(numAmount);
     return numAmount >= minCrowdfundUsdt;
-  }, [numAmount, isRegularMode, minCrowdfundUsdt, withPartnerJoin, useSd3, availableSd3]);
+  }, [numAmount, isRegularMode, minCrowdfundUsdt, withPartnerJoin, useUd3, availableUd3]);
 
   const quickIncrements = [100, 500, 1000, 5000];
   const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(stakeAmount) : 0;
   const dailyD3 = isValidAmount ? calcDailyD3Release(stakeAmount) : 0;
   const crowdfundD3 = isValidAmount ? usdtToD3(stakeAmount) : 0;
 
-  const clampSd3Amount = (raw: number) => {
-    const stepped = Math.max(SD3_STAKE_MIN, Math.floor(raw / SD3_STAKE_STEP) * SD3_STAKE_STEP);
-    const maxStep = Math.floor(availableSd3 / SD3_STAKE_STEP) * SD3_STAKE_STEP;
+  const clampUd3Amount = (raw: number) => {
+    const stepped = Math.max(UD3_STAKE_MIN, Math.floor(raw / UD3_STAKE_STEP) * UD3_STAKE_STEP);
+    const maxStep = Math.floor(availableUd3 / UD3_STAKE_STEP) * UD3_STAKE_STEP;
     return Math.min(stepped, Math.max(0, maxStep));
   };
 
@@ -95,9 +95,9 @@ export function PartnerHomeTab({
     if (withPartnerJoin) return;
     const base = Number.isFinite(numAmount) ? numAmount : 0;
     let next = base + delta;
-    if (useSd3) {
-      next = clampSd3Amount(next);
-      setAmount(String(next > 0 ? next : SD3_STAKE_MIN));
+    if (useUd3) {
+      next = clampUd3Amount(next);
+      setAmount(String(next > 0 ? next : UD3_STAKE_MIN));
       return;
     }
     if (isRegularMode) {
@@ -111,7 +111,7 @@ export function PartnerHomeTab({
   const handleTogglePartner = (checked: boolean) => {
     setBecomePartner(checked);
     if (checked) {
-      setUseSd3(false);
+      setUseUd3(false);
       setAmount(String(PARTNER_ENTRY_USDT));
     } else {
       // Non-partner (regular) stake defaults to the 100 USDT minimum; user can edit.
@@ -119,12 +119,12 @@ export function PartnerHomeTab({
     }
   };
 
-  const handleToggleUseSd3 = (checked: boolean) => {
-    if (checked && availableSd3 < SD3_STAKE_MIN) return;
-    setUseSd3(checked);
+  const handleToggleUseUd3 = (checked: boolean) => {
+    if (checked && availableUd3 < UD3_STAKE_MIN) return;
+    setUseUd3(checked);
     if (checked) {
       setBecomePartner(false);
-      setAmount(String(clampSd3Amount(Math.min(DEFAULT_HOME_STAKE_USDT, availableSd3)) || SD3_STAKE_MIN));
+      setAmount(String(clampUd3Amount(Math.min(DEFAULT_HOME_STAKE_USDT, availableUd3)) || UD3_STAKE_MIN));
     } else if (!state.isPartner) {
       setBecomePartner(true);
       setAmount(String(PARTNER_ENTRY_USDT));
@@ -135,12 +135,12 @@ export function PartnerHomeTab({
 
   const confirmStake = async () => {
     if (!isValidAmount) return;
-    const ok = useSd3
-      ? await onStakeSd3(stakeAmount)
+    const ok = useUd3
+      ? await onStakeUd3(stakeAmount)
       : await onHomeStake(stakeAmount, withPartnerJoin);
     if (ok) {
       setConfirmOpen(false);
-      setUseSd3(false);
+      setUseUd3(false);
       setAmount(String(DEFAULT_HOME_STAKE_USDT));
       if (!state.isPartner) setBecomePartner(true);
     }
@@ -212,8 +212,8 @@ export function PartnerHomeTab({
               {p('home.stakeTitle')}
             </h2>
             <p className={`text-[11px] mb-2 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-              {useSd3
-                ? p('home.sd3StakeSubtitle')
+              {useUd3
+                ? p('home.ud3StakeSubtitle')
                 : p('home.d3CrowdfundPrice', { price: CROWDFUND_UNIT_PRICE_USDT })}
             </p>
             <div className="flex flex-wrap justify-center gap-1.5 mb-1">
@@ -225,13 +225,13 @@ export function PartnerHomeTab({
 
           <div className="relative mb-4">
             <div className={`text-[10px] font-semibold uppercase tracking-widest text-center mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-              {useSd3 ? 'UD3' : 'USDT'}
+              {useUd3 ? 'UD3' : 'USDT'}
             </div>
             <input
               type="number"
-              min={useSd3 ? SD3_STAKE_MIN : isRegularMode ? REGULAR_STAKE_MIN_USDT : minCrowdfundUsdt}
-              step={useSd3 || isRegularMode ? REGULAR_STAKE_STEP_USDT : 'any'}
-              max={useSd3 ? availableSd3 : undefined}
+              min={useUd3 ? UD3_STAKE_MIN : isRegularMode ? REGULAR_STAKE_MIN_USDT : minCrowdfundUsdt}
+              step={useUd3 || isRegularMode ? REGULAR_STAKE_STEP_USDT : 'any'}
+              max={useUd3 ? availableUd3 : undefined}
               value={withPartnerJoin ? String(PARTNER_ENTRY_USDT) : amount}
               readOnly={withPartnerJoin}
               onChange={(e) => {
@@ -239,8 +239,8 @@ export function PartnerHomeTab({
                 setAmount(e.target.value);
               }}
               placeholder={
-                useSd3
-                  ? p('home.stakeSd3Placeholder', { min: SD3_STAKE_MIN, step: SD3_STAKE_STEP, max: availableSd3 })
+                useUd3
+                  ? p('home.stakeUd3Placeholder', { min: UD3_STAKE_MIN, step: UD3_STAKE_STEP, max: availableUd3 })
                   : isRegularMode
                     ? p('home.stakeRegularPlaceholder', { min: REGULAR_STAKE_MIN_USDT, step: REGULAR_STAKE_STEP_USDT })
                     : p('home.stakePartnerPlaceholder', { default: PARTNER_ENTRY_USDT })
@@ -270,7 +270,7 @@ export function PartnerHomeTab({
           )}
           {withPartnerJoin && <div className="mb-5" />}
 
-          {!state.isPartner && !useSd3 && (
+          {!state.isPartner && !useUd3 && (
             <label
               className={`flex items-start gap-2.5 cursor-pointer partner-depth-inset rounded-xl px-3.5 py-3 mb-4 ${
                 isDark ? 'text-white/75' : 'text-[#160510]/75'
@@ -291,10 +291,10 @@ export function PartnerHomeTab({
             </label>
           )}
 
-          {(useSd3 || isRegularMode) && (
+          {(useUd3 || isRegularMode) && (
             <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-              {useSd3
-                ? p('home.stakeSd3StepHint', { step: SD3_STAKE_STEP })
+              {useUd3
+                ? p('home.stakeUd3StepHint', { step: UD3_STAKE_STEP })
                 : p('home.stakeStepHint', { step: REGULAR_STAKE_STEP_USDT })}
             </p>
           )}
@@ -316,7 +316,7 @@ export function PartnerHomeTab({
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 space-y-2.5"
             >
-              {!useSd3 && (
+              {!useUd3 && (
               <div className="partner-depth-inset rounded-2xl overflow-hidden">
                 <div className="px-4 py-3.5">
                   <div className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
@@ -349,7 +349,7 @@ export function PartnerHomeTab({
                 </div>
               </div>
               )}
-              {useSd3 && (
+              {useUd3 && (
                 <div className="partner-depth-inset rounded-2xl px-4 py-3.5">
                   <div className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                     {p('home.estDailyYield')}
@@ -363,29 +363,29 @@ export function PartnerHomeTab({
                     })}
                   </div>
                   <div className={`mt-1.5 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                    {p('home.sd3NoBribeHint')}
+                    {p('home.ud3NoBribeHint')}
                   </div>
                 </div>
               )}
               <label
                 className={`w-full partner-depth-inset rounded-2xl px-4 py-3.5 flex items-start gap-2.5 text-left cursor-pointer ${
-                  availableSd3 < SD3_STAKE_MIN ? 'opacity-55 cursor-not-allowed' : 'ios-glass-pressable'
+                  availableUd3 < UD3_STAKE_MIN ? 'opacity-55 cursor-not-allowed' : 'ios-glass-pressable'
                 } ${isDark ? 'text-white/75' : 'text-[#160510]/75'}`}
               >
                 <input
                   type="checkbox"
-                  checked={useSd3}
-                  disabled={availableSd3 < SD3_STAKE_MIN}
-                  onChange={(e) => handleToggleUseSd3(e.target.checked)}
+                  checked={useUd3}
+                  disabled={availableUd3 < UD3_STAKE_MIN}
+                  onChange={(e) => handleToggleUseUd3(e.target.checked)}
                   className="mt-0.5 accent-[#E0568F] shrink-0 scale-110"
                 />
                 <span className="text-[11px] leading-relaxed min-w-0">
-                  <span className="font-semibold">{p('home.sd3QuotaLabel')}</span>
+                  <span className="font-semibold">{p('home.ud3QuotaLabel')}</span>
                   <span className="block text-sm font-bold text-[#E0568F] mt-0.5">
-                    <PartnerSd3Amount value={availableSd3} />
+                    <PartnerUd3Amount value={availableUd3} />
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                    {p('home.sd3QuotaHintOpen')}
+                    {p('home.ud3QuotaHintOpen')}
                     <button
                       type="button"
                       className="underline underline-offset-2 text-[#E0568F] font-semibold mx-0.5"
@@ -395,7 +395,7 @@ export function PartnerHomeTab({
                         onGoTeamTransferGuide?.();
                       }}
                     >
-                      {p('home.sd3TransferDownlineLink')}
+                      {p('home.ud3TransferDownlineLink')}
                     </button>
                   </span>
                 </span>
@@ -407,23 +407,23 @@ export function PartnerHomeTab({
             <div className="mt-4">
               <label
                 className={`w-full partner-depth-inset rounded-2xl px-4 py-3.5 flex items-start gap-2.5 text-left cursor-pointer ${
-                  availableSd3 < SD3_STAKE_MIN ? 'opacity-55 cursor-not-allowed' : 'ios-glass-pressable'
+                  availableUd3 < UD3_STAKE_MIN ? 'opacity-55 cursor-not-allowed' : 'ios-glass-pressable'
                 } ${isDark ? 'text-white/75' : 'text-[#160510]/75'}`}
               >
                 <input
                   type="checkbox"
-                  checked={useSd3}
-                  disabled={availableSd3 < SD3_STAKE_MIN}
-                  onChange={(e) => handleToggleUseSd3(e.target.checked)}
+                  checked={useUd3}
+                  disabled={availableUd3 < UD3_STAKE_MIN}
+                  onChange={(e) => handleToggleUseUd3(e.target.checked)}
                   className="mt-0.5 accent-[#E0568F] shrink-0 scale-110"
                 />
                 <span className="text-[11px] leading-relaxed min-w-0">
-                  <span className="font-semibold">{p('home.sd3QuotaLabel')}</span>
+                  <span className="font-semibold">{p('home.ud3QuotaLabel')}</span>
                   <span className="block text-sm font-bold text-[#E0568F] mt-0.5">
-                    <PartnerSd3Amount value={availableSd3} />
+                    <PartnerUd3Amount value={availableUd3} />
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                    {p('home.sd3QuotaHintOpen')}
+                    {p('home.ud3QuotaHintOpen')}
                   </span>
                 </span>
               </label>
@@ -441,18 +441,18 @@ export function PartnerHomeTab({
         <div className="space-y-2 mb-5">
           <div className="partner-depth-inset p-4 text-center rounded-2xl">
             <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
-              {useSd3 ? p('stake.kind.sd3') : withPartnerJoin ? p('stake.partner') : p('stake.stakeAmount')}
+              {useUd3 ? p('stake.kind.sd3') : withPartnerJoin ? p('stake.partner') : p('stake.stakeAmount')}
             </div>
             <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{stakeAmount.toLocaleString()}</div>
             <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-              {useSd3 ? 'UD3' : 'USDT'}
+              {useUd3 ? 'UD3' : 'USDT'}
             </div>
             <div className={`text-[10px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
               {p('home.tagExitMult', { mult: exitMultiplier })}
             </div>
           </div>
         </div>
-        {!useSd3 && (
+        {!useUd3 && (
           <PartnerPaymentConfirmSection
             isDemo={isDemo}
             amountUsdt={stakeAmount}
@@ -461,9 +461,9 @@ export function PartnerHomeTab({
             label={p}
           />
         )}
-        {useSd3 && (
+        {useUd3 && (
           <p className={`text-[11px] text-center mb-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-            {p('home.sd3ConfirmHint')}
+            {p('home.ud3ConfirmHint')}
           </p>
         )}
         <div className="flex flex-col-reverse sm:flex-row gap-3">

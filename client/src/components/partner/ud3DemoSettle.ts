@@ -2,7 +2,7 @@
  * Demo UD3 settlement — 已结算 vs 未结算（当日下线新增入金）.
  * Engine: 档位产出 → 直推 60% → 网体 40% 自下而上级差。
  */
-import type { Sd3SettlementRecord } from '@/components/partner/partnerData';
+import type { Ud3SettlementRecord } from '@/components/partner/partnerData';
 import {
   computePartnerAreaStats,
   partnerTeamDepth,
@@ -86,11 +86,11 @@ export function creditRowsForDeposits(
   nodes: Record<string, PartnerTeamNode>,
   deposits: DemoDeposit[],
   status: 'settled' | 'pending',
-): Sd3SettlementRecord[] {
+): Ud3SettlementRecord[] {
   const me = nodes.me;
   if (!me) return [];
 
-  const rows: Sd3SettlementRecord[] = [];
+  const rows: Ud3SettlementRecord[] = [];
   const meMeta = nodeUpline(nodes, 'me');
 
   for (const dep of deposits) {
@@ -130,7 +130,7 @@ export function creditRowsForDeposits(
         id: dep.id,
         ...base,
         tierRatePct: event.tierRatePct,
-        sd3Amount: round2(event.directUd3),
+        ud3Amount: round2(event.directUd3),
         role: 'direct',
         rewardSharePct: 60,
         vLabel: meMeta.vLabel,
@@ -147,7 +147,7 @@ export function creditRowsForDeposits(
       id: dep.id,
       ...base,
       tierRatePct: event.tierRatePct,
-      sd3Amount: round2(myPay.ud3Amount),
+      ud3Amount: round2(myPay.ud3Amount),
       role: 'upline',
       rewardSharePct: myPay.gapPct,
       gapPct: myPay.gapPct,
@@ -160,7 +160,7 @@ export function creditRowsForDeposits(
 
 export function buildDemoUd3SettlementHistory(
   nodes: Record<string, PartnerTeamNode>,
-): Sd3SettlementRecord[] {
+): Ud3SettlementRecord[] {
   return creditRowsForDeposits(nodes, DEMO_SETTLED_DEPOSITS_SEED, 'settled').sort(
     (a, b) => b.settledAt.localeCompare(a.settledAt) || b.id.localeCompare(a.id),
   );
@@ -169,12 +169,12 @@ export function buildDemoUd3SettlementHistory(
 export function buildDemoUd3PendingRows(
   nodes: Record<string, PartnerTeamNode>,
   pending: DemoDeposit[] = DEMO_PENDING_DEPOSITS_SEED,
-): Sd3SettlementRecord[] {
+): Ud3SettlementRecord[] {
   return creditRowsForDeposits(nodes, pending, 'pending').sort((a, b) => b.id.localeCompare(a.id));
 }
 
-export function sumDemoUd3History(rows: Sd3SettlementRecord[]): number {
-  return round2(rows.reduce((s, r) => s + r.sd3Amount, 0));
+export function sumDemoUd3History(rows: Ud3SettlementRecord[]): number {
+  return round2(rows.reduce((s, r) => s + r.ud3Amount, 0));
 }
 
 export function applyPendingDepositsToDailyNew(

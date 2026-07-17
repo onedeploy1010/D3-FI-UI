@@ -5,7 +5,7 @@ vi.mock('./partnerPerformance.ts', () => ({
 }));
 vi.mock('./audit.ts', () => ({ writeAuditLog: async () => {} }));
 
-import { transferPartnerSd3 } from './partnerSd3Transfer.ts';
+import { transferPartnerUd3 } from './partnerUd3Transfer.ts';
 
 type Resp = {
   rpc?: Record<string, { data?: unknown; error?: unknown }>;
@@ -60,7 +60,7 @@ function makeSb(responses: Resp) {
 
 const SENDER = { wallet_address: '0xfrom', is_partner: true, ud3_balance: 1000 };
 
-describe('transferPartnerSd3 — V-06 atomic transfer_ud3', () => {
+describe('transferPartnerUd3 — V-06 atomic transfer_ud3', () => {
   it('transfer_ud3 rejects INSUFFICIENT_BALANCE -> 400', async () => {
     const { sb } = makeSb({
       sender: SENDER,
@@ -68,7 +68,7 @@ describe('transferPartnerSd3 — V-06 atomic transfer_ud3', () => {
       recipientAcct: { wallet_address: '0xto' },
       rpc: { transfer_ud3: { error: { message: 'INSUFFICIENT_BALANCE' } } },
     });
-    await expect(transferPartnerSd3(sb, '0xfrom', '0xto', 100)).rejects.toMatchObject({ status: 400 });
+    await expect(transferPartnerUd3(sb, '0xfrom', '0xto', 100)).rejects.toMatchObject({ status: 400 });
   });
 
   it('transfer_ud3 rejects RECIPIENT_NOT_FOUND -> 404', async () => {
@@ -78,7 +78,7 @@ describe('transferPartnerSd3 — V-06 atomic transfer_ud3', () => {
       recipientAcct: { wallet_address: '0xto' },
       rpc: { transfer_ud3: { error: { message: 'RECIPIENT_NOT_FOUND' } } },
     });
-    await expect(transferPartnerSd3(sb, '0xfrom', '0xto', 100)).rejects.toMatchObject({ status: 404 });
+    await expect(transferPartnerUd3(sb, '0xfrom', '0xto', 100)).rejects.toMatchObject({ status: 404 });
   });
 
   it('success path performs atomic move then inserts transfer record', async () => {
@@ -90,7 +90,7 @@ describe('transferPartnerSd3 — V-06 atomic transfer_ud3', () => {
       rpc: { transfer_ud3: { data: 900, error: null } },
       transferInsert: { data: { id: 't42' }, error: null },
     });
-    const res = await transferPartnerSd3(sb, '0xfrom', '0xTO', 100);
+    const res = await transferPartnerUd3(sb, '0xfrom', '0xTO', 100);
     expect(rpcCalls.map((c) => c.name)).toContain('transfer_ud3');
     expect(res.transferId).toBe('t42');
     expect(res.senderBalance).toBe(900);
@@ -106,7 +106,7 @@ describe('transferPartnerSd3 — V-06 atomic transfer_ud3', () => {
       rpc: { transfer_ud3: { data: 900, error: null } },
       transferInsert: { data: { id: 't1' }, error: null },
     });
-    await transferPartnerSd3(sb, '0xfrom', '0xnew', 100);
+    await transferPartnerUd3(sb, '0xfrom', '0xnew', 100);
     expect(inserts.some((i) => i.table === 'partner_accounts')).toBe(true);
   });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
-import { PartnerSd3TransferModal } from '@/components/partner/PartnerSd3TransferModal';
+import { PartnerUd3TransferModal } from '@/components/partner/PartnerUd3TransferModal';
 import { getUd3Tier } from '@/components/partner/ud3Rules';
 import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
@@ -152,7 +152,7 @@ export function PartnerTeamTree({
   loading = false,
   isPartner = false,
   transferQuota = 0,
-  onTransferSd3,
+  onTransferUd3,
   transferGuideActive = false,
   transferGuideStep = -1,
   jumpFocusId = null,
@@ -166,7 +166,7 @@ export function PartnerTeamTree({
   loading?: boolean;
   isPartner?: boolean;
   transferQuota?: number;
-  onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
+  onTransferUd3?: (toAddress: string, amount: number) => Promise<boolean>;
   transferGuideActive?: boolean;
   transferGuideStep?: number;
   /** External jump from UD3 rewards → focus this node id once. */
@@ -236,7 +236,7 @@ export function PartnerTeamTree({
     [wallet],
   );
 
-  const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferSd3);
+  const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferUd3);
 
   const displayNodes = useMemo(() => {
     if (!transferGuideActive) return nodes;
@@ -343,7 +343,7 @@ export function PartnerTeamTree({
                 setTransferTarget(node);
               }}
             >
-              {p('tree.transferSd3')}
+              {p('tree.transferUd3')}
             </PartnerRaisedButton>
           )}
         </div>
@@ -400,8 +400,8 @@ export function PartnerTeamTree({
         </div>
       </div>
 
-      {transferTarget && onTransferSd3 && (
-        <PartnerSd3TransferModal
+      {transferTarget && onTransferUd3 && (
+        <PartnerUd3TransferModal
           open={Boolean(transferTarget)}
           onClose={() => setTransferTarget(null)}
           lang={lang}
@@ -419,7 +419,7 @@ export function PartnerTeamTree({
           recipientIsDirect={transferTarget.isDirect}
           toAlias={getTeamAlias(aliases, transferTarget.address) || undefined}
           transferQuota={transferQuota}
-          onConfirm={(amount) => onTransferSd3(transferTarget.address, amount)}
+          onConfirm={(amount) => onTransferUd3(transferTarget.address, amount)}
         />
       )}
     </div>

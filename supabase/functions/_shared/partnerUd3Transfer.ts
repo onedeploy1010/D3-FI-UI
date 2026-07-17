@@ -9,11 +9,11 @@ function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
 
-export type PartnerSd3TransferResult = {
+export type PartnerUd3TransferResult = {
   transferId: string;
   fromWallet: string;
   toWallet: string;
-  amountSd3: number;
+  amountUd3: number;
   senderBalance: number;
   recipientBalance: number;
 };
@@ -29,15 +29,15 @@ async function ensurePartnerAccount(sb: Sb, wallet: string) {
 }
 
 /** Transfer UD3 (referral reward) from a partner to an umbrella downline member. */
-export async function transferPartnerSd3(
+export async function transferPartnerUd3(
   sb: Sb,
   fromWallet: string,
   toWallet: string,
-  amountSd3: number,
-): Promise<PartnerSd3TransferResult> {
-  const amount = round4(amountSd3);
+  amountUd3: number,
+): Promise<PartnerUd3TransferResult> {
+  const amount = round4(amountUd3);
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new HttpError(400, 'amountSd3 must be positive');
+    throw new HttpError(400, 'amountUd3 must be positive');
   }
 
   const from = fromWallet.trim();
@@ -128,14 +128,14 @@ export async function transferPartnerSd3(
     action: 'partner_sd3_transfer',
     entityType: 'partner_ud3_transfers',
     entityId: transfer.id as string,
-    newValue: { fromWallet: from, toWallet: recipientWallet, amountSd3: amount },
+    newValue: { fromWallet: from, toWallet: recipientWallet, amountUd3: amount },
   });
 
   return {
     transferId: transfer.id as string,
     fromWallet: from,
     toWallet: recipientWallet,
-    amountSd3: amount,
+    amountUd3: amount,
     senderBalance: nextSenderBalance,
     recipientBalance,
   };

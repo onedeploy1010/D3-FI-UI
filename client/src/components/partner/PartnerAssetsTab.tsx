@@ -13,7 +13,7 @@ import {
   d3ToUsdt,
   FLASH_SWAP_FEE_PCT,
   formatD3Amount,
-  getSd3Quotas,
+  getUd3Quotas,
   MIN_YIELD_WITHDRAW_USDT,
   resolveFlashYieldBalances,
   type PartnerHistoryKind,
@@ -22,8 +22,8 @@ import {
   type SubsidyApplicationType,
 } from '@/components/partner/partnerData';
 import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
-import { PartnerSd3Amount } from '@/components/partner/partnerUiKit';
-import { resolvePartnerSd3Metrics, sumSd3Transferred } from '@/components/partner/partnerSd3View';
+import { PartnerUd3Amount } from '@/components/partner/partnerUiKit';
+import { resolvePartnerUd3Metrics, sumUd3Transferred } from '@/components/partner/partnerUd3View';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
@@ -44,10 +44,10 @@ export function PartnerAssetsTab({
   teamStats,
   subsidySettings,
   teamNodes = {},
-  pendingSd3Earned = 0,
+  pendingUd3Earned = 0,
   downlineWallets: _downlineWallets,
-  onStakeSd3: _onStakeSd3,
-  onTransferSd3: _onTransferSd3,
+  onStakeUd3: _onStakeUd3,
+  onTransferUd3: _onTransferUd3,
   onWithdrawYield,
   onPartnerSubsidy,
   onMarketSubsidy,
@@ -63,10 +63,10 @@ export function PartnerAssetsTab({
   teamStats: PartnerTeamStats;
   subsidySettings: PartnerProgramSettings;
   teamNodes?: Record<string, PartnerTeamNode>;
-  pendingSd3Earned?: number;
+  pendingUd3Earned?: number;
   downlineWallets?: string[];
-  onStakeSd3: (amount: number) => void | Promise<boolean>;
-  onTransferSd3: (to: string, amount: number) => Promise<boolean>;
+  onStakeUd3: (amount: number) => void | Promise<boolean>;
+  onTransferUd3: (to: string, amount: number) => Promise<boolean>;
   onWithdrawYield: (amount: number) => Promise<boolean>;
   yieldWithdrawing?: boolean;
   onPartnerSubsidy: (input: {
@@ -91,12 +91,12 @@ export function PartnerAssetsTab({
   const [search, setSearch] = useState('');
   const [flashOpen, setFlashOpen] = useState(false);
   const [flashAmount, setFlashAmount] = useState('');
-  const quotas = getSd3Quotas(state);
-  const sd3Metrics = useMemo(
-    () => resolvePartnerSd3Metrics(state, teamNodes, teamStats, pendingSd3Earned),
-    [state, teamNodes, teamStats, pendingSd3Earned],
+  const quotas = getUd3Quotas(state);
+  const ud3Metrics = useMemo(
+    () => resolvePartnerUd3Metrics(state, teamNodes, teamStats, pendingUd3Earned),
+    [state, teamNodes, teamStats, pendingUd3Earned],
   );
-  const transferredSd3 = useMemo(() => sumSd3Transferred(state), [state]);
+  const transferredUd3 = useMemo(() => sumUd3Transferred(state), [state]);
   const yieldBalances = useMemo(() => resolveFlashYieldBalances(state), [state]);
   const muted = isDark ? 'text-white/50' : 'text-[#160510]/50';
 
@@ -162,7 +162,7 @@ export function PartnerAssetsTab({
   const histTabs = [
     { id: 'all', label: p('assets.all') },
     { id: 'withdraw', label: p('assets.withdrawHist') },
-    { id: 'stake', label: p('assets.sd3StakeHist') },
+    { id: 'stake', label: p('assets.ud3StakeHist') },
     { id: 'transfer', label: p('assets.transferHist') },
   ];
 
@@ -175,7 +175,7 @@ export function PartnerAssetsTab({
   const historyKindLabel = (kind: PartnerHistoryKind) => {
     if (kind === 'withdraw') return p('assets.withdrawHist');
     if (kind === 'transfer') return p('assets.transferHist');
-    return p('assets.sd3StakeHist');
+    return p('assets.ud3StakeHist');
   };
 
   const historyKindColor = (kind: PartnerHistoryKind) => {
@@ -208,15 +208,15 @@ export function PartnerAssetsTab({
                 </div>
               </div>
               <div className="ios-glass-inset p-2.5">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.lifetimeSd3')}</div>
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.lifetimeUd3')}</div>
                 <div className="font-bold text-sm mt-0.5">
-                  <PartnerSd3Amount value={sd3Metrics.lifetimeSd3} />
+                  <PartnerUd3Amount value={ud3Metrics.lifetimeUd3} />
                 </div>
               </div>
               <div className="ios-glass-inset p-2.5">
-                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.newSd3')}</div>
+                <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.newUd3')}</div>
                 <div className="font-bold text-sm mt-0.5 text-[#E0568F]">
-                  <PartnerSd3Amount value={transferredSd3} />
+                  <PartnerUd3Amount value={transferredUd3} />
                 </div>
               </div>
             </div>
@@ -270,7 +270,7 @@ export function PartnerAssetsTab({
               <div className="min-w-0">
                 <div className="site-stat-label">{p('assets.antibribe')}</div>
                 <div className="text-2xl font-black text-[#E0568F] mt-1">
-                  <PartnerSd3Amount value={quotas.transferQuota} />
+                  <PartnerUd3Amount value={quotas.transferQuota} />
                 </div>
                 <div className={`text-[10px] mt-1 leading-relaxed ${muted}`}>
                   {p('assets.canTransfer')}

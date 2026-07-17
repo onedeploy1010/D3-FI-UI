@@ -33,7 +33,7 @@ export type PartnerUd3StakeResult = {
  * releases D3 daily (principal x 0.4% / d3Price) like any other stake. Re-staking
  * UD3 does NOT create new UD3 reward volume.
  */
-export async function stakePartnerSd3(
+export async function stakePartnerUd3(
   sb: Sb,
   walletAddress: string,
   amountUd3: number,

@@ -2,7 +2,7 @@
  * Demo partner daily tick — settle yesterday pending, grow downline, mint today's new deposits.
  * Deterministic RNG from date so client + cron stay consistent for the same seed.
  */
-import type { Sd3SettlementRecord } from '@/components/partner/partnerData';
+import type { Ud3SettlementRecord } from '@/components/partner/partnerData';
 import {
   computePartnerAreaStats,
   partnerTeamNodes,
@@ -32,7 +32,7 @@ export type PartnerDemoSimState = {
   lastTickDate: string;
   simToday: string;
   nodes: Record<string, PartnerTeamNode>;
-  settledHistory: Sd3SettlementRecord[];
+  settledHistory: Ud3SettlementRecord[];
   pendingDeposits: DemoDeposit[];
   nextMemberSeq: number;
   lifetimeUd3: number;
@@ -289,10 +289,10 @@ export function buildDemoPartnerTeamFallback(wallet: string): {
   stats: PartnerTeamStats;
   downlineWallets: string[];
   pendingUd3: number;
-  settledHistory: Sd3SettlementRecord[];
+  settledHistory: Ud3SettlementRecord[];
   lifetimeUd3: number;
   simToday: string;
-  pendingRows: Sd3SettlementRecord[];
+  pendingRows: Ud3SettlementRecord[];
 } {
   const sim = ensureDemoSimCaughtUp();
   const nodes = remappedSimNodes(sim, wallet);

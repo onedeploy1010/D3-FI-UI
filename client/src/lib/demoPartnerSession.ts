@@ -7,12 +7,12 @@ import {
   type PartnerTransfer,
   type StakeOrderKind,
 } from '@/components/partner/partnerData';
-import { resolveSettledSd3Base } from '@/components/partner/partnerSd3View';
+import { resolveSettledUd3Base } from '@/components/partner/partnerUd3View';
 
 const SESSION_KEY = 'd3_demo_partner_session';
 
 export type DemoPartnerSession = {
-  /** Ephemeral sD3 transfers — never persisted to backend in demo mode. */
+  /** Ephemeral UD3 transfers — never persisted to backend in demo mode. */
   mockTransfers: PartnerTransfer[];
   /** Ephemeral crowdfund / partner_join orders — session-only. */
   mockStakeOrders: PartnerStakeOrder[];
@@ -62,12 +62,12 @@ export function clearDemoPartnerSession(): void {
 }
 
 function sumMockTransferred(session: DemoPartnerSession): number {
-  return round2(session.mockTransfers.reduce((s, t) => s + t.amountSd3, 0));
+  return round2(session.mockTransfers.reduce((s, t) => s + t.amountUd3, 0));
 }
 
-/** Settled sD3 baseline for demo — from performance/settlements, before session mock transfers. */
-export function demoSettledSd3Base(state: PartnerState): number {
-  return resolveSettledSd3Base(state);
+/** Settled UD3 baseline for demo — from performance/settlements, before session mock transfers. */
+export function demoSettledUd3Base(state: PartnerState): number {
+  return resolveSettledUd3Base(state);
 }
 
 function mergeMockStakeOrders(baseOrders: PartnerStakeOrder[], session: DemoPartnerSession): PartnerStakeOrder[] {
@@ -85,14 +85,14 @@ export function applyDemoSessionOverlay(
   base: PartnerState,
   session: DemoPartnerSession = loadDemoPartnerSession(),
 ): PartnerState {
-  const settledBase = demoSettledSd3Base(base);
+  const settledBase = demoSettledUd3Base(base);
   const mockTransferred = sumMockTransferred(session);
-  const mockSd3Staked = round2(
+  const mockUd3Staked = round2(
     session.mockStakeOrders
       .filter((o) => o.kind === 'sd3')
       .reduce((s, o) => s + o.principalUsdt, 0),
   );
-  const staked = round2((base.sd3StakedFromRewards ?? 0) + mockSd3Staked);
+  const staked = round2((base.ud3StakedFromRewards ?? 0) + mockUd3Staked);
   const available = Math.max(0, round2(settledBase - mockTransferred - staked));
   const today = new Date().toISOString().slice(0, 10);
 
@@ -108,8 +108,8 @@ export function applyDemoSessionOverlay(
     joinedAt: session.mockPartnerJoined || base.isPartner ? (base.joinedAt ?? today) : null,
     stakeOrders,
     transfers: [...session.mockTransfers],
-    sd3StakedFromRewards: staked,
-    sd3Balance: available,
+    ud3StakedFromRewards: staked,
+    ud3Balance: available,
     dtPreorderEligible:
       session.mockStakeOrders.length > 0 || session.mockPartnerJoined || base.dtPreorderEligible,
   };
@@ -143,14 +143,14 @@ export function addDemoMockStakeOrder(
 
 export function createDemoMockTransfer(
   toAddress: string,
-  amountSd3: number,
+  amountUd3: number,
   toLabel?: string,
 ): PartnerTransfer {
   return {
     id: `demo-mock-tr-${Date.now()}`,
     toAddress,
     toLabel,
-    amountSd3,
+    amountUd3,
     at: new Date().toISOString().slice(0, 10),
   };
 }

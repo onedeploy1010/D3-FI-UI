@@ -11,8 +11,8 @@ import {
   isYieldWithdrawDemoRequest,
   requestPartnerYieldWithdraw,
 } from '../_shared/partnerYieldWithdraw.ts';
-import { transferPartnerSd3 } from '../_shared/partnerSd3Transfer.ts';
-import { stakePartnerSd3 } from '../_shared/partnerSd3Stake.ts';
+import { transferPartnerUd3 } from '../_shared/partnerUd3Transfer.ts';
+import { stakePartnerUd3 } from '../_shared/partnerUd3Stake.ts';
 import { runTreasuryPipeline } from '../_shared/sweep.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { isTurnkeyConfigured, treasuryAddressFromEnv, treasuryWalletIdFromEnv, isTurnkeyConsensusError } from '../_shared/turnkey.ts';
@@ -232,10 +232,10 @@ Deno.serve(async (req) => {
       // V-16: 10/min per wallet.
       await enforceRateLimit(sb, { key: `treasury:/partner/sd3-transfer:${wallet}`, limit: 10, windowSec: 60 });
       assertSettlementTokenSafe();
-      const body = await readJson<{ toWallet: string; amountSd3: number }>(req);
+      const body = await readJson<{ toWallet: string; amountUd3: number }>(req);
       if (!body.toWallet?.trim()) throw new HttpError(400, 'toWallet required');
-      const amountSd3 = assertMoneyAmount(body.amountSd3);
-      const result = await transferPartnerSd3(sb, wallet, body.toWallet.trim(), amountSd3);
+      const amountUd3 = assertMoneyAmount(body.amountUd3);
+      const result = await transferPartnerUd3(sb, wallet, body.toWallet.trim(), amountUd3);
       return jsonResponse({ ok: true, ...result });
     }
 
@@ -243,9 +243,9 @@ Deno.serve(async (req) => {
       // V-16: 10/min per wallet.
       await enforceRateLimit(sb, { key: `treasury:/partner/sd3-stake:${wallet}`, limit: 10, windowSec: 60 });
       assertSettlementTokenSafe();
-      const body = await readJson<{ amountSd3: number }>(req);
-      const amountSd3 = assertMoneyAmount(body.amountSd3);
-      const result = await stakePartnerSd3(sb, wallet, amountSd3);
+      const body = await readJson<{ amountUd3: number }>(req);
+      const amountUd3 = assertMoneyAmount(body.amountUd3);
+      const result = await stakePartnerUd3(sb, wallet, amountUd3);
       return jsonResponse({ ok: true, ...result });
     }
 

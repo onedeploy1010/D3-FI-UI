@@ -611,17 +611,17 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
   const partnerBundle = await fetchPartnerAccountBundle(sb, pk).catch(() => ({
     account: null,
     stakePositions: [],
-    sd3Settlements: [],
-    sd3Allocations: [],
+    ud3Settlements: [],
+    ud3Allocations: [],
     yieldSettlements: [],
-    sd3Transfers: [],
+    ud3Transfers: [],
   }));
   const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
 
   const isPartner = Boolean(partnerBundle.account?.is_partner);
-  // Daily sD3 (贿赂金) is abolished; the reward is now UD3 credited per deposit.
+  // Daily UD3 (贿赂金) is abolished; the reward is now UD3 credited per deposit.
   // Field kept at 0 for client compatibility until Batch B renames the response.
-  const pendingSd3Earned = 0;
+  const pendingUd3Earned = 0;
 
   return {
     profile,
@@ -642,13 +642,13 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     pocScore: pocScore.data,
     partnerTeamStats,
     partnerDirectLineStats,
-    pendingSd3Earned,
+    pendingUd3Earned,
     partnerMemberWallets,
     partnerAccount: partnerBundle.account,
     partnerStakePositions: partnerBundle.stakePositions,
-    partnerSd3Settlements: partnerBundle.sd3Settlements,
-    partnerSd3Allocations: partnerBundle.sd3Allocations,
-    partnerSd3Transfers: partnerBundle.sd3Transfers,
+    partnerUd3Settlements: partnerBundle.ud3Settlements,
+    partnerUd3Allocations: partnerBundle.ud3Allocations,
+    partnerUd3Transfers: partnerBundle.ud3Transfers,
     partnerYieldSettlements: partnerBundle.yieldSettlements,
     partnerDownlineWallets,
   };

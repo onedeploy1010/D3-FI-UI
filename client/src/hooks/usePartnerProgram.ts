@@ -8,8 +8,8 @@ import {
   applyMarketSubsidy,
   applyPartnerJoin,
   applyPartnerSubsidy,
-  applySd3Stake,
-  isValidSd3StakeAmount,
+  applyUd3Stake,
+  isValidUd3StakeAmount,
   resolveFlashYieldBalances,
   MIN_YIELD_WITHDRAW_USDT,
   GUEST_PARTNER_STATE,
@@ -24,7 +24,7 @@ import {
   type SubsidyApplicationType,
   storageKey,
 } from '@/components/partner/partnerData';
-import { getSd3Available } from '@/components/partner/partnerSd3View';
+import { getUd3Available } from '@/components/partner/partnerUd3View';
 import {
   buildPartnerTeamNodes,
   emptyPartnerTeamNodes,
@@ -48,7 +48,7 @@ import {
   fetchPartnerSubsidyTickets,
   fetchUnionProfile,
 } from '@/lib/unionApi';
-import { stakePartnerSd3, transferPartnerSd3, withdrawPartnerYield } from '@/lib/depositApi';
+import { stakePartnerUd3, transferPartnerUd3, withdrawPartnerYield } from '@/lib/depositApi';
 
 const EMPTY_TEAM_STATS: PartnerTeamStats = {
   personalPerformanceUsd: 0,
@@ -80,11 +80,11 @@ function hydrateFromBundle(prev: PartnerState, bundle: Awaited<ReturnType<typeof
   return hydratePartnerStateFromApi(prev, {
     partnerAccount: bundle.partnerAccount,
     partnerStakePositions: bundle.partnerStakePositions,
-    partnerSd3Settlements: bundle.partnerSd3Settlements,
-    partnerSd3Allocations: bundle.partnerSd3Allocations,
-    partnerSd3Transfers: bundle.partnerSd3Transfers,
+    partnerUd3Settlements: bundle.partnerUd3Settlements,
+    partnerUd3Allocations: bundle.partnerUd3Allocations,
+    partnerUd3Transfers: bundle.partnerUd3Transfers,
     partnerYieldSettlements: bundle.partnerYieldSettlements,
-    pendingSd3Earned: bundle.pendingSd3Earned,
+    pendingUd3Earned: bundle.pendingUd3Earned,
   });
 }
 
@@ -92,16 +92,16 @@ function finalizeDemoPartnerState(
   merged: PartnerState,
   session = loadDemoPartnerSession(),
 ): PartnerState {
-  const hasApiHistory = (merged.sd3SettlementHistory?.length ?? 0) > 0;
+  const hasApiHistory = (merged.ud3SettlementHistory?.length ?? 0) > 0;
   const baseline = {
     ...merged,
-    sd3SettlementHistory: hasApiHistory
-      ? merged.sd3SettlementHistory
-      : DEMO_PARTNER_BASELINE.sd3SettlementHistory,
-    lifetimeSd3Earned:
-      merged.lifetimeSd3Earned > 0
-        ? merged.lifetimeSd3Earned
-        : DEMO_PARTNER_BASELINE.lifetimeSd3Earned,
+    ud3SettlementHistory: hasApiHistory
+      ? merged.ud3SettlementHistory
+      : DEMO_PARTNER_BASELINE.ud3SettlementHistory,
+    lifetimeUd3Earned:
+      merged.lifetimeUd3Earned > 0
+        ? merged.lifetimeUd3Earned
+        : DEMO_PARTNER_BASELINE.lifetimeUd3Earned,
     isPartner: false,
     joinedAt: null,
     stakeOrders: [],
@@ -135,7 +135,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
 
   const [teamNodes, setTeamNodes] = useState<Record<string, PartnerTeamNode>>({});
   const [teamStats, setTeamStats] = useState<PartnerTeamStats>(EMPTY_TEAM_STATS);
-  const [pendingSd3Earned, setPendingSd3Earned] = useState(0);
+  const [pendingUd3Earned, setPendingUd3Earned] = useState(0);
   const [downlineWallets, setDownlineWallets] = useState<string[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [subsidySettings, setSubsidySettings] = useState<PartnerProgramSettings>({
@@ -147,7 +147,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     if (!wallet) {
       setTeamNodes({});
       setTeamStats(EMPTY_TEAM_STATS);
-      setPendingSd3Earned(0);
+      setPendingUd3Earned(0);
       setDownlineWallets([]);
       setTeamLoading(false);
       return;
@@ -177,7 +177,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       let nodes = buildPartnerTeamNodes(wallet, bundle);
       let stats = bundle.partnerTeamStats ?? EMPTY_TEAM_STATS;
       let downlines = bundle.partnerDownlineWallets ?? [];
-      let pending = bundle.pendingSd3Earned ?? 0;
+      let pending = bundle.pendingUd3Earned ?? 0;
       /** Demo: daily tick catch-up (settle prior pending + new downline/perf). */
       if (isDemoWallet(wallet)) {
         const demo = buildDemoPartnerTeamFallback(wallet);
@@ -187,14 +187,14 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         pending = demo.pendingUd3;
         setTeamNodes(nodes);
         setTeamStats(stats);
-        setPendingSd3Earned(pending);
+        setPendingUd3Earned(pending);
         setDownlineWallets(downlines);
         setState((prev) => {
           const hydrateBase = {
             ...DEMO_PARTNER_BASELINE,
-            sd3SettlementHistory: demo.settledHistory,
-            lifetimeSd3Earned: demo.lifetimeUd3,
-            sd3Balance: demo.lifetimeUd3,
+            ud3SettlementHistory: demo.settledHistory,
+            lifetimeUd3Earned: demo.lifetimeUd3,
+            ud3Balance: demo.lifetimeUd3,
             teamPerformanceUsd: demo.stats.teamPerformanceUsd,
             dailyNewPerformanceUsd: demo.stats.dailyNewPerformanceUsd,
             lastSettlementDate: demo.simToday,
@@ -204,9 +204,9 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
           saveState(wallet, next);
           return {
             ...next,
-            sd3SettlementHistory: demo.settledHistory,
-            lifetimeSd3Earned: demo.lifetimeUd3,
-            sd3Balance: Math.max(next.sd3Balance, demo.lifetimeUd3),
+            ud3SettlementHistory: demo.settledHistory,
+            lifetimeUd3Earned: demo.lifetimeUd3,
+            ud3Balance: Math.max(next.ud3Balance, demo.lifetimeUd3),
             teamPerformanceUsd: demo.stats.teamPerformanceUsd,
             dailyNewPerformanceUsd: demo.stats.dailyNewPerformanceUsd,
             lastSettlementDate: demo.simToday,
@@ -216,7 +216,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       }
       setTeamNodes(nodes);
       setTeamStats(stats);
-      setPendingSd3Earned(pending);
+      setPendingUd3Earned(pending);
       setDownlineWallets(downlines);
       setState((prev) => {
         const merged = { ...hydrateFromBundle(prev, bundle), ...subsidyPatch };
@@ -229,13 +229,13 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         setTeamNodes(demo.nodes);
         setTeamStats(demo.stats);
         setDownlineWallets(demo.downlineWallets);
-        setPendingSd3Earned(demo.pendingUd3);
+        setPendingUd3Earned(demo.pendingUd3);
         setState(
           finalizeDemoPartnerState({
             ...DEMO_PARTNER_BASELINE,
-            sd3SettlementHistory: demo.settledHistory,
-            lifetimeSd3Earned: demo.lifetimeUd3,
-            sd3Balance: demo.lifetimeUd3,
+            ud3SettlementHistory: demo.settledHistory,
+            lifetimeUd3Earned: demo.lifetimeUd3,
+            ud3Balance: demo.lifetimeUd3,
             teamPerformanceUsd: demo.stats.teamPerformanceUsd,
             dailyNewPerformanceUsd: demo.stats.dailyNewPerformanceUsd,
             lastSettlementDate: demo.simToday,
@@ -244,7 +244,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       } else {
         setTeamNodes(emptyPartnerTeamNodes(wallet));
         setTeamStats(EMPTY_TEAM_STATS);
-        setPendingSd3Earned(0);
+        setPendingUd3Earned(0);
         setDownlineWallets([]);
       }
     } finally {
@@ -298,11 +298,11 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     [wallet, state, persist, refreshTeamProfile],
   );
 
-  const stakeSd3 = useCallback(
+  const stakeUd3 = useCallback(
     async (amount: number) => {
       if (!wallet || !state.isPartner) return false;
-      const available = getSd3Available(state);
-      if (!isValidSd3StakeAmount(amount, available)) return false;
+      const available = getUd3Available(state);
+      if (!isValidUd3StakeAmount(amount, available)) return false;
 
       if (isDemoWallet(wallet)) {
         const order = createDemoMockStakeOrder(amount, 'sd3');
@@ -312,7 +312,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       }
 
       try {
-        await stakePartnerSd3(wallet, amount);
+        await stakePartnerUd3(wallet, amount);
         await refreshTeamProfile();
         return true;
       } catch {
@@ -322,9 +322,9 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     [wallet, state, persist, refreshTeamProfile],
   );
 
-  const transferSd3 = useCallback(
+  const transferUd3 = useCallback(
     async (toAddress: string, amount: number) => {
-      if (!state.isPartner || amount <= 0 || amount > getSd3Available(state)) return false;
+      if (!state.isPartner || amount <= 0 || amount > getUd3Available(state)) return false;
       const normalized = toAddress.trim();
       if (!isPartnerDownlineMember(normalized, downlineWallets, teamNodes)) return false;
       if (!wallet) return false;
@@ -340,7 +340,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       }
 
       try {
-        await transferPartnerSd3(wallet, normalized, amount);
+        await transferPartnerUd3(wallet, normalized, amount);
         await refreshTeamProfile();
         return true;
       } catch {
@@ -461,14 +461,14 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     stats,
     teamNodes,
     teamStats,
-    pendingSd3Earned,
+    pendingUd3Earned,
     downlineWallets,
     teamLoading,
     refreshTeamProfile,
     crowdfundStake,
     joinPartner,
-    stakeSd3,
-    transferSd3,
+    stakeUd3,
+    transferUd3,
     withdrawYield,
     yieldWithdrawing,
     submitPartnerSubsidy,

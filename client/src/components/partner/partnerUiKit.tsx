@@ -43,7 +43,7 @@ export function PartnerTagChip({
 }
 
 /** Numeric UD3 with smaller unit suffix. */
-export function PartnerSd3Amount({
+export function PartnerUd3Amount({
   value,
   className = '',
   unitClassName = 'text-[0.62em] font-semibold opacity-75 ml-0.5 align-baseline',

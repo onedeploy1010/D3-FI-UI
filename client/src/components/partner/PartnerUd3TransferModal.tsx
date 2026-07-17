@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Send } from 'lucide-react';
 import { PartnerModal } from '@/components/partner/PartnerModal';
-import { PartnerLevelBadge, PartnerSd3Amount } from '@/components/partner/partnerUiKit';
+import { PartnerLevelBadge, PartnerUd3Amount } from '@/components/partner/partnerUiKit';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { GlassButton } from '@/components/ui/GlassSurface';
 import type { AppLang } from '@/i18n/types';
@@ -13,7 +13,7 @@ function clampAmount(raw: string, max: number): number {
   return Math.min(n, max);
 }
 
-export function PartnerSd3TransferModal({
+export function PartnerUd3TransferModal({
   open,
   onClose,
   lang,
@@ -105,7 +105,7 @@ export function PartnerSd3TransferModal({
       <div className={`p-3.5 rounded-2xl flex justify-between items-center mb-4 ${panelClass}`}>
         <span className={`text-xs font-semibold ${labelMuted}`}>{p('assets.balanceTitle')}</span>
         <span className={`text-base font-bold ${isDark ? 'text-amber-400' : 'text-[#d97706]'}`}>
-          <PartnerSd3Amount value={transferQuota} />
+          <PartnerUd3Amount value={transferQuota} />
         </span>
       </div>
 

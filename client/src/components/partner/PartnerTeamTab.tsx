@@ -9,7 +9,7 @@ import {
   emptyPartnerTeamNodes,
   type PartnerTeamNode,
 } from '@/components/partner/partnerTeamData';
-import { getSd3Quotas, type PartnerState } from '@/components/partner/partnerData';
+import { getUd3Quotas, type PartnerState } from '@/components/partner/partnerData';
 import { buildDemoUd3PendingRows } from '@/components/partner/ud3DemoSettle';
 import { ensureDemoSimCaughtUp } from '@/components/partner/ud3DemoDailyTick';
 import { isDemoWallet } from '@/lib/demoWallet';
@@ -47,8 +47,8 @@ export function PartnerTeamTab({
   teamNodes,
   teamStats,
   teamLoading,
-  pendingSd3Earned = 0,
-  onTransferSd3,
+  pendingUd3Earned = 0,
+  onTransferUd3,
   transferGuideActive,
   onTransferGuideComplete,
 }: {
@@ -59,15 +59,15 @@ export function PartnerTeamTab({
   teamNodes: Record<string, PartnerTeamNode>;
   teamStats: PartnerTeamStats;
   teamLoading: boolean;
-  pendingSd3Earned?: number;
-  onTransferSd3?: (toAddress: string, amount: number) => Promise<boolean>;
+  pendingUd3Earned?: number;
+  onTransferUd3?: (toAddress: string, amount: number) => Promise<boolean>;
   transferGuideActive?: boolean;
   onTransferGuideComplete?: () => void;
 }) {
   const p = usePartnerTranslation(lang);
   const referralLink = buildReferralLink(wallet);
   const isPartner = state.isPartner;
-  const transferQuota = getSd3Quotas(state).transferQuota;
+  const transferQuota = getUd3Quotas(state).transferQuota;
   const [sub, setSub] = useState<TeamSub>('tree');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -85,7 +85,7 @@ export function PartnerTeamTab({
     return {};
   }, [teamNodes, wallet]);
 
-  const history = state.sd3SettlementHistory ?? [];
+  const history = state.ud3SettlementHistory ?? [];
 
   /** Demo：当日下线新增 = 未结算行，置顶；其余日期 = 已结算。 */
   const pendingRows = useMemo(() => {
@@ -140,7 +140,7 @@ export function PartnerTeamTab({
         state={state}
         teamStats={teamStats}
         teamNodes={treeNodes}
-        pendingSd3Earned={pendingSd3Earned}
+        pendingUd3Earned={pendingUd3Earned}
       />
 
       <SectionTabBar tabs={subs} active={sub} onChange={(id) => setSub(id as TeamSub)} isDark={isDark} />
@@ -155,7 +155,7 @@ export function PartnerTeamTab({
           loading={teamLoading}
           isPartner={isPartner}
           transferQuota={transferQuota}
-          onTransferSd3={isPartner ? onTransferSd3 : undefined}
+          onTransferUd3={isPartner ? onTransferUd3 : undefined}
           transferGuideActive={transferGuideActive}
           transferGuideStep={transferGuideStep}
           jumpFocusId={jumpReq?.id ?? null}
@@ -176,8 +176,8 @@ export function PartnerTeamTab({
                 ['all', p('team.ud3FilterAll')],
                 ['settled', p('team.settledBadge')],
                 ['pending', p('team.unsettledBadge')],
-                ['direct', p('team.sd3RoleDirect')],
-                ['upline', p('team.sd3RoleUpline')],
+                ['direct', p('team.ud3RoleDirect')],
+                ['upline', p('team.ud3RoleUpline')],
               ] as const
             ).map(([id, label]) => {
               const active =
@@ -218,7 +218,7 @@ export function PartnerTeamTab({
 
           {filteredHistory.length === 0 ? (
             <div className={`text-center text-sm py-10 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-              {allRows.length === 0 ? p('team.sd3HistoryEmpty') : p('filters.noResults')}
+              {allRows.length === 0 ? p('team.ud3HistoryEmpty') : p('filters.noResults')}
             </div>
           ) : (
             <div className="space-y-2.5">
