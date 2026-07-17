@@ -345,5 +345,6 @@
   "stake.payFromWalletHint": "เมื่อยืนยัน จะส่งการชำระ {amount} USDT (BSC) จากกระเป๋าที่เชื่อมต่อ",
   "stake.confirmingPayment": "กำลังยืนยันการชำระ…",
   "stake.confirmingPaymentHint": "อนุมัติธุรกรรมในกระเป๋าของคุณ อีกสักครู่จะเสร็จ",
-  "program.loadingData": "กำลังโหลดข้อมูล…"
+  "program.loadingData": "กำลังโหลดข้อมูล…",
+  "assets.flashWithdrawSubmitted": "ส่งแฟลชสวॉปแล้ว กำลังดำเนินการ (ดูผลลัพธ์ในประวัติสินทรัพย์)"
 }

@@ -367,5 +367,6 @@
   "stake.payFromWalletHint": "确认后将从您连接的钱包发起 {amount} USDT（BSC）支付",
   "stake.confirmingPayment": "正在确认支付…",
   "stake.confirmingPaymentHint": "请在钱包中确认交易，稍候即可完成",
-  "program.loadingData": "正在加载数据…"
+  "program.loadingData": "正在加载数据…",
+  "assets.flashWithdrawSubmitted": "闪兑已提交，处理中（结果请在资产历史查看）"
 }

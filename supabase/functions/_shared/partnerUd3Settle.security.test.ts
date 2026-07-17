@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 /**
  * NEW-1 regression: UD3 reward credits must persist the spendable `ud3_balance` via the
- * atomic `credit_ud3_balance` RPC — NOT a read-modify-write — so a concurrent atomic
+ * atomic `credit_pending_ud3` RPC — NOT a read-modify-write — so a concurrent atomic
  * `debit_ud3_balance` (re-stake / transfer) can't be clobbered (lost-update double-spend).
  */
 
@@ -85,17 +85,17 @@ const INPUT = {
   referrerTotalPerfUsdt: 0,
 };
 
-describe('allocateUd3ForCreditedIntent — NEW-1 atomic ud3_balance credit', () => {
+describe('allocateUd3ForCreditedIntent — NEW-1 atomic pending_ud3 credit (two-phase 043)', () => {
   it('credits ud3_balance via the atomic RPC and never write-backs the balance column', async () => {
     const { sb, rpcCalls, updates } = makeSb({
       accountRow: { wallet_address: '0xREFERRER', lifetime_ud3_earned: 0 },
-      rpc: { credit_ud3_balance: [{ data: 60, error: null }] },
+      rpc: { credit_pending_ud3: [{ data: 60, error: null }] },
     });
 
     const res = await allocateUd3ForCreditedIntent(sb, INPUT);
     expect(res.ok).toBe(true);
 
-    const credit = rpcCalls.find((c) => c.name === 'credit_ud3_balance');
+    const credit = rpcCalls.find((c) => c.name === 'credit_pending_ud3');
     expect(credit).toBeTruthy();
     expect(credit!.args.p_amount).toBe(60);
     expect(String(credit!.args.p_wallet).toLowerCase()).toBe('0xreferrer');
@@ -103,6 +103,7 @@ describe('allocateUd3ForCreditedIntent — NEW-1 atomic ud3_balance credit', () 
     // No read-modify-write of the spendable balance column may remain anywhere.
     for (const u of updates) {
       expect(Object.keys(u.payload)).not.toContain('ud3_balance');
+      expect(Object.keys(u.payload)).not.toContain('pending_ud3');
     }
   });
 
@@ -110,7 +111,7 @@ describe('allocateUd3ForCreditedIntent — NEW-1 atomic ud3_balance credit', () 
     const { sb, rpcCalls, upserts } = makeSb({
       accountRow: { wallet_address: '0xREFERRER', lifetime_ud3_earned: 0 },
       rpc: {
-        credit_ud3_balance: [
+        credit_pending_ud3: [
           { data: null, error: { message: 'ACCOUNT_NOT_FOUND' } },
           { data: 60, error: null },
         ],
@@ -120,12 +121,13 @@ describe('allocateUd3ForCreditedIntent — NEW-1 atomic ud3_balance credit', () 
     const res = await allocateUd3ForCreditedIntent(sb, INPUT);
     expect(res.ok).toBe(true);
 
-    const credits = rpcCalls.filter((c) => c.name === 'credit_ud3_balance');
+    const credits = rpcCalls.filter((c) => c.name === 'credit_pending_ud3');
     expect(credits).toHaveLength(2);
 
     // Provisioning upsert must NOT seed ud3_balance (the atomic credit owns it).
     const provision = upserts.find((u) => u.table === 'partner_accounts');
     expect(provision).toBeTruthy();
     expect(Object.keys(provision!.payload)).not.toContain('ud3_balance');
+    expect(Object.keys(provision!.payload)).not.toContain('pending_ud3');
   });
 });

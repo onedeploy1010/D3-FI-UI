@@ -335,6 +335,7 @@ export type PartnerYieldWithdrawal = {
   id: string;
   amountUsdt: number;
   at: string;
+  status?: 'pending' | 'signing' | 'broadcasted' | 'confirmed' | 'failed';
 };
 
 export type PartnerHistoryKind = 'stake' | 'transfer' | 'withdraw';
@@ -343,6 +344,7 @@ export type PartnerHistoryRecord = {
   id: string;
   kind: PartnerHistoryKind;
   at: string;
+  status?: 'pending' | 'signing' | 'broadcasted' | 'confirmed' | 'failed';
   amount: number;
   unit: 'USDT' | 'UD3';
   stakeKind?: StakeOrderKind;
@@ -607,6 +609,7 @@ export function buildHistoryRecords(state: PartnerState): PartnerHistoryRecord[]
     at: w.at,
     amount: w.amountUsdt,
     unit: 'USDT',
+    status: w.status,
   }));
   return [...stakes, ...transfers, ...withdrawals].sort((a, b) => b.at.localeCompare(a.at));
 }
@@ -1003,6 +1006,12 @@ export function hydratePartnerStateFromApi(
     pendingD3Yield: account ? Number(account.pending_d3_yield ?? 0) : local.pendingD3Yield,
     stakeOrders: mergedStakeOrders,
     transfers: serverTransfers.length > 0 ? serverTransfers : local.transfers,
+    yieldWithdrawals: (api.partnerYieldWithdrawals ?? []).map((w) => ({
+      id: w.id,
+      amountUsdt: Number(w.amount_usdt ?? 0),
+      at: (w.created_at ?? '').slice(0, 10),
+      status: w.status,
+    })),
     yieldSettlementsByPosition,
     ud3SettlementHistory,
     lastSettlementDate: latestUd3?.settledAt ?? local.lastSettlementDate,

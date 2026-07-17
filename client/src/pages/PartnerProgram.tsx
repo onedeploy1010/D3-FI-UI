@@ -92,7 +92,10 @@ export default function PartnerProgram() {
     async (amount: number) => {
       const ok = await withdrawYield(amount);
       if (ok) {
-        toast.success(p('assets.flashWithdrawSuccess'));
+        // The on-chain payout is async (queued sweep job) — it is NOT confirmed yet,
+        // so we show "submitted/processing", not "success". The result (confirmed /
+        // failed) shows in the assets history.
+        toast.success(p('assets.flashWithdrawSubmitted'));
       } else {
         toast.error(partnerPaymentErrorTitle(p), {
           description: p('assets.flashWithdrawFailed'),

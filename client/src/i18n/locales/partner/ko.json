@@ -345,5 +345,6 @@
   "stake.payFromWalletHint": "확인하면 연결된 지갑에서 {amount} USDT(BSC) 결제가 전송됩니다",
   "stake.confirmingPayment": "결제 확인 중…",
   "stake.confirmingPaymentHint": "지갑에서 거래를 승인하세요. 곧 완료됩니다",
-  "program.loadingData": "데이터 로딩 중…"
+  "program.loadingData": "데이터 로딩 중…",
+  "assets.flashWithdrawSubmitted": "플래시 스왑 제출됨 — 처리 중 (결과는 자산 내역에서 확인)"
 }

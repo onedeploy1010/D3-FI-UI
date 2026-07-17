@@ -367,5 +367,6 @@
   "stake.payFromWalletHint": "On confirm, a {amount} USDT (BSC) payment is sent from your connected wallet",
   "stake.confirmingPayment": "Confirming payment…",
   "stake.confirmingPaymentHint": "Approve the transaction in your wallet; this will finish shortly",
-  "program.loadingData": "Loading data…"
+  "program.loadingData": "Loading data…",
+  "assets.flashWithdrawSubmitted": "Flash-swap submitted — processing (check Assets history for the result)"
 }

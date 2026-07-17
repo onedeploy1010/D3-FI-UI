@@ -478,7 +478,7 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     await syncStakePositionOnCredit(sb, row.id as string).catch(() => {});
   }
 
-  const [account, positions, ud3History, ud3Ledger, yieldHistory, ud3Transfers] = await Promise.all([
+  const [account, positions, ud3History, ud3Ledger, yieldHistory, ud3Transfers, yieldWithdrawals] = await Promise.all([
     sb.from('partner_accounts').select('*').ilike('wallet_address', w).maybeSingle(),
     sb
       .from('partner_stake_positions')
@@ -513,6 +513,14 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .select('*')
       .ilike('from_wallet', w)
       .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(50),
+    // Flash-swap (yield withdraw) history — ALL statuses so pending/failed swaps are
+    // visible (a failed on-chain payout must not silently vanish from the history).
+    sb
+      .from('partner_yield_withdrawals')
+      .select('*')
+      .ilike('wallet_address', w)
       .order('created_at', { ascending: false })
       .limit(50),
   ]);
@@ -558,5 +566,6 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     ud3Allocations,
     yieldSettlements: yieldHistory.data ?? [],
     ud3Transfers: ud3Transfers.data ?? [],
+    yieldWithdrawals: yieldWithdrawals.data ?? [],
   };
 }

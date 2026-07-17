@@ -211,6 +211,17 @@ export type PartnerTeamStats = {
   largeAreaNewPerformanceUsd?: number;
 };
 
+export type PartnerYieldWithdrawalRow = {
+  id: string;
+  wallet_address: string;
+  amount_usdt: number;
+  net_amount_usdt?: number;
+  d3_amount?: number;
+  status: 'pending' | 'signing' | 'broadcasted' | 'confirmed' | 'failed';
+  tx_hash?: string | null;
+  created_at: string;
+};
+
 export type PartnerAccountRow = {
   wallet_address: string;
   is_partner: boolean;
@@ -315,6 +326,7 @@ export type UnionProfileBundle = {
   partnerUd3Allocations?: PartnerUd3AllocationRow[];
   partnerUd3Transfers?: PartnerUd3TransferRow[];
   partnerYieldSettlements?: PartnerYieldSettlementRow[];
+  partnerYieldWithdrawals?: PartnerYieldWithdrawalRow[];
   /** All partner-referral downline wallet addresses (umbrella tree). */
   partnerDownlineWallets?: string[];
   /** Multi-level downline edges (wallet -> sponsor) to nest the tree past direct referrals. */

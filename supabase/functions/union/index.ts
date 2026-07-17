@@ -615,6 +615,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     ud3Allocations: [],
     yieldSettlements: [],
     ud3Transfers: [],
+    yieldWithdrawals: [],
   }));
   const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
 
@@ -662,6 +663,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     partnerUd3Allocations: partnerBundle.ud3Allocations,
     partnerUd3Transfers: partnerBundle.ud3Transfers,
     partnerYieldSettlements: partnerBundle.yieldSettlements,
+    partnerYieldWithdrawals: partnerBundle.yieldWithdrawals,
     partnerDownlineWallets,
     partnerDownlineTree,
   };
