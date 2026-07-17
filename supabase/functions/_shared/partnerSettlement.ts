@@ -480,7 +480,10 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       tier_rate_pct: Number(ev.tier_rate_pct ?? 0),
       // Direct reward is the fixed 60% cut; network (级差) rewards carry their gap %.
       reward_share_pct: r.role === 'direct' ? 60 : Number(r.gap_pct ?? r.v_share_pct ?? 0),
-      role: r.role,
+      // The client renders only 'direct' vs 'upline' (isDirect = role !== 'upline').
+      // Map the ledger's 'differential' role to 'upline' so 级差 rewards aren't
+      // mislabeled 直推 with the direct 60% formula.
+      role: r.role === 'direct' ? 'direct' : 'upline',
       source_wallet: ev.depositor_wallet ?? null,
       sd3_amount: Number(r.ud3_amount ?? 0),
       // Two-phase (043): false until the daily SGT-midnight run settles it.
