@@ -918,11 +918,23 @@ export function hydratePartnerStateFromApi(
 
   const latestUd3 = ud3SettlementHistory[0];
 
-  const settledSum = round2(ud3SettlementHistory.reduce((s, r) => s + r.ud3Amount, 0));
+  // Settled-only sum (未结算 rows excluded) — used only as a fallback for demo /
+  // no-account state. Pending rewards must NOT inflate the settled (已结算) figure.
+  const settledSum = round2(
+    ud3SettlementHistory
+      .filter((r) => r.settlementStatus !== 'pending')
+      .reduce((s, r) => s + r.ud3Amount, 0),
+  );
   const accountLifetime = account ? Number(account.lifetime_ud3_earned ?? account.lifetime_sd3_earned ?? 0) : 0;
   const accountBalance = account ? Number(account.ud3_balance ?? account.sd3_balance ?? 0) : 0;
-  const lifetimeUd3Earned =
-    accountLifetime > 0 ? accountLifetime : settledSum > 0 ? settledSum : local.lifetimeUd3Earned;
+  // A real account's settled lifetime is authoritative (including 0 before the first
+  // SGT-midnight settlement). Only fall back to the settled-only history sum / local
+  // value when there is no server account at all.
+  const lifetimeUd3Earned = account
+    ? accountLifetime
+    : settledSum > 0
+      ? settledSum
+      : local.lifetimeUd3Earned;
   // When a real account exists its UD3 balance is authoritative — including 0 after
   // the holder has staked/transferred it all. Only fall back to lifetime/local when
   // there is no server account at all (avoids showing a phantom balance you can't spend).
