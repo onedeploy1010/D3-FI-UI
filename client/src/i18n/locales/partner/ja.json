@@ -346,5 +346,7 @@
   "stake.confirmingPayment": "支払いを確認中…",
   "stake.confirmingPaymentHint": "ウォレットで取引を承認してください。まもなく完了します",
   "program.loadingData": "データを読み込み中…",
-  "assets.flashWithdrawSubmitted": "フラッシュスワップを送信しました。処理中です（結果は資産履歴でご確認ください）"
+  "assets.flashWithdrawSubmitted": "フラッシュスワップを送信しました。処理中です（結果は資産履歴でご確認ください）",
+  "stake.confirmingUd3Stake": "UD3ステークを処理中です…",
+  "stake.paidWithUd3": "UD3 支払い"
 }

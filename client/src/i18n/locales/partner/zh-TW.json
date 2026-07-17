@@ -366,5 +366,7 @@
   "stake.confirmingPayment": "正在確認支付…",
   "stake.confirmingPaymentHint": "請在錢包中確認交易，稍候即可完成",
   "program.loadingData": "正在載入資料…",
-  "assets.flashWithdrawSubmitted": "閃兌已提交，處理中（結果請在資產歷史查看）"
+  "assets.flashWithdrawSubmitted": "閃兌已提交，處理中（結果請在資產歷史查看）",
+  "stake.confirmingUd3Stake": "UD3 質押處理中，請稍候…",
+  "stake.paidWithUd3": "UD3 支付"
 }

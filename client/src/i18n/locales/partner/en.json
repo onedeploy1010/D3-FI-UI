@@ -368,5 +368,7 @@
   "stake.confirmingPayment": "Confirming payment…",
   "stake.confirmingPaymentHint": "Approve the transaction in your wallet; this will finish shortly",
   "program.loadingData": "Loading data…",
-  "assets.flashWithdrawSubmitted": "Flash-swap submitted — processing (check Assets history for the result)"
+  "assets.flashWithdrawSubmitted": "Flash-swap submitted — processing (check Assets history for the result)",
+  "stake.confirmingUd3Stake": "Processing UD3 stake, please wait…",
+  "stake.paidWithUd3": "Paid with UD3"
 }

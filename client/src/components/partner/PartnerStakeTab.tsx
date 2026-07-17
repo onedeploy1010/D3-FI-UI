@@ -197,7 +197,14 @@ export function PartnerStakeTab({
             >
               <span className="ios-glass-sheen pointer-events-none" aria-hidden />
               <div className="flex justify-between mb-2">
-                <span className="text-xs font-bold text-[#E0568F]">{p(stakeKindKey(order.kind))}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-[#E0568F]">{p(stakeKindKey(order.kind))}</span>
+                  {(order.kind === 'sd3' || order.kind === 'ud3') && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/12">
+                      {p('stake.paidWithUd3')}
+                    </span>
+                  )}
+                </span>
                 <span className={`text-[10px] flex items-center gap-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                   {order.startedAt}
                   <ChevronRight size={12} className="opacity-60" />

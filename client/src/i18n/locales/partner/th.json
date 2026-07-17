@@ -346,5 +346,7 @@
   "stake.confirmingPayment": "กำลังยืนยันการชำระ…",
   "stake.confirmingPaymentHint": "อนุมัติธุรกรรมในกระเป๋าของคุณ อีกสักครู่จะเสร็จ",
   "program.loadingData": "กำลังโหลดข้อมูล…",
-  "assets.flashWithdrawSubmitted": "ส่งแฟลชสวॉปแล้ว กำลังดำเนินการ (ดูผลลัพธ์ในประวัติสินทรัพย์)"
+  "assets.flashWithdrawSubmitted": "ส่งแฟลชสวॉปแล้ว กำลังดำเนินการ (ดูผลลัพธ์ในประวัติสินทรัพย์)",
+  "stake.confirmingUd3Stake": "กำลังดำเนินการสเตค UD3 โปรดรอ…",
+  "stake.paidWithUd3": "ชำระด้วย UD3"
 }

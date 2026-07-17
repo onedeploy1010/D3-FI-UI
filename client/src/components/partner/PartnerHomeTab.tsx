@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Sparkles, Zap } from 'lucide-react';
+import { CheckCircle2, Loader2, Sparkles, Zap } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerPaymentConfirmSection } from '@/components/partner/PartnerPaymentConfirmSection';
@@ -66,6 +66,7 @@ export function PartnerHomeTab({
   const [becomePartner, setBecomePartner] = useState(true);
   const [useUd3, setUseUd3] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [staking, setStaking] = useState(false);
 
   const availableUd3 = getUd3Available(state);
   const numAmount = Number(amount);
@@ -135,16 +136,23 @@ export function PartnerHomeTab({
     }
   };
 
+  const busy = paying || staking;
+
   const confirmStake = async () => {
-    if (!isValidAmount) return;
-    const ok = useUd3
-      ? await onStakeUd3(stakeAmount)
-      : await onHomeStake(stakeAmount, withPartnerJoin);
-    if (ok) {
-      setConfirmOpen(false);
-      setUseUd3(false);
-      setAmount(String(DEFAULT_HOME_STAKE_USDT));
-      if (!state.isPartner) setBecomePartner(true);
+    if (!isValidAmount || busy) return;
+    setStaking(true);
+    try {
+      const ok = useUd3
+        ? await onStakeUd3(stakeAmount)
+        : await onHomeStake(stakeAmount, withPartnerJoin);
+      if (ok) {
+        setConfirmOpen(false);
+        setUseUd3(false);
+        setAmount(String(DEFAULT_HOME_STAKE_USDT));
+        if (!state.isPartner) setBecomePartner(true);
+      }
+    } finally {
+      setStaking(false);
     }
   };
 
@@ -468,16 +476,23 @@ export function PartnerHomeTab({
           />
         )}
         {useUd3 && (
-          <p className={`text-[11px] text-center mb-4 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
-            {p('home.ud3ConfirmHint')}
-          </p>
+          <div className={`partner-depth-inset rounded-xl p-4 mb-4 flex items-center gap-3 ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
+            {staking ? (
+              <Loader2 size={20} className="shrink-0 text-[#E0568F] animate-spin" aria-hidden />
+            ) : (
+              <Zap size={20} className="shrink-0 text-[#E0568F]" aria-hidden />
+            )}
+            <div className={`text-[11px] leading-relaxed ${isDark ? 'text-white/60' : 'text-[#160510]/60'}`}>
+              {staking ? p('stake.confirmingUd3Stake') : p('home.ud3ConfirmHint')}
+            </div>
+          </div>
         )}
         <div className="flex flex-col-reverse sm:flex-row gap-3">
-          <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={paying} onClick={() => setConfirmOpen(false)}>
+          <GlassButton variant="secondary" className="w-full sm:flex-1 !py-3" disabled={busy} onClick={() => setConfirmOpen(false)}>
             {p('stake.cancel')}
           </GlassButton>
-          <GlassButton className="w-full sm:flex-1 !py-3" disabled={paying || !isValidAmount} onClick={() => void confirmStake()}>
-            {paying ? (isDemo ? p('stake.demoPaying') : p('stake.paying')) : isDemo ? p('stake.demoConfirm') : p('stake.confirm')}
+          <GlassButton className="w-full sm:flex-1 !py-3" disabled={busy || !isValidAmount} onClick={() => void confirmStake()}>
+            {busy ? (isDemo ? p('stake.demoPaying') : p('stake.paying')) : isDemo ? p('stake.demoConfirm') : p('stake.confirm')}
           </GlassButton>
         </div>
       </PartnerModal>

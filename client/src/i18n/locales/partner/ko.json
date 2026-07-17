@@ -346,5 +346,7 @@
   "stake.confirmingPayment": "결제 확인 중…",
   "stake.confirmingPaymentHint": "지갑에서 거래를 승인하세요. 곧 완료됩니다",
   "program.loadingData": "데이터 로딩 중…",
-  "assets.flashWithdrawSubmitted": "플래시 스왑 제출됨 — 처리 중 (결과는 자산 내역에서 확인)"
+  "assets.flashWithdrawSubmitted": "플래시 스왑 제출됨 — 처리 중 (결과는 자산 내역에서 확인)",
+  "stake.confirmingUd3Stake": "UD3 스테이킹 처리 중…",
+  "stake.paidWithUd3": "UD3 결제"
 }
