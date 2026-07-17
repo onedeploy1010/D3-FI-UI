@@ -315,6 +315,9 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
 
       try {
         await stakePartnerUd3(wallet, amount);
+        // Optimistically drop the spendable balance so home + assets reflect the
+        // deduction instantly, before the (slower) authoritative refresh reconciles it.
+        setState((prev) => ({ ...prev, ud3Balance: Math.max(0, prev.ud3Balance - amount) }));
         await refreshTeamProfile();
         return true;
       } catch {
@@ -343,6 +346,9 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
 
       try {
         await transferPartnerUd3(wallet, normalized, amount);
+        // Optimistically drop the spendable balance so home + assets reflect the
+        // deduction instantly, before the (slower) authoritative refresh reconciles it.
+        setState((prev) => ({ ...prev, ud3Balance: Math.max(0, prev.ud3Balance - amount) }));
         await refreshTeamProfile();
         return true;
       } catch {

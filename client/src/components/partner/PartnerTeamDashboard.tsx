@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { type PartnerState } from '@/components/partner/partnerData';
 import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
-import { resolvePartnerUd3Metrics } from '@/components/partner/partnerUd3View';
+import { resolvePartnerUd3Metrics, sumUd3Transferred } from '@/components/partner/partnerUd3View';
 import {
   getUd3Tier,
   resolveUd3SLevel,
@@ -57,7 +57,7 @@ export function PartnerTeamDashboard({
   });
 
   const lifetimeUd3 = metrics.lifetimeUd3;
-  const pendingUd3 = metrics.pendingUd3;
+  const transferredUd3 = sumUd3Transferred(state);
 
   return (
     <motion.div
@@ -84,50 +84,61 @@ export function PartnerTeamDashboard({
 
       <div className="relative px-4 py-3.5 space-y-2.5">
         {/* S1–S2 focus: 总业绩 */}
-        <PartnerDualAnimatedBar
-          title={p('team.totalPerf')}
-          totalLabel={p('team.totalShort')}
-          totalValue={totalPerf}
-          totalDisplay={`$${totalPerf.toLocaleString()}`}
-          newLabel={p('team.todayNew')}
-          newValue={totalNew}
-          newDisplay={`$${totalNew.toLocaleString()}`}
-          isDark={isDark}
-          totalAccent="#8A2B57"
-          newAccent="#c084fc"
-          featured={Boolean(sLevel && sLevel.id <= 2)}
-          featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
-          badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
-        />
+        <div className="animate-tile-rise" style={{ ['--rise-delay']: '0ms' } as CSSProperties}>
+          <div key={`${totalPerf}:${totalNew}`} className="animate-value-pop">
+            <PartnerDualAnimatedBar
+              title={p('team.totalPerf')}
+              totalLabel={p('team.totalShort')}
+              totalValue={totalPerf}
+              totalDisplay={`$${totalPerf.toLocaleString()}`}
+              newLabel={p('team.todayNew')}
+              newValue={totalNew}
+              newDisplay={`$${totalNew.toLocaleString()}`}
+              isDark={isDark}
+              totalAccent="#8A2B57"
+              newAccent="#c084fc"
+              featured={Boolean(sLevel && sLevel.id <= 2)}
+              featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
+              badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
+            />
+          </div>
+        </div>
         {/* S3–S6 focus: 小区业绩（不展示大区） */}
-        <PartnerDualAnimatedBar
-          title={p('team.smallArea')}
-          totalLabel={p('team.totalShort')}
-          totalValue={areas.smallAreaUsd}
-          totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
-          newLabel={p('team.todayNew')}
-          newValue={areas.smallAreaNewUsd}
-          newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
-          isDark={isDark}
-          totalAccent="#E0568F"
-          newAccent="#f472b6"
-          featured={Boolean(!sLevel || sLevel.id >= 3)}
-          featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
-          badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
-        />
-        <PartnerDualAnimatedBar
-          title={p('team.ud3Rewards')}
-          totalLabel={p('team.settledShort')}
-          totalValue={lifetimeUd3}
-          totalDisplay={`${lifetimeUd3.toLocaleString()} UD3`}
-          newLabel={p('team.unsettledBadge')}
-          newValue={pendingUd3}
-          newDisplay={`${pendingUd3.toLocaleString()} UD3`}
-          isDark={isDark}
-          totalAccent="#E0568F"
-          newAccent="#f59e0b"
-          badge={p('team.unsettledBadge')}
-        />
+        <div className="animate-tile-rise" style={{ ['--rise-delay']: '45ms' } as CSSProperties}>
+          <div key={`${areas.smallAreaUsd}:${areas.smallAreaNewUsd}`} className="animate-value-pop">
+            <PartnerDualAnimatedBar
+              title={p('team.smallArea')}
+              totalLabel={p('team.totalShort')}
+              totalValue={areas.smallAreaUsd}
+              totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
+              newLabel={p('team.todayNew')}
+              newValue={areas.smallAreaNewUsd}
+              newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
+              isDark={isDark}
+              totalAccent="#E0568F"
+              newAccent="#f472b6"
+              featured={Boolean(!sLevel || sLevel.id >= 3)}
+              featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
+              badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
+            />
+          </div>
+        </div>
+        <div className="animate-tile-rise" style={{ ['--rise-delay']: '90ms' } as CSSProperties}>
+          <div key={`${lifetimeUd3}:${transferredUd3}`} className="animate-value-pop">
+            <PartnerDualAnimatedBar
+              title={p('team.ud3Rewards')}
+              totalLabel={p('team.settledShort')}
+              totalValue={lifetimeUd3}
+              totalDisplay={`${lifetimeUd3.toLocaleString()} UD3`}
+              newLabel={p('team.transferredShort')}
+              newValue={transferredUd3}
+              newDisplay={`${transferredUd3.toLocaleString()} UD3`}
+              isDark={isDark}
+              totalAccent="#E0568F"
+              newAccent="#f59e0b"
+            />
+          </div>
+        </div>
       </div>
     </motion.div>
   );

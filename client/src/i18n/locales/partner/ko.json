@@ -67,6 +67,8 @@
   "stake.noStake": "스테이킹 없음",
   "stake.goHomeStake": "홈에서 스테이킹",
   "stake.total": "스테이킹 총액",
+  "stake.usdtStaked": "USDT 스테이킹액",
+  "stake.ud3Staked": "UD3 스테이킹액",
   "stake.daily": "일일",
   "stake.orders": "주문",
   "stake.daysEach": "일/건",
@@ -130,6 +132,7 @@
   "assets.flashYield": "즉시 교환 가능 D3",
   "assets.flashYieldAvailable": "지갑으로 출금 가능",
   "assets.lifetimeUd3": "누적 UD3 보상",
+  "assets.availableUd3": "사용 가능 UD3",
   "assets.newUd3": "신규 UD3 보상",
   "assets.flashSwap": "즉시 교환",
   "assets.flashSwapTitle": "수익 즉시 교환",
@@ -231,6 +234,7 @@
   "team.lifetimeUd3": "누적 UD3",
   "team.newUd3": "신규 UD3",
   "team.settledShort": "정산완료",
+  "team.transferredShort": "이체완료",
   "team.settledBadge": "정산완료",
   "team.unsettledBadge": "미정산",
   "team.tree": "추천 트리",
@@ -349,5 +353,5 @@
   "assets.flashWithdrawSubmitted": "플래시 스왑 제출됨 — 처리 중 (결과는 자산 내역에서 확인)",
   "stake.confirmingUd3Stake": "UD3 스테이킹 처리 중…",
   "stake.paidWithUd3": "UD3 결제",
-  "tree.detailToggle": "상세"
+  "tree.detailToggle": "실적 상세"
 }

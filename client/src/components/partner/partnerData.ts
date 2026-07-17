@@ -253,7 +253,9 @@ export type StakeOrderKind = 'crowdfund' | 'partner_join' | 'sd3';
 export function normalizeStakeOrderKind(kind: string): StakeOrderKind {
   if (kind === 'partner_join') return 'partner_join';
   if (kind === 'crowdfund_stake' || kind === 'crowdfund') return 'crowdfund';
-  if (kind === 'sd3') return 'sd3';
+  // UD3-paid re-stakes are written on-chain/back-end as kind 'ud3' (and historically
+  // 'sd3'); both map to the single UD3-paid stake kind the UI understands (2× exit).
+  if (kind === 'sd3' || kind === 'ud3') return 'sd3';
   return 'crowdfund';
 }
 

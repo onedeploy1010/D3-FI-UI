@@ -67,6 +67,8 @@
   "stake.noStake": "ยังไม่มีสเตค",
   "stake.goHomeStake": "สเตคที่หน้าแรก",
   "stake.total": "สเตครวม",
+  "stake.usdtStaked": "ยอดสเตก USDT",
+  "stake.ud3Staked": "ยอดสเตก UD3",
   "stake.daily": "รายวัน",
   "stake.orders": "คำสั่ง",
   "stake.daysEach": "วัน/รายการ",
@@ -130,6 +132,7 @@
   "assets.flashYield": "D3 ที่แลกด่วนได้",
   "assets.flashYieldAvailable": "ถอนเข้ากระเป๋าได้",
   "assets.lifetimeUd3": "รางวัล UD3 สะสม",
+  "assets.availableUd3": "UD3 ที่ใช้ได้",
   "assets.newUd3": "รางวัล UD3 ใหม่",
   "assets.flashSwap": "แลกด่วน",
   "assets.flashSwapTitle": "แลกผลตอบแทนด่วน",
@@ -231,6 +234,7 @@
   "team.lifetimeUd3": "UD3 สะสม",
   "team.newUd3": "UD3 ใหม่",
   "team.settledShort": "Settled",
+  "team.transferredShort": "โอนแล้ว",
   "team.settledBadge": "Settled",
   "team.unsettledBadge": "ยังไม่ชำระ",
   "team.tree": "ต้นไม้แนะนำ",
@@ -349,5 +353,5 @@
   "assets.flashWithdrawSubmitted": "ส่งแฟลชสวॉปแล้ว กำลังดำเนินการ (ดูผลลัพธ์ในประวัติสินทรัพย์)",
   "stake.confirmingUd3Stake": "กำลังดำเนินการสเตค UD3 โปรดรอ…",
   "stake.paidWithUd3": "ชำระด้วย UD3",
-  "tree.detailToggle": "รายละเอียด"
+  "tree.detailToggle": "รายละเอียดผลงาน"
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Sparkles, Zap } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
@@ -236,7 +236,7 @@ export function PartnerHomeTab({
             </div>
           </div>
 
-          <div className="relative mb-4">
+          <div className="relative mb-4 animate-tile-rise" style={{ ['--rise-delay']: '60ms' } as CSSProperties}>
             <div className={`text-[10px] font-semibold uppercase tracking-widest text-center mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
               {useUd3 ? 'UD3' : 'USDT'}
             </div>
@@ -272,6 +272,7 @@ export function PartnerHomeTab({
                 type="button"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
+                whileTap={{ scale: 0.9 }}
                 transition={{ delay: 0.15 + i * 0.05 }}
                 onClick={() => addAmount(v)}
                 className="text-xs px-3.5 py-1.5 rounded-full partner-depth-inset ios-glass-pressable font-semibold text-[#E0568F] transition-colors"
@@ -285,7 +286,7 @@ export function PartnerHomeTab({
 
           {!state.isPartner && !useUd3 && (
             <label
-              className={`flex items-start gap-2.5 cursor-pointer partner-depth-inset rounded-xl px-3.5 py-3 mb-4 ${
+              className={`flex items-start gap-2.5 cursor-pointer partner-depth-inset tap-press rounded-xl px-3.5 py-3 mb-4 ${
                 isDark ? 'text-white/75' : 'text-[#160510]/75'
               }`}
             >
@@ -325,8 +326,9 @@ export function PartnerHomeTab({
 
           {isValidAmount && (
             <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className="mt-4 space-y-2.5"
             >
               {!useUd3 && (
@@ -395,7 +397,9 @@ export function PartnerHomeTab({
                 <span className="text-[11px] leading-relaxed min-w-0">
                   <span className="font-semibold">{p('home.ud3QuotaLabel')}</span>
                   <span className="block text-sm font-bold text-[#E0568F] mt-0.5">
-                    <PartnerUd3Amount value={availableUd3} />
+                    <span key={availableUd3} className="inline-block animate-value-pop">
+                      <PartnerUd3Amount value={availableUd3} />
+                    </span>
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.ud3QuotaHintOpen')}
@@ -433,7 +437,9 @@ export function PartnerHomeTab({
                 <span className="text-[11px] leading-relaxed min-w-0">
                   <span className="font-semibold">{p('home.ud3QuotaLabel')}</span>
                   <span className="block text-sm font-bold text-[#E0568F] mt-0.5">
-                    <PartnerUd3Amount value={availableUd3} />
+                    <span key={availableUd3} className="inline-block animate-value-pop">
+                      <PartnerUd3Amount value={availableUd3} />
+                    </span>
                   </span>
                   <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.ud3QuotaHintOpen')}

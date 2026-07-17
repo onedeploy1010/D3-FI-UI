@@ -68,6 +68,8 @@
   "stake.noStake": "No stake",
   "stake.goHomeStake": "Stake on Home",
   "stake.total": "Total staked",
+  "stake.usdtStaked": "USDT staked",
+  "stake.ud3Staked": "UD3 staked",
   "stake.daily": "Daily",
   "stake.orders": "Orders",
   "stake.daysEach": "d",
@@ -137,6 +139,7 @@
   "assets.flashYield": "Flash-swappable D3",
   "assets.flashYieldAvailable": "Withdrawable to wallet",
   "assets.lifetimeUd3": "Settled UD3",
+  "assets.availableUd3": "Available UD3",
   "assets.newUd3": "Transferred UD3",
   "assets.flashSwap": "Flash swap",
   "assets.flashSwapTitle": "Yield flash swap",
@@ -240,6 +243,7 @@
   "team.lifetimeUd3": "Settled UD3",
   "team.newUd3": "Unsettled UD3",
   "team.settledShort": "Settled",
+  "team.transferredShort": "Transferred",
   "team.settledBadge": "Settled",
   "team.unsettledBadge": "Unsettled",
   "team.tree": "Tree",
@@ -371,5 +375,5 @@
   "assets.flashWithdrawSubmitted": "Flash-swap submitted — processing (check Assets history for the result)",
   "stake.confirmingUd3Stake": "Processing UD3 stake, please wait…",
   "stake.paidWithUd3": "Paid with UD3",
-  "tree.detailToggle": "Details"
+  "tree.detailToggle": "Performance"
 }

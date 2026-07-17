@@ -202,18 +202,18 @@ export function PartnerDualAnimatedBar({
     >
       {featured && <div className="partner-metric-featured-glow pointer-events-none" aria-hidden />}
 
-      <div className="relative flex items-center justify-between gap-2 mb-2">
+      <div className="relative flex items-center justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className={cn(
-              'text-sm font-bold tracking-wide truncate',
+              'text-[15px] font-extrabold tracking-wide truncate',
               featured
                 ? isDark
                   ? 'text-[#f9a8d4]'
                   : 'text-[#8A2B57]'
                 : isDark
-                  ? 'text-white/60'
-                  : 'text-[#160510]/65',
+                  ? 'text-white/80'
+                  : 'text-[#160510]/80',
             )}
           >
             {title}
@@ -226,25 +226,32 @@ export function PartnerDualAnimatedBar({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-2.5">
-        <div className="partner-metric-stat rounded-lg px-2.5 py-1.5">
-          <div className={`text-[11px] font-semibold mb-1 ${muted}`}>{totalLabel}</div>
-          <div className="text-base font-bold leading-tight tracking-tight" style={{ color: totalAccent }}>
+      {/* 左标题 · 右大数字：两行分别展示 累积/当日新增（或 已结算/已转账） */}
+      <div className="space-y-1.5 mb-2.5">
+        <div className="partner-metric-stat rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+          <span className={`text-[13px] font-semibold shrink-0 ${muted}`}>{totalLabel}</span>
+          <span
+            className="text-xl font-extrabold leading-none tracking-tight truncate text-right"
+            style={{ color: totalAccent }}
+          >
             {totalDisplay}
-          </div>
+          </span>
         </div>
-        <div className="partner-metric-stat rounded-lg px-2.5 py-1.5">
-          <div className={`text-[11px] font-semibold mb-1 flex items-center flex-wrap gap-1 ${muted}`}>
-            <span>{newLabel}</span>
+        <div className="partner-metric-stat rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+          <span className={`text-[13px] font-semibold shrink-0 flex items-center gap-1 ${muted}`}>
+            {newLabel}
             {badge && (
-              <span className="text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none scale-95 origin-left">
+              <span className="text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none">
                 {badge}
               </span>
             )}
-          </div>
-          <div className="text-base font-bold leading-tight tracking-tight" style={{ color: newAccent }}>
+          </span>
+          <span
+            className="text-xl font-extrabold leading-none tracking-tight truncate text-right"
+            style={{ color: newAccent }}
+          >
             {newDisplay}
-          </div>
+          </span>
         </div>
       </div>
 

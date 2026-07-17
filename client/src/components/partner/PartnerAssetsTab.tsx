@@ -195,6 +195,23 @@ export function PartnerAssetsTab({
           <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
             <div className="site-stat-label mb-3">{p('assets.assetsOverview')}</div>
+
+            {/* 可用 UD3：可质押 / 可转账的余额，质押或转账后即时扣减 */}
+            <div className="ios-glass-inset p-3.5 mb-2 flex items-center justify-between gap-3 border border-[#E0568F]/15">
+              <div className="min-w-0">
+                <div className={`text-[11px] font-semibold ${muted}`}>{p('assets.availableUd3')}</div>
+                <div className={`text-[9px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+                  {p('assets.ud3StakeHist')} · {p('assets.transferHist')}
+                </div>
+              </div>
+              <div
+                key={quotas.available}
+                className="text-2xl font-extrabold tracking-tight text-[#E0568F] shrink-0 animate-value-pop"
+              >
+                <PartnerUd3Amount value={quotas.available} />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
               <div className="ios-glass-inset p-2.5">
                 <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.totalInvest')}</div>

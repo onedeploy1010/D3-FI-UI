@@ -12,6 +12,7 @@ import {
   type Ud3UplineNode,
 } from './partnerUd3Rules.ts';
 import { sumReferralTreePerformance } from './partnerPerformance.ts';
+import { toSgtDateString } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
 
@@ -219,7 +220,62 @@ export async function allocateUd3ForCreditedIntent(
     await creditPendingUd3Reward(sb, walletLower, round6(amount));
   }
 
+  // Immediate settlement (product change): UD3 becomes spendable the instant the
+  // downline deposit is credited — no waiting for the SGT-midnight run. Move each
+  // recipient's pending_ud3 into ud3_balance now and flip this event's ledger rows
+  // to settled. The daily run still acts as a retry safety net: any wallet whose
+  // settle errors here keeps its rows settled=false and is caught at midnight.
+  await settleEventImmediately(sb, eventId, [...creditMap.keys()]);
+
   return { ok: true, eventId };
+}
+
+/**
+ * Settle the rewards of a single UD3 event right away (immediate-settlement mode).
+ * Moves pending_ud3 → ud3_balance for each recipient and marks their ledger rows
+ * for this event as settled. Best-effort per wallet: a failed settle leaves that
+ * wallet's rows unsettled for the daily-run retry.
+ */
+async function settleEventImmediately(
+  sb: Sb,
+  eventId: string,
+  recipientWalletsLower: string[],
+): Promise<void> {
+  if (recipientWalletsLower.length === 0) return;
+  const settlementDate = toSgtDateString();
+  const nowIso = new Date().toISOString();
+  const settledWallets: string[] = [];
+  for (const walletLower of recipientWalletsLower) {
+    const { error: settleErr } = await sb.rpc('settle_pending_ud3', { p_wallet: walletLower });
+    if (settleErr) {
+      console.error('[ud3] immediate settle_pending_ud3:', settleErr.message);
+      continue;
+    }
+    settledWallets.push(walletLower);
+  }
+  if (settledWallets.length === 0) return;
+
+  const flip = { settled: true, settled_at: nowIso, settlement_date: settlementDate };
+  if (settledWallets.length === recipientWalletsLower.length) {
+    // All recipients settled — flip every still-unsettled row of this event in one shot.
+    const { error } = await sb
+      .from('partner_ud3_ledger')
+      .update(flip)
+      .eq('event_id', eventId)
+      .eq('settled', false);
+    if (error) console.error('[ud3] immediate ledger flip:', error.message);
+    return;
+  }
+  // Partial success — flip only the settled wallets' rows (case-insensitive match).
+  for (const walletLower of settledWallets) {
+    const { error } = await sb
+      .from('partner_ud3_ledger')
+      .update(flip)
+      .eq('event_id', eventId)
+      .eq('settled', false)
+      .ilike('recipient_wallet', walletLower);
+    if (error) console.error('[ud3] immediate ledger flip (partial):', error.message);
+  }
 }
 
 /**

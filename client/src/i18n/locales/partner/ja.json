@@ -67,6 +67,8 @@
   "stake.noStake": "ステークなし",
   "stake.goHomeStake": "ホームでステーク",
   "stake.total": "ステーク総額",
+  "stake.usdtStaked": "USDT ステーク額",
+  "stake.ud3Staked": "UD3 ステーク額",
   "stake.daily": "日次",
   "stake.orders": "注文",
   "stake.daysEach": "日/件",
@@ -130,6 +132,7 @@
   "assets.flashYield": "フラッシュ換金可能 D3",
   "assets.flashYieldAvailable": "ウォレットへ出金可能",
   "assets.lifetimeUd3": "累計 UD3 報酬",
+  "assets.availableUd3": "利用可能 UD3",
   "assets.newUd3": "新規 UD3 報酬",
   "assets.flashSwap": "フラッシュ換金",
   "assets.flashSwapTitle": "収益フラッシュ換金",
@@ -231,6 +234,7 @@
   "team.lifetimeUd3": "累計 UD3",
   "team.newUd3": "新規 UD3",
   "team.settledShort": "精算済",
+  "team.transferredShort": "送金済",
   "team.settledBadge": "精算済",
   "team.unsettledBadge": "未精算",
   "team.tree": "紹介ツリー",
@@ -349,5 +353,5 @@
   "assets.flashWithdrawSubmitted": "フラッシュスワップを送信しました。処理中です（結果は資産履歴でご確認ください）",
   "stake.confirmingUd3Stake": "UD3ステークを処理中です…",
   "stake.paidWithUd3": "UD3 支払い",
-  "tree.detailToggle": "詳細"
+  "tree.detailToggle": "実績詳細"
 }

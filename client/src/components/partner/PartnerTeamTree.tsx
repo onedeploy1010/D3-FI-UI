@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowUp, ChevronDown, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
@@ -246,7 +246,9 @@ export function PartnerTeamTree({
     [wallet],
   );
 
-  const canTransfer = isPartner && transferQuota > 0 && Boolean(onTransferUd3);
+  // Show the 转账UD3 affordance for any partner (even with 0 settled UD3 — the button
+  // then renders disabled) so it never silently vanishes; quota only gates enablement.
+  const canTransfer = isPartner && Boolean(onTransferUd3);
 
   const displayNodes = useMemo(() => {
     if (!transferGuideActive) return nodes;
@@ -279,7 +281,7 @@ export function PartnerTeamTree({
 
   const listNodes = q.trim() ? searchHits : children;
 
-  function TreeNodeCard({ node }: { node: PartnerTeamNode }) {
+  function TreeNodeCard({ node, index }: { node: PartnerTeamNode; index: number }) {
     const hasChildren = node.childrenIds.length > 0;
     const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
@@ -295,8 +297,9 @@ export function PartnerTeamTree({
     return (
       <div
         data-team-node-id={node.id}
+        style={{ ['--rise-delay']: `${Math.min(index, 8) * 45}ms` } as CSSProperties}
         className={cn(
-          `partner-elevated-card p-4 space-y-3 ${glassCardClass('default', '')}`,
+          `partner-elevated-card animate-tile-rise p-4 space-y-3 ${glassCardClass('default', '')}`,
           node.isGuideMock && 'border border-dashed border-[#E0568F]/35',
           highlightId === node.id && 'ring-2 ring-[#E0568F]/55 shadow-[0_0_0_1px_rgba(224,86,143,0.35)]',
         )}
@@ -335,7 +338,7 @@ export function PartnerTeamTree({
         <button
           type="button"
           onClick={() => toggleNodeExpanded(node.id)}
-          className={`w-full flex items-center justify-between text-[11px] font-semibold py-0.5 ${
+          className={`tap-press w-full flex items-center justify-between text-[11px] font-semibold py-0.5 ${
             isDark ? 'text-[#E0568F]/85' : 'text-[#8A2B57]/85'
           }`}
           aria-expanded={expandedNodes.has(node.id)}
@@ -359,6 +362,7 @@ export function PartnerTeamTree({
           {showTransferBtn && (
             <PartnerRaisedButton
               data-guide={highlightTransfer ? 'tree-transfer-btn' : undefined}
+              disabled={!transferGuideActive && transferQuota <= 0}
               className={cn(
                 highlightTransfer &&
                   'ring-2 ring-[#E0568F] ring-offset-2 ring-offset-transparent shadow-[0_0_20px_rgba(224,86,143,0.45)] animate-pulse',
@@ -420,7 +424,7 @@ export function PartnerTeamTree({
               {q.trim() ? p('tree.noMatch') : p('tree.noDownline')}
             </div>
           ) : (
-            listNodes.map((n) => <TreeNodeCard key={n.id} node={n} />)
+            listNodes.map((n, i) => <TreeNodeCard key={n.id} node={n} index={i} />)
           )}
         </div>
       </div>

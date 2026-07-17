@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SectionTabBar } from '@/components/d3fi/SectionTabBar';
 import { PartnerTeamTree } from '@/components/partner/PartnerTeamTree';
 import { PartnerTeamDashboard } from '@/components/partner/PartnerTeamDashboard';
@@ -202,7 +202,7 @@ export function PartnerTeamTab({
                       setStatusFilter('all');
                     }
                   }}
-                  className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
+                  className={`tap-press text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
                     active
                       ? 'text-[#E0568F] bg-[#E0568F]/14 shadow-sm'
                       : isDark
@@ -222,15 +222,20 @@ export function PartnerTeamTab({
             </div>
           ) : (
             <div className="space-y-2.5">
-              {filteredHistory.map((row) => (
-                <PartnerUd3RewardRow
+              {filteredHistory.map((row, i) => (
+                <div
                   key={row.id}
-                  row={row}
-                  lang={lang}
-                  isDark={isDark}
-                  onOpenDepositor={jumpToAddress}
-                  onOpenGuide={jumpToAddress}
-                />
+                  className="animate-tile-rise"
+                  style={{ ['--rise-delay']: `${Math.min(i, 8) * 45}ms` } as CSSProperties}
+                >
+                  <PartnerUd3RewardRow
+                    row={row}
+                    lang={lang}
+                    isDark={isDark}
+                    onOpenDepositor={jumpToAddress}
+                    onOpenGuide={jumpToAddress}
+                  />
+                </div>
               ))}
             </div>
           )}

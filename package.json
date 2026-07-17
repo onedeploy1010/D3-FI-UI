@@ -18,6 +18,7 @@
     "treasury:bootstrap-pool": "tsx scripts/treasury-bootstrap-deposit-pool.ts",
     "treasury:setup-cron": "tsx scripts/treasury-setup-cron.ts",
     "partner:setup-cron": "tsx scripts/partner-setup-cron.ts",
+    "ud3:settle-all": "tsx scripts/ud3-settle-all-now.ts",
     "partner:demo-tick": "tsx scripts/partner-setup-demo-cron.ts",
     "treasury:path-c": "tsx scripts/turnkey-path-c.ts",
     "referral:backfill": "tsx scripts/referral-backfill-onchain.ts",

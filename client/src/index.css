@@ -569,6 +569,67 @@
       0 8px 20px rgba(0, 0, 0, 0.32);
   }
 
+  /* ---------------------------------------------------------------
+   * Mobile micro-interaction vocabulary (shared across screens).
+   * Build on ios-glass-pressable; keep it subtle + reduced-motion safe.
+   * ------------------------------------------------------------- */
+
+  /* Staggered list/tile entrance. Set --rise-delay inline for a cascade. */
+  @keyframes tile-rise {
+    from {
+      opacity: 0;
+      transform: translateY(9px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .animate-tile-rise {
+    animation: tile-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+
+  /* Emphasis pop when a value updates (balances, counters). */
+  @keyframes value-pop {
+    0% {
+      transform: scale(1);
+    }
+    42% {
+      transform: scale(1.055);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-value-pop {
+    animation: value-pop 0.4s ease-out;
+  }
+
+  /* Springy tactile press for tappable rows/cards lacking ios-glass-pressable. */
+  .tap-press {
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .tap-press:active {
+    transform: scale(0.965);
+    filter: brightness(0.98);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-tile-rise,
+    .animate-value-pop {
+      animation: none;
+    }
+    .tap-press:active {
+      transform: none;
+      filter: none;
+    }
+  }
+
   .ios-glass-chip {
     border-radius: 0.875rem;
     padding: 0.625rem 0.75rem;

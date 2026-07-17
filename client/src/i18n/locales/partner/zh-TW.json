@@ -67,6 +67,8 @@
   "stake.noStake": "暂无质押",
   "stake.goHomeStake": "前往首页质押",
   "stake.total": "質押總資產",
+  "stake.usdtStaked": "USDT 質押金額",
+  "stake.ud3Staked": "UD3 質押金額",
   "stake.daily": "日返息",
   "stake.orders": "質押訂單",
   "stake.daysEach": "天/筆",
@@ -136,6 +138,7 @@
   "assets.flashYield": "可閃兌 D3",
   "assets.flashYieldAvailable": "可提现至钱包",
   "assets.lifetimeUd3": "已結算 UD3",
+  "assets.availableUd3": "可用 UD3",
   "assets.newUd3": "新增 UD3 奖励",
   "assets.flashSwap": "闪兑",
   "assets.flashSwapTitle": "收益闪兑",
@@ -239,6 +242,7 @@
   "team.lifetimeUd3": "已結算 UD3",
   "team.newUd3": "未結算 UD3",
   "team.settledShort": "已結算",
+  "team.transferredShort": "已轉帳",
   "team.settledBadge": "已結算",
   "team.unsettledBadge": "未結算",
   "team.tree": "推荐树",
@@ -369,5 +373,5 @@
   "assets.flashWithdrawSubmitted": "閃兌已提交，處理中（結果請在資產歷史查看）",
   "stake.confirmingUd3Stake": "UD3 質押處理中，請稍候…",
   "stake.paidWithUd3": "UD3 支付",
-  "tree.detailToggle": "詳情"
+  "tree.detailToggle": "業績詳情"
 }
