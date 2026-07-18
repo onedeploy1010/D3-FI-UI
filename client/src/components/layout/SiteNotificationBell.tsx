@@ -66,7 +66,11 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.18 }}
               className={cn(
-                'absolute right-0 top-full mt-2 z-50 w-[min(100vw-2rem,22rem)] rounded-2xl border shadow-xl overflow-hidden',
+                // Pin to the viewport's top-right (below the header, safe-area aware)
+                // with a width clamped to the viewport. Anchoring `absolute right-0` to
+                // the bell put the panel mid-bar (lang + wallet buttons follow it), so a
+                // 22rem panel spilled off the left edge on mobile.
+                'fixed z-50 right-4 top-[calc(env(safe-area-inset-top)+3.25rem)] w-[min(100vw-2rem,22rem)] rounded-2xl border shadow-xl overflow-hidden',
                 dark ? 'bg-[#1a1018]/95 border-white/10' : 'bg-white/95 border-[#8A2B57]/10',
               )}
             >
