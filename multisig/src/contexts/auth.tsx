@@ -23,15 +23,16 @@ export type MsUser = {
 type AuthCtx = {
   user: MsUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  /** Step 1: email OTP — send a 6-digit code to the address. */
+  requestOtp: (email: string) => Promise<void>;
+  /** Step 2: verify the emailed code and establish the session. */
+  verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   isSuperPartner: boolean;
   isPartner: boolean;
 };
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
-
-const AUTH_DOMAIN = import.meta.env.VITE_AUTH_DOMAIN ?? '@d3.fi';
 
 /** Resolve the logged-in identity's role. Super-partner is an admin_users row
  *  (set in admin-panel). Partner resolution (by wallet / 5000 stake) lands later. */
@@ -83,9 +84,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [hydrate]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const email = username.includes('@') ? username : `${username}${AUTH_DOMAIN}`;
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const requestOtp = useCallback(async (email: string) => {
+    // shouldCreateUser:false — only pre-seeded super-partner emails may sign in.
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: false },
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: token.trim(),
+      type: 'email',
+    });
     if (error) throw new Error(error.message);
     await hydrate();
   }, [hydrate]);
@@ -98,7 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthCtx = {
     user,
     loading,
-    login,
+    requestOtp,
+    verifyOtp,
     logout,
     isSuperPartner: user?.role === 'super_partner' || user?.role === 'superadmin',
     isPartner: user?.role === 'partner',

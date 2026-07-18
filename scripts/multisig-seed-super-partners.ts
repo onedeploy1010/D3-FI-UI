@@ -6,19 +6,20 @@
  * people who hold the Turnkey root-quorum seats — so app-level identity lines up
  * with the on-chain signers.
  *
- * SAFE: dry-run by default. Pass `-- --execute` to apply. New auth users are
- * created email-confirmed with a temporary password (`--password`) that each
- * super-partner should change on first login.
+ * Login is passwordless email OTP (Supabase Auth): new auth users are created
+ * email-confirmed WITHOUT a password, so they can only sign in via the 6-digit
+ * emailed code. No temp password to share.
+ *
+ * SAFE: dry-run by default. Pass `-- --execute` to apply.
  *
  * Usage:
  *   # dry-run — prints what it would do
  *   tsx scripts/multisig-seed-super-partners.ts -- \
  *     --email a@gmail.com --email b@gmail.com --email c@gmail.com --email d@gmail.com
  *
- *   # apply (creates missing auth users with the temp password + sets super_partner)
+ *   # apply (creates missing OTP-only auth users + sets super_partner)
  *   tsx scripts/multisig-seed-super-partners.ts -- \
- *     --email a@gmail.com --email b@gmail.com --email c@gmail.com --email d@gmail.com \
- *     --password 'TempPass#2026' --execute
+ *     --email a@gmail.com --email b@gmail.com --email c@gmail.com --email d@gmail.com --execute
  *
  *   # emails may also come from env (comma-separated):
  *   SUPER_PARTNER_EMAILS='a@x,b@y' tsx scripts/multisig-seed-super-partners.ts -- --execute
@@ -43,11 +44,6 @@ function argValues(flag: string): string[] {
   }
   return out;
 }
-function argValue(flag: string): string | undefined {
-  const i = process.argv.indexOf(flag);
-  return i >= 0 ? process.argv[i + 1] : undefined;
-}
-
 function die(msg: string): never {
   console.error(msg);
   process.exit(1);
@@ -67,8 +63,6 @@ const emails = [
 if (emails.length === 0) {
   die('No emails. Pass --email <addr> (repeatable) or SUPER_PARTNER_EMAILS=a,b,c');
 }
-
-const tempPassword = argValue('--password');
 
 // super_partner permission preset (mirror _shared/adminAuth.ts).
 const SUPER_PARTNER_PERMS = ['dashboard.read', 'treasury.read', 'treasury.write', 'transactions.read', 'security.read'];
@@ -108,10 +102,9 @@ async function main() {
     // EXECUTE
     let userId = existing?.id;
     if (!userId) {
-      if (!tempPassword) die(`Creating ${email} needs --password <temp> (they change it on first login)`);
+      // OTP-only: no password → user signs in with the emailed 6-digit code.
       const { data, error } = await sb.auth.admin.createUser({
         email,
-        password: tempPassword,
         email_confirm: true,
       });
       if (error) {
@@ -119,7 +112,7 @@ async function main() {
         continue;
       }
       userId = data.user.id;
-      console.log(`  ${email}: created auth user ${userId}`);
+      console.log(`  ${email}: created OTP-only auth user ${userId}`);
     }
 
     const { error: upErr } = await sb.from('admin_users').upsert(
@@ -133,7 +126,7 @@ async function main() {
     console.log(`  ${email}: ✓ super_partner set`);
   }
 
-  console.log(`\n${execute ? 'Done.' : 'Dry-run only. Re-run with `-- --execute` (and --password for new users).'}`);
+  console.log(`\n${execute ? 'Done.' : 'Dry-run only. Re-run with `-- --execute` to apply (OTP-only, no password).'}`);
 }
 
 main().catch((e) => die(String(e?.stack || e)));
