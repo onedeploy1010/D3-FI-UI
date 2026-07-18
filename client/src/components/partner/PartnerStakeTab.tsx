@@ -158,20 +158,24 @@ export function PartnerStakeTab({
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
 
-        {/* Headline: 质押总资产 */}
+        {/* Headline: 质押总资产 — number styling matches the team page (sans, extrabold) */}
         <div className="flex items-end justify-between gap-3 mb-3.5">
           <div className="min-w-0">
-            <div className="site-stat-label">{p('stake.total')}</div>
-            <div className="site-stat-value-lg site-stat-value-accent">
+            <div className={`text-[11px] font-semibold mb-0.5 ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+              {p('stake.total')}
+            </div>
+            <div className="text-2xl font-extrabold leading-none tracking-tight text-[#E0568F]">
               ${stats.principalUsdt.toLocaleString()}
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className="site-stat-label">{p('stake.daily')}</div>
-            <div className="site-stat-value-sm text-emerald-500">
+            <div className={`text-[11px] font-semibold mb-0.5 ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+              {p('stake.daily')}
+            </div>
+            <div className="text-sm font-bold tracking-tight text-emerald-500">
               {formatD3Amount(usdtToD3(stats.dailyUsdtYield))} D3
             </div>
-            <div className={`text-[10px] mt-0.5 tabular-nums ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+            <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
               ≈ ${formatDailyYieldUsdt(stats.dailyUsdtYield)}
             </div>
           </div>
@@ -180,20 +184,26 @@ export function PartnerStakeTab({
         {/* Funding-source split: 使用 USDT 质押 vs 使用 UD3 质押 */}
         <div className="grid grid-cols-2 gap-2">
           <div className="partner-depth-inset p-3 rounded-xl">
-            <div className="flex items-center gap-1.5 mb-0.5">
+            <div className="flex items-center gap-1.5 mb-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#8A2B57]" aria-hidden />
-              <span className="site-stat-label">{p('stake.usdtStaked')}</span>
+              <span className={`text-[11px] font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+                {p('stake.usdtStaked')}
+              </span>
             </div>
-            <div className="site-stat-value-md">${usdtStaked.toLocaleString()}</div>
+            <div className={`text-xl font-extrabold leading-none tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              ${usdtStaked.toLocaleString()}
+            </div>
           </div>
           <div className="partner-depth-inset p-3 rounded-xl">
-            <div className="flex items-center gap-1.5 mb-0.5">
+            <div className="flex items-center gap-1.5 mb-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#E0568F]" aria-hidden />
-              <span className="site-stat-label">{p('stake.ud3Staked')}</span>
+              <span className={`text-[11px] font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+                {p('stake.ud3Staked')}
+              </span>
             </div>
-            <div className="site-stat-value-md text-[#E0568F]">
+            <div className="text-xl font-extrabold leading-none tracking-tight text-[#E0568F]">
               {ud3Staked.toLocaleString()}
-              <span className="text-xs font-semibold opacity-70 ml-1">UD3</span>
+              <span className="text-xs font-bold opacity-70 ml-1">UD3</span>
             </div>
           </div>
         </div>
@@ -238,8 +248,8 @@ export function PartnerStakeTab({
             >
               <span className="ios-glass-sheen pointer-events-none" aria-hidden />
 
-              {/* Header: kind + payment chip · date */}
-              <div className="flex items-center justify-between gap-2 mb-2.5">
+              {/* Meta row: kind + tags (left) · date (right) — all labels on one line */}
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span className="text-[13px] font-bold text-[#E0568F] truncate">{p(stakeKindKey(order.kind))}</span>
                   {paidWithUd3 && (
@@ -247,32 +257,27 @@ export function PartnerStakeTab({
                       {p('stake.paidWithUd3')}
                     </span>
                   )}
+                  <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md text-[#8A2B57] bg-[#E0568F]/10">
+                    {exitMult}×
+                  </span>
                 </span>
-                <span className={`shrink-0 text-[10px] flex items-center gap-0.5 tabular-nums ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                <span className={`shrink-0 text-[10px] tabular-nums ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                   {order.startedAt}
-                  <ChevronRight size={12} className="opacity-60" />
                 </span>
               </div>
 
-              {/* Principal + exit-multiplier badge */}
-              <div className="flex items-end justify-between gap-2 mb-1">
+              {/* Amount (left) + daily yield (right) on one line */}
+              <div className="flex items-baseline justify-between gap-2 mb-2.5">
                 <span className={`text-xl font-extrabold leading-none tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                   {paidWithUd3 ? '' : '$'}
                   {order.principalUsdt.toLocaleString()}
                   {paidWithUd3 && <span className="text-sm font-bold text-[#E0568F] ml-1">UD3</span>}
                 </span>
-                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md text-[#8A2B57] bg-[#E0568F]/12 border border-[#E0568F]/20">
-                  {p('home.tagExitMult', { mult: exitMult })}
-                </span>
-              </div>
-
-              {/* Daily yield */}
-              <div className="flex items-center gap-1 mb-2.5">
-                <span className="text-[11px] font-semibold text-emerald-500">
+                <span className="shrink-0 text-[11px] font-semibold text-emerald-500">
                   +{formatD3Amount(usdtToD3(order.dailyYieldUsdt))} D3
-                </span>
-                <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-                  /{p('stake.perDay')} · ≈ ${formatDailyYieldUsdt(order.dailyYieldUsdt)}
+                  <span className={`ml-1 font-normal ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                    /{p('stake.perDay')}
+                  </span>
                 </span>
               </div>
 
