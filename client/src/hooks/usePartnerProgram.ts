@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { isDemoWallet } from '@/lib/demoWallet';
+import { fetchUnionProfileCached } from '@/hooks/useUnionProfileQuery';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
 import {
   aggregateStakeOrders,
@@ -112,6 +114,7 @@ function finalizeDemoPartnerState(
 }
 
 export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<PartnerState>(() => {
     if (!wallet) return GUEST_PARTNER_STATE;
     if (isDemoWallet(wallet)) return DEMO_PARTNER_BASELINE;
@@ -142,7 +145,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     marketSubsidyRatePct: 5,
   });
 
-  const refreshTeamProfile = useCallback(async () => {
+  const refreshTeamProfile = useCallback(async (opts?: { force?: boolean }) => {
     if (!wallet) {
       setTeamNodes({});
       setTeamStats(EMPTY_TEAM_STATS);
@@ -153,26 +156,33 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     }
     setTeamLoading(true);
     try {
-      try {
-        const { settings } = await fetchPartnerProgramSettings(wallet);
-        setSubsidySettings(settings);
-      } catch {
-        /* keep defaults */
-      }
-      const bundle = await fetchUnionProfile(wallet);
+      // Fire the three independent requests in parallel (previously a serial
+      // waterfall). The profile bundle goes through the shared cache so an initial
+      // load reuses the referral gate's fetch; mutations pass force:true to bypass it.
+      const [settingsRes, bundleRes, ticketsRes] = await Promise.allSettled([
+        fetchPartnerProgramSettings(wallet),
+        fetchUnionProfileCached(queryClient, wallet, { force: opts?.force }),
+        fetchPartnerSubsidyTickets(wallet),
+      ]);
+
+      if (settingsRes.status === 'fulfilled') {
+        setSubsidySettings(settingsRes.value.settings);
+      } /* else keep defaults */
+
+      // The bundle is required — a failure falls through to the catch/fallback below.
+      if (bundleRes.status === 'rejected') throw bundleRes.reason;
+      const bundle = bundleRes.value;
+
       let subsidyPatch: Partial<PartnerState> = {};
-      try {
-        const { tickets } = await fetchPartnerSubsidyTickets(wallet);
-        const mapped = mapSubsidyTicketsToApplications(tickets ?? []);
+      if (ticketsRes.status === 'fulfilled') {
+        const mapped = mapSubsidyTicketsToApplications(ticketsRes.value.tickets ?? []);
         subsidyPatch = {
           ...mapped,
           marketLeaderStatus:
             (bundle.partnerAccount as { market_leader_status?: string } | null | undefined)
               ?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
         };
-      } catch {
-        /* keep local subsidy state */
-      }
+      } /* else keep local subsidy state */
       let nodes = buildPartnerTeamNodes(wallet, bundle);
       let stats = bundle.partnerTeamStats ?? EMPTY_TEAM_STATS;
       let downlines = bundle.partnerDownlineWallets ?? [];
@@ -249,9 +259,11 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     } finally {
       setTeamLoading(false);
     }
-  }, [wallet]);
+  }, [wallet, queryClient]);
 
   useEffect(() => {
+    // Initial/wallet-change load: no force, so it reuses the referral gate's cached
+    // bundle fetch (same query key) instead of issuing a duplicate request.
     void refreshTeamProfile();
   }, [refreshTeamProfile, demoSessionKey]);
 
@@ -275,7 +287,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         return true;
       }
       persist(applyCrowdfundStake(state, amountUsdt));
-      void refreshTeamProfile();
+      void refreshTeamProfile({ force: true });
       return true;
     },
     [wallet, state, persist, refreshTeamProfile],
@@ -291,7 +303,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         return true;
       }
       persist(applyPartnerJoin(state));
-      void refreshTeamProfile();
+      void refreshTeamProfile({ force: true });
       return true;
     },
     [wallet, state, persist, refreshTeamProfile],
@@ -318,7 +330,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         // Optimistically drop the spendable balance so home + assets reflect the
         // deduction instantly, before the (slower) authoritative refresh reconciles it.
         setState((prev) => ({ ...prev, ud3Balance: Math.max(0, prev.ud3Balance - amount) }));
-        await refreshTeamProfile();
+        await refreshTeamProfile({ force: true });
         return true;
       } catch {
         return false;
@@ -349,7 +361,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
         // Optimistically drop the spendable balance so home + assets reflect the
         // deduction instantly, before the (slower) authoritative refresh reconciles it.
         setState((prev) => ({ ...prev, ud3Balance: Math.max(0, prev.ud3Balance - amount) }));
-        await refreshTeamProfile();
+        await refreshTeamProfile({ force: true });
         return true;
       } catch {
         return false;
@@ -369,7 +381,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       setYieldWithdrawing(true);
       try {
         await withdrawPartnerYield(wallet, amountD3);
-        await refreshTeamProfile();
+        await refreshTeamProfile({ force: true });
         return true;
       } catch {
         return false;
@@ -403,7 +415,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
           applicationType,
           receiptPaths,
         });
-        await refreshTeamProfile();
+        await refreshTeamProfile({ force: true });
         return true;
       } catch {
         return false;
@@ -435,7 +447,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
           applicationType,
           receiptPaths,
         });
-        await refreshTeamProfile();
+        await refreshTeamProfile({ force: true });
         return true;
       } catch {
         return false;
@@ -455,7 +467,7 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
     }
     try {
       await createPartnerSubsidyTicket(wallet, { kind: 'market_leader', purpose: '申请开通市场领袖补贴' });
-      await refreshTeamProfile();
+      await refreshTeamProfile({ force: true });
       return true;
     } catch {
       return false;

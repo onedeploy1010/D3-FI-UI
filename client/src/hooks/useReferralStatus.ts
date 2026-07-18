@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { isReferralBoundForWallet } from '@/lib/referral';
-import { fetchUnionProfile } from '@/lib/unionApi';
+import { useUnionProfileQuery } from '@/hooks/useUnionProfileQuery';
 
 /**
- * Referral binding status for a wallet.
+ * Referral binding status for a wallet, read from the shared union-profile cache
+ * (so the gate + partner page no longer each fetch the whole bundle just to answer
+ * one boolean).
  *
  * IMPORTANT: a failed profile fetch (expired SIWE session, network blip, 5xx) is
  * NOT the same as "no referral". Treating it as unbound would show an already-bound
@@ -13,44 +15,17 @@ import { fetchUnionProfile } from '@/lib/unionApi';
  * wallet genuinely has no active referral.
  */
 export function useReferralStatus(wallet: string | null) {
-  const [hasReferralBound, setHasReferralBound] = useState(false);
-  const [loading, setLoading] = useState(() => Boolean(wallet));
-  const [error, setError] = useState(false);
-  const [version, setVersion] = useState(0);
+  const query = useUnionProfileQuery(wallet);
+
+  const hasReferralBound =
+    wallet && query.data ? isReferralBoundForWallet(wallet, query.data.referrals) : false;
+  const loading = Boolean(wallet) && query.isLoading;
+  // Only an actual error with no data on hand — never flip a bound user to "unbound".
+  const error = query.isError && !query.data;
 
   const refetch = useCallback(() => {
-    setVersion((v) => v + 1);
-  }, []);
-
-  useEffect(() => {
-    if (!wallet) {
-      setHasReferralBound(false);
-      setLoading(false);
-      setError(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    (async () => {
-      try {
-        const data = await fetchUnionProfile(wallet);
-        if (cancelled) return;
-        setHasReferralBound(isReferralBoundForWallet(wallet, data.referrals));
-        setError(false);
-      } catch {
-        // Do NOT flip to unbound — the binding is likely fine, the fetch just failed.
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [wallet, version]);
+    void query.refetch();
+  }, [query]);
 
   return { hasReferralBound, loading, error, refetch };
 }

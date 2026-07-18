@@ -1,30 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchUnionProfile } from '@/lib/unionApi';
+import { useCallback } from 'react';
+import { useUnionProfileQuery } from '@/hooks/useUnionProfileQuery';
 
+/**
+ * Whether a wallet is a partner — read from the shared union-profile cache instead
+ * of an independent full-bundle fetch (dedupes with the gate / partner page).
+ */
 export function usePartnerMembership(wallet: string | null) {
-  const [isPartner, setIsPartner] = useState(false);
-  const [loading, setLoading] = useState(() => Boolean(wallet));
+  const query = useUnionProfileQuery(wallet);
+  const isPartner = Boolean(query.data?.partnerAccount?.is_partner);
+  const loading = Boolean(wallet) && query.isLoading;
 
   const refetch = useCallback(async () => {
-    if (!wallet) {
-      setIsPartner(false);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const bundle = await fetchUnionProfile(wallet);
-      setIsPartner(Boolean(bundle.partnerAccount?.is_partner));
-    } catch {
-      setIsPartner(false);
-    } finally {
-      setLoading(false);
-    }
-  }, [wallet]);
-
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
+    await query.refetch();
+  }, [query]);
 
   return { isPartner, loading, refetch };
 }
