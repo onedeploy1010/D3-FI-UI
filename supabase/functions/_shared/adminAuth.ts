@@ -2,9 +2,11 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError } from './wallet.ts';
 
 // Expanded RBAC role set. The original three (superadmin/admin/support) are kept
-// for back-compat; `finance` and `auditor` are added by the RBAC redesign.
-// Migration 051 relaxes the admin_users.role CHECK constraint to match this union.
-export type AdminRole = 'superadmin' | 'admin' | 'finance' | 'support' | 'auditor';
+// for back-compat; `finance` and `auditor` are added by the RBAC redesign;
+// `super_partner` (项目方/超级合伙人) is the fund-authority identity used by the
+// standalone multisig system. Migration 051/052 relax the admin_users.role CHECK
+// constraint to match this union.
+export type AdminRole = 'superadmin' | 'admin' | 'finance' | 'support' | 'auditor' | 'super_partner';
 
 export type AdminProfile = {
   userId: string;
@@ -75,6 +77,11 @@ export function permissionsForRole(role: string): string[] {
     case 'auditor':
       // Every read permission, nothing writable.
       return [...READ_PERMISSION_KEYS];
+    case 'super_partner':
+      // 项目方/超级合伙人 — fund authority for the standalone multisig system:
+      // view wallets + propose treasury transfers. treasury.write makes this an
+      // ELEVATED preset, so only a superadmin may create a super_partner.
+      return ['dashboard.read', 'treasury.read', 'treasury.write', 'transactions.read', 'security.read'];
     default:
       return [];
   }
@@ -88,6 +95,7 @@ export const ROLE_PRESETS: readonly RoleDef[] = [
   { key: 'finance', label: '财务', permissions: permissionsForRole('finance') },
   { key: 'support', label: '客服', permissions: permissionsForRole('support') },
   { key: 'auditor', label: '审计员', permissions: permissionsForRole('auditor') },
+  { key: 'super_partner', label: '超级合伙人', permissions: permissionsForRole('super_partner') },
 ] as const;
 
 export const VALID_ROLES: readonly AdminRole[] = ROLE_PRESETS.map((r) => r.key);

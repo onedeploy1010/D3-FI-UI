@@ -63,6 +63,7 @@ const ROLE_LABEL_FALLBACK: Record<string, string> = {
   finance: '财务',
   support: '客服',
   auditor: '审计',
+  super_partner: '超级合伙人',
   owner: '所有者',
   operator: '运营',
   viewer: '只读',
