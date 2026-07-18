@@ -1,39 +1,286 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { adminFetch } from '@/lib/adminApi';
-import { fmtUsd, shortAddr } from '@/lib/supabase';
-import { Loader2 } from 'lucide-react';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { AddressChip } from './address-chip';
+import { getMember, setMemberLeader, setMemberRemark, type MemberDetail } from '@/lib/adminApi';
+import { fmtUsd } from '@/lib/supabase';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { toast } from 'sonner';
+import { Crown, ShieldCheck } from 'lucide-react';
 
-type Detail = {
-  account: Record<string, unknown> | null;
-  referral: Record<string, unknown> | null;
-  downlines: Array<Record<string, unknown>>;
-  stakes: Array<Record<string, unknown>>;
-  ud3Transfers: Array<Record<string, unknown>>;
-  yieldWithdrawals: Array<Record<string, unknown>>;
-  subsidyTickets: Array<Record<string, unknown>>;
-  teamStats: {
-    personalPerformanceUsd: number;
-    teamPerformanceUsd: number;
-    dailyNewPerformanceUsd: number;
-  };
-};
+function isLeaderStatus(status: string | null | undefined): boolean {
+  return status === 'approved' || status === 'leader' || status === 'active';
+}
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-2.5">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold tabular-nums">{value}</p>
+      {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function LevelBadge({ prefix, value }: { prefix: string; value: string | null }) {
+  if (!value) return null;
+  const label = value.toUpperCase().startsWith(prefix) ? value.toUpperCase() : `${prefix}${value}`;
+  return <Badge variant="secondary" className="font-semibold">{label}</Badge>;
+}
+
+function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }) {
+  const [data, setData] = useState<MemberDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Remark editing.
+  const [remark, setRemark] = useState('');
+  const [savingRemark, setSavingRemark] = useState(false);
+
+  // Leader maker-checker prompt.
+  const [leaderTarget, setLeaderTarget] = useState<boolean | null>(null);
+  const [leaderReason, setLeaderReason] = useState('');
+  const [submittingLeader, setSubmittingLeader] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getMember(wallet)
+      .then((d) => {
+        if (cancelled) return;
+        setData(d);
+        setRemark(d.profile.remark ?? '');
+      })
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : '加载失败'))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
+
+  async function saveRemark() {
+    setSavingRemark(true);
+    try {
+      await setMemberRemark(wallet, remark.trim());
+      toast.success('备注已保存');
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, remark: remark.trim() } } : prev));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSavingRemark(false);
+    }
+  }
+
+  async function submitLeader() {
+    if (leaderTarget == null) return;
+    if (!leaderReason.trim()) {
+      toast.error('请填写理由');
+      return;
+    }
+    setSubmittingLeader(true);
+    try {
+      await setMemberLeader(wallet, leaderTarget, leaderReason.trim());
+      toast.success('已提交审批,需另一管理员批准');
+      setLeaderTarget(null);
+      setLeaderReason('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '提交失败');
+    } finally {
+      setSubmittingLeader(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-6 w-3/4" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-24 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <p className="py-8 text-center text-sm text-destructive">{error}</p>;
+  }
+  if (!data) return null;
+
+  const currentlyLeader = isLeaderStatus(data.marketLeaderStatus);
+  const pendingLeader = leaderTarget != null ? leaderTarget : currentlyLeader;
+  const r = data.referral;
+
+  return (
+    <div className="space-y-6">
+      {/* Identity */}
+      <Section title="钱包地址 Wallet">
+        <div className="flex flex-col gap-2">
+          <AddressChip address={data.wallet} variant="full" clickable={false} className="w-full bg-transparent px-0" />
+          <div className="flex flex-wrap items-center gap-2">
+            {data.profile.displayName && (
+              <span className="text-sm font-semibold">{data.profile.displayName}</span>
+            )}
+            {data.isPartner && (
+              <Badge className="gap-1 bg-[#E0568F]/15 text-[#E0568F] hover:bg-[#E0568F]/15">
+                <ShieldCheck className="h-3 w-3" /> 合伙人
+              </Badge>
+            )}
+            {currentlyLeader && (
+              <Badge variant="outline" className="gap-1">
+                <Crown className="h-3 w-3" /> 市场领袖
+              </Badge>
+            )}
+            <LevelBadge prefix="S" value={r.sLevel} />
+            <LevelBadge prefix="V" value={r.vLevel} />
+          </div>
+        </div>
+      </Section>
+
+      <Separator />
+
+      {/* Remark */}
+      <Section title="备注 Remark">
+        <Textarea
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder="为该会员添加内部备注…"
+          rows={2}
+          className="resize-none"
+        />
+        <div className="flex justify-end">
+          <Button size="sm" onClick={saveRemark} disabled={savingRemark || remark === (data.profile.remark ?? '')}>
+            {savingRemark ? '保存中…' : '保存备注'}
+          </Button>
+        </div>
+      </Section>
+
+      {/* Leader toggle (maker-checker) */}
+      <Section title="市场领袖 Leader">
+        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
+          <div>
+            <p className="text-sm font-medium">设为市场领袖</p>
+            <p className="text-[11px] text-muted-foreground">变更需另一管理员审批</p>
+          </div>
+          <Switch
+            checked={pendingLeader}
+            onCheckedChange={(next) => {
+              if (next === currentlyLeader) {
+                setLeaderTarget(null);
+                setLeaderReason('');
+              } else {
+                setLeaderTarget(next);
+              }
+            }}
+          />
+        </div>
+        {leaderTarget != null && (
+          <div className="space-y-2 rounded-xl border border-[#E0568F]/30 bg-[#E0568F]/5 p-3">
+            <p className="text-xs font-medium">
+              {leaderTarget ? '申请设为市场领袖' : '申请取消市场领袖'} — 请填写理由
+            </p>
+            <Textarea
+              value={leaderReason}
+              onChange={(e) => setLeaderReason(e.target.value)}
+              placeholder="变更理由(将记录于审批流)"
+              rows={2}
+              className="resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setLeaderTarget(null);
+                  setLeaderReason('');
+                }}
+              >
+                取消
+              </Button>
+              <Button size="sm" onClick={submitLeader} disabled={submittingLeader}>
+                {submittingLeader ? '提交中…' : '提交审批'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Separator />
+
+      {/* Team overview */}
+      <Section title="团队概览 Team">
+        <div className="grid grid-cols-2 gap-3">
+          <Stat label="直推人数" value={r.directCount.toLocaleString()} />
+          <Stat label="团队人数" value={r.teamCount.toLocaleString()} />
+          <Stat label="大区业绩" value={`$${fmtUsd(r.bigAreaPerfUsdt)}`} />
+          <Stat label="小区业绩" value={`$${fmtUsd(r.smallAreaPerfUsdt)}`} />
+        </div>
+        {r.sponsorWallet && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="shrink-0">推荐人</span>
+            <AddressChip address={r.sponsorWallet} variant="compact" />
+          </div>
+        )}
+      </Section>
+
+      {/* Stake + balances */}
+      <Section title="质押与余额 Stakes & Balances">
+        <div className="grid grid-cols-2 gap-3">
+          <Stat
+            label="质押笔数"
+            value={data.stakeSummary.count.toLocaleString()}
+            hint={`活跃 ${data.stakeSummary.activeCount}`}
+          />
+          <Stat label="USDT 本金" value={`$${fmtUsd(data.stakeSummary.usdtPrincipal)}`} />
+          <Stat label="UD3 本金" value={`${fmtUsd(data.stakeSummary.ud3Principal, 4)} UD3`} />
+          <Stat label="UD3 余额" value={`${fmtUsd(data.balances.ud3Balance, 4)} UD3`} />
+          <Stat label="待发 UD3" value={`${fmtUsd(data.balances.pendingUd3, 4)} UD3`} />
+          <Stat label="待发 D3 收益" value={`${fmtUsd(data.balances.pendingD3Yield, 4)} D3`} />
+        </div>
+      </Section>
+
+      <div className="flex justify-end pt-1">
+        <Button variant="outline" size="sm" onClick={onClose}>
+          关闭
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Member detail modal. Kept the `{ wallet, onClose }` controlled signature so
+ * existing pages (members/partners) and the global MemberDialogProvider can
+ * both drive it. Desktop → Dialog; mobile → bottom Drawer for a native feel.
+ */
 export function MemberDetailDialog({
   wallet,
   onClose,
@@ -41,185 +288,31 @@ export function MemberDetailDialog({
   wallet: string | null;
   onClose: () => void;
 }) {
-  const [data, setData] = useState<Detail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  const openState = Boolean(wallet);
 
-  useEffect(() => {
-    if (!wallet) {
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    void adminFetch<Detail & { ok: boolean }>(`/members/${wallet}`)
-      .then((r) => setData(r))
-      .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
-      .finally(() => setLoading(false));
-  }, [wallet]);
-
-  const account = data?.account;
+  if (isMobile) {
+    return (
+      <Drawer open={openState} onOpenChange={(o) => !o && onClose()}>
+        <DrawerContent className="max-h-[92vh]">
+          <DrawerHeader className="pb-2 text-left">
+            <DrawerTitle className="text-sm">会员详情</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-8">
+            {wallet && <DialogBody wallet={wallet} onClose={onClose} />}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
-    <Dialog open={Boolean(wallet)} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={openState} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-mono text-sm break-all">{wallet}</DialogTitle>
+          <DialogTitle className="text-sm">会员详情 Member Detail</DialogTitle>
         </DialogHeader>
-        {loading && (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        )}
-        {error && <p className="text-destructive text-sm">{error}</p>}
-        {data && !loading && (
-          <Tabs defaultValue="overview">
-            <TabsList className="mb-4 flex-wrap h-auto">
-              <TabsTrigger value="overview">概览</TabsTrigger>
-              <TabsTrigger value="stakes">质押</TabsTrigger>
-              <TabsTrigger value="sd3">sD3 转账</TabsTrigger>
-              <TabsTrigger value="withdrawals">收益提现</TabsTrigger>
-              <TabsTrigger value="subsidies">补贴申请</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">身份</p>
-                  <p className="font-semibold mt-1">
-                    {account?.is_partner ? '合伙人' : '会员'}
-                    {String(account?.market_leader_status ?? 'none') === 'approved' && ' · 市场领袖'}
-                  </p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">入盟时间</p>
-                  <p className="font-semibold mt-1">{String(account?.joined_at ?? '—')}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">个人业绩</p>
-                  <p className="font-semibold mt-1">${fmtUsd(data.teamStats.personalPerformanceUsd)}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">伞下业绩</p>
-                  <p className="font-semibold mt-1">${fmtUsd(data.teamStats.teamPerformanceUsd)}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">日新增业绩</p>
-                  <p className="font-semibold mt-1">${fmtUsd(data.teamStats.dailyNewPerformanceUsd)}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-muted-foreground text-xs">资产</p>
-                  <p className="mt-1 text-xs">
-                    sD3 {fmtUsd(Number(account?.sd3_balance ?? 0), 4)} · 待提 $
-                    {fmtUsd(Number(account?.pending_usdt_yield ?? 0), 4)}
-                  </p>
-                </div>
-              </div>
-              {data.referral && (
-                <p className="text-xs text-muted-foreground">
-                  推荐人：{shortAddr(String(data.referral.sponsor_wallet_address ?? ''))}
-                </p>
-              )}
-              <div>
-                <p className="text-xs font-semibold mb-2">直推 ({(data.downlines ?? []).length})</p>
-                <div className="max-h-32 overflow-y-auto text-xs font-mono space-y-1">
-                  {(data.downlines ?? []).map((d) => (
-                    <div key={String(d.wallet_address)}>{shortAddr(String(d.wallet_address))}</div>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="stakes">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>类型</TableHead>
-                    <TableHead>本金</TableHead>
-                    <TableHead>日息</TableHead>
-                    <TableHead>状态</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.stakes ?? []).map((s) => (
-                    <TableRow key={String(s.id)}>
-                      <TableCell>{String(s.kind)}</TableCell>
-                      <TableCell>${fmtUsd(Number(s.principal_usdt))}</TableCell>
-                      <TableCell>${fmtUsd(Number(s.daily_yield_usdt), 4)}</TableCell>
-                      <TableCell>{String(s.status)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-
-            <TabsContent value="sd3">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>方向</TableHead>
-                    <TableHead>对方</TableHead>
-                    <TableHead>数量</TableHead>
-                    <TableHead>时间</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.ud3Transfers ?? []).map((t) => {
-                    const from = String(t.from_wallet).toLowerCase();
-                    const isOut = wallet && from === wallet.toLowerCase();
-                    return (
-                      <TableRow key={String(t.id)}>
-                        <TableCell>
-                          <Badge variant={isOut ? 'destructive' : 'default'}>
-                            {isOut ? '转出' : '转入'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {shortAddr(isOut ? String(t.to_wallet) : String(t.from_wallet))}
-                        </TableCell>
-                        <TableCell>{fmtUsd(Number(t.amount_ud3 ?? t.amount_sd3), 4)} UD3</TableCell>
-                        <TableCell className="text-xs">{String(t.created_at).slice(0, 19)}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TabsContent>
-
-            <TabsContent value="withdrawals">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>金额</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>Tx</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.yieldWithdrawals ?? []).map((w) => (
-                    <TableRow key={String(w.id)}>
-                      <TableCell>${fmtUsd(Number(w.amount_usdt), 4)}</TableCell>
-                      <TableCell>{String(w.status)}</TableCell>
-                      <TableCell className="font-mono text-xs">{shortAddr(String(w.tx_hash ?? ''))}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-
-            <TabsContent value="subsidies">
-              {(data.subsidyTickets ?? []).map((t) => (
-                <div key={String(t.id)} className="border rounded-lg p-3 mb-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>{String(t.kind)}</span>
-                    <Badge>{String(t.status)}</Badge>
-                  </div>
-                  <p className="text-muted-foreground text-xs mt-1">{String(t.purpose)}</p>
-                </div>
-              ))}
-            </TabsContent>
-          </Tabs>
-        )}
+        {wallet && <DialogBody wallet={wallet} onClose={onClose} />}
       </DialogContent>
     </Dialog>
   );

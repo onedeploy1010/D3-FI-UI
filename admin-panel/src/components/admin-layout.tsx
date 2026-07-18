@@ -10,6 +10,8 @@ import {
   Layers,
   Headphones,
   Wallet,
+  ArrowLeftRight,
+  KeyRound,
   LogOut,
   Menu,
   X,
@@ -21,8 +23,10 @@ const NAV = [
   { href: '/referrals', label: '推荐管理', sub: 'Referrals', icon: GitBranch },
   { href: '/partners', label: '合伙人管理', sub: 'Partners', icon: Shield },
   { href: '/stakes', label: '质押管理', sub: 'Stakes', icon: Layers },
+  { href: '/transactions', label: '交易管理', sub: 'Transactions', icon: ArrowLeftRight },
   { href: '/funds', label: '资金管理', sub: 'Funds', icon: Wallet },
   { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones },
+  { href: '/roles', label: '角色权限', sub: 'Roles', icon: KeyRound },
   { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert },
 ] as const;
 

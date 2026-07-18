@@ -1,8 +1,10 @@
+import { lazy, Suspense } from 'react';
 import { Switch, Route, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AdminAuthProvider, RequireAdmin } from '@/contexts/admin-auth';
+import { MemberDialogProvider } from '@/components/member-dialog-provider';
 import AdminLayout from '@/components/admin-layout';
 import LoginPage from '@/pages/login';
 import DashboardPage from '@/pages/admin/dashboard';
@@ -14,6 +16,9 @@ import FundsPage from '@/pages/admin/funds';
 import SubsidiesPage from '@/pages/admin/subsidies';
 import SecurityPage from '@/pages/admin/security';
 
+const TransactionsPage = lazy(() => import('@/pages/admin/transactions'));
+const RolesPage = lazy(() => import('@/pages/admin/roles'));
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000 } },
 });
@@ -21,21 +26,27 @@ const queryClient = new QueryClient({
 function AdminRoutes() {
   return (
     <RequireAdmin>
-      <AdminLayout>
-        <Switch>
-          <Route path="/dashboard" component={DashboardPage} />
-          <Route path="/members" component={MembersPage} />
-          <Route path="/referrals" component={ReferralsPage} />
-          <Route path="/partners" component={PartnersPage} />
-          <Route path="/stakes" component={StakesPage} />
-          <Route path="/funds" component={FundsPage} />
-          <Route path="/subsidies" component={SubsidiesPage} />
-          <Route path="/security" component={SecurityPage} />
-          <Route path="/">
-            <Redirect to="/dashboard" />
-          </Route>
-        </Switch>
-      </AdminLayout>
+      <MemberDialogProvider>
+        <AdminLayout>
+          <Suspense fallback={<div className="px-4 py-6 text-sm text-muted-foreground">加载中…</div>}>
+            <Switch>
+              <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/members" component={MembersPage} />
+              <Route path="/referrals" component={ReferralsPage} />
+              <Route path="/partners" component={PartnersPage} />
+              <Route path="/stakes" component={StakesPage} />
+              <Route path="/funds" component={FundsPage} />
+              <Route path="/subsidies" component={SubsidiesPage} />
+              <Route path="/security" component={SecurityPage} />
+              <Route path="/transactions" component={TransactionsPage} />
+              <Route path="/roles" component={RolesPage} />
+              <Route path="/">
+                <Redirect to="/dashboard" />
+              </Route>
+            </Switch>
+          </Suspense>
+        </AdminLayout>
+      </MemberDialogProvider>
     </RequireAdmin>
   );
 }
