@@ -82,7 +82,13 @@ export function describeUd3ResetPlan(): Ud3ResetPlan {
       'lifetime_sd3_earned',
     ],
     resettleIntentTypes: ['partner_join', 'crowdfund_stake'],
-    resettleStatuses: ['credited'],
+    // A deposit is CONFIRMED (funds received → earns UD3) once it reaches 'credited',
+    // then the sweep advances it 'credited' → 'sweep_pending' → 'completed'. The live
+    // UD3 settlement fires at 'credited'; a re-settle must therefore replay EVERY
+    // post-credit state, else already-swept deposits (sweep_pending/completed) get
+    // their UD3 wiped by the reset and never regenerated (missing 直推/级差). Only
+    // pre-payment states (awaiting_payment/pending/expired) are excluded.
+    resettleStatuses: ['credited', 'sweep_pending', 'completed'],
   };
 }
 

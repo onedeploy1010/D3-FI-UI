@@ -101,9 +101,10 @@ describe('describeUd3ResetPlan — pure target inventory', () => {
       'lifetime_sd3_earned',
     ]);
 
-    // Re-settle draws from credited USDT deposits only.
+    // Re-settle draws from every CONFIRMED (post-credit) USDT deposit — credited and
+    // the swept states it advances into — so already-swept deposits aren't dropped.
     expect(plan.resettleIntentTypes).toEqual(['partner_join', 'crowdfund_stake']);
-    expect(plan.resettleStatuses).toEqual(['credited']);
+    expect(plan.resettleStatuses).toEqual(['credited', 'sweep_pending', 'completed']);
   });
 });
 
