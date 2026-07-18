@@ -57,7 +57,11 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[340px] p-0 shadow-lg shadow-black/20 border-border/60 backdrop-blur-xl bg-card/95">
+      <PopoverContent
+        align="end"
+        collisionPadding={8}
+        className="w-[min(100vw-1rem,340px)] p-0 shadow-lg shadow-black/20 border-border/60 backdrop-blur-xl bg-card/95"
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <h4 className="text-sm font-medium tracking-tight">{t("notificationBell.systemAlerts")}</h4>
           <div className="flex items-center gap-2">
