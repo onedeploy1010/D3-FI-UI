@@ -240,6 +240,10 @@ export type PartnerStakePositionRow = {
   intent_id: string;
   kind: 'partner_join' | 'crowdfund_stake';
   principal_usdt: number;
+  /** D3 price (USDT) locked at stake time — the private-sale round price. */
+  d3_price_at_stake?: number | null;
+  /** D3 principal = principal_usdt / d3_price_at_stake, locked at stake time. */
+  staked_d3?: number | null;
   daily_yield_usdt: number;
   accrued_yield_usdt: number;
   claimed_yield_usdt: number;

@@ -154,7 +154,7 @@ export default function FakeToken() {
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 space-y-3">
           <h2 className="text-sm font-medium text-neutral-300">下一步：用测试币质押</h2>
           <p className="text-xs text-neutral-500">
-            领到测试 USDT 后,前往合伙人/众筹页发起质押,系统会给你一个存款地址,把测试 USDT 打过去即可入场(540 天,每日释放 D3)。
+            领到测试 USDT 后,前往合伙人/私募页发起质押,系统会给你一个存款地址,把测试 USDT 打过去即可入场(540 天,每日释放 D3)。
           </p>
           <div className="flex gap-3">
             <Link

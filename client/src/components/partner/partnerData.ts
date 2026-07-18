@@ -82,6 +82,18 @@ export const CROWDFUND_TOKEN_SUPPLY = 1_050_000;
 /** Current D3 crowdfund unit price (USDT per D3). */
 export const CROWDFUND_UNIT_PRICE_USDT = 5;
 
+/**
+ * Private-sale (私募) round schedule — 4 rounds, 5,000,000 D3 each, rising unit price.
+ * Displayed in the intro popup; the price actually locked on an order is
+ * `d3_price_at_stake` (captured at stake time).
+ */
+export const PRIVATE_SALE_ROUNDS = [
+  { round: 1, d3: 5_000_000, priceUsdt: 5 },
+  { round: 2, d3: 5_000_000, priceUsdt: 6 },
+  { round: 3, d3: 5_000_000, priceUsdt: 7 },
+  { round: 4, d3: 5_000_000, priceUsdt: 8 },
+] as const;
+
 /** Convert stake USDT into D3 quantity at the crowdfund unit price. */
 export function usdtToD3(amountUsdt: number, priceUsdt = CROWDFUND_UNIT_PRICE_USDT): number {
   if (!Number.isFinite(amountUsdt) || amountUsdt <= 0 || priceUsdt <= 0) return 0;
@@ -199,7 +211,7 @@ export function partnerTreeLevelKey(
   return keys[idx >= 0 ? idx : 0];
 }
 
-/** 小区新增业绩(USDT)÷D3众筹价 → D3数量 × 等级受贿比例 × 直推分成。 */
+/** 小区新增业绩(USDT)÷D3私募价 → D3数量 × 等级受贿比例 × 直推分成。 */
 export function calcDailyUd3(
   smallAreaPerformanceUsd: number,
   smallAreaNewPerformanceUsd: number,
@@ -304,10 +316,19 @@ function addDaysStr(dateStr: string, n: number): string {
 }
 
 export function mapStakePositionToOrder(p: PartnerStakePositionRow): PartnerStakeOrder {
+  const principalUsdt = Number(p.principal_usdt);
+  // D3 私募价 locked at stake time (round price). Fall back to the base unit price
+  // for legacy rows that predate the d3_price_at_stake column.
+  const d3PriceUsdt =
+    Number(p.d3_price_at_stake ?? 0) > 0 ? Number(p.d3_price_at_stake) : CROWDFUND_UNIT_PRICE_USDT;
+  const stakedD3 =
+    Number(p.staked_d3 ?? 0) > 0 ? Number(p.staked_d3) : usdtToD3(principalUsdt, d3PriceUsdt);
   return {
     id: p.id,
     kind: normalizeStakeOrderKind(p.kind),
-    principalUsdt: Number(p.principal_usdt),
+    principalUsdt,
+    d3PriceUsdt,
+    stakedD3,
     startedAt: toDateLabel(p.started_at),
     unlockAt: toDateLabel(p.unlock_at),
     dailyYieldUsdt: Number(p.daily_yield_usdt),
@@ -319,6 +340,10 @@ export type PartnerStakeOrder = {
   id: string;
   kind: StakeOrderKind;
   principalUsdt: number;
+  /** D3 私募价 (USDT) locked when the order was placed — the round price at stake time. */
+  d3PriceUsdt?: number;
+  /** 质押 D3 数量 = principalUsdt / d3PriceUsdt, locked at stake time. */
+  stakedD3?: number;
   startedAt: string;
   unlockAt: string;
   dailyYieldUsdt: number;

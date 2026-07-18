@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerListFilters } from '@/components/partner/partnerUiKit';
+import { PartnerPrivateSaleIntro } from '@/components/partner/PartnerPrivateSaleIntro';
 import {
   formatD3Amount,
   formatDailyYieldUsdt,
@@ -15,6 +17,7 @@ import {
   getStakeExitMultiplier,
   buildStakeOrderYieldHistory,
   usdtToD3,
+  CROWDFUND_UNIT_PRICE_USDT,
   type PartnerStakeOrder,
   type PartnerState,
   type StakeOrderKind,
@@ -66,6 +69,8 @@ export function PartnerStakeTab({
     [crowdfundOrders],
   );
   const hasStake = stats.orderCount > 0;
+  /** Private-sale rounds intro shown on entering the page; close to see orders. */
+  const [showIntro, setShowIntro] = useState(true);
   const [historyOrder, setHistoryOrder] = useState<PartnerStakeOrder | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
   const [search, setSearch] = useState('');
@@ -125,6 +130,14 @@ export function PartnerStakeTab({
     { id: 'amount_asc', label: p('filters.sortAmountAsc') },
   ];
 
+  const intro = (
+    <AnimatePresence>
+      {showIntro && (
+        <PartnerPrivateSaleIntro lang={lang} isDark={isDark} onClose={() => setShowIntro(false)} />
+      )}
+    </AnimatePresence>
+  );
+
   if (referralLoading) {
     return <PartnerReferralLoading label={p('referral.checking')} isDark={isDark} className="min-h-[40vh]" />;
   }
@@ -139,21 +152,26 @@ export function PartnerStakeTab({
 
   if (!hasStake) {
     return (
-      <div className="space-y-4">
-        <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-          <p className="text-sm mb-4">{p('stake.noStake')}</p>
-          {onGoHome && (
-            <GlassButton className="!px-6" onClick={onGoHome}>
-              {p('stake.goHomeStake')}
-            </GlassButton>
-          )}
+      <>
+        {intro}
+        <div className="space-y-4">
+          <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+            <p className="text-sm mb-4">{p('stake.noStake')}</p>
+            {onGoHome && (
+              <GlassButton className="!px-6" onClick={onGoHome}>
+                {p('stake.goHomeStake')}
+              </GlassButton>
+            )}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <>
+      {intro}
+      <div className="space-y-3">
       <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
@@ -238,6 +256,9 @@ export function PartnerStakeTab({
           const daysLeft = stakeOrderDaysLeft(order);
           const paidWithUd3 = order.kind === 'sd3';
           const exitMult = getStakeExitMultiplier(order.kind);
+          // D3 私募价 (locked at order time) + 质押 D3 数量, with legacy fallbacks.
+          const salePrice = order.d3PriceUsdt ?? CROWDFUND_UNIT_PRICE_USDT;
+          const stakedD3 = order.stakedD3 ?? usdtToD3(order.principalUsdt, salePrice);
           return (
             <button
               key={order.id}
@@ -267,7 +288,7 @@ export function PartnerStakeTab({
               </div>
 
               {/* Amount (left) + daily yield (right) on one line */}
-              <div className="flex items-baseline justify-between gap-2 mb-2.5">
+              <div className="flex items-baseline justify-between gap-2 mb-1">
                 <span className={`text-xl font-extrabold leading-none tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                   {paidWithUd3 ? '' : '$'}
                   {order.principalUsdt.toLocaleString()}
@@ -277,6 +298,20 @@ export function PartnerStakeTab({
                   +{formatD3Amount(usdtToD3(order.dailyYieldUsdt))} D3
                   <span className={`ml-1 font-normal ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     /{p('stake.perDay')}
+                  </span>
+                </span>
+              </div>
+
+              {/* D3 私募价 (下单时锁定) + 质押 D3 数量 */}
+              <div className={`flex items-center flex-wrap gap-x-1.5 text-[10px] mb-2.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                <span>
+                  {p('stake.salePrice')} <span className="font-bold text-[#E0568F]">{salePrice}U</span>
+                </span>
+                <span className="opacity-40">·</span>
+                <span>
+                  {p('stake.stakedD3Label')}{' '}
+                  <span className={`font-bold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
+                    {formatD3Amount(stakedD3)} D3
                   </span>
                 </span>
               </div>
@@ -432,6 +467,7 @@ export function PartnerStakeTab({
           </>
         )}
       </PartnerModal>
-    </div>
+      </div>
+    </>
   );
 }
