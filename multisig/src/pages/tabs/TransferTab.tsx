@@ -9,6 +9,7 @@ import {
   type TreasuryTransfer,
 } from '@/lib/api';
 import { shortAddr, fmt } from '@/lib/supabase';
+import { AddressDisplay } from '@/components/AddressDisplay';
 
 const STATUS_LABEL: Record<string, string> = {
   awaiting_consensus: '等待多签',
@@ -231,19 +232,19 @@ export function TransferTab() {
           <div className="brand-card rounded-2xl p-4 text-[13px] text-[#8A2B57]/55 text-center">白名单为空，先添加收款地址</div>
         )}
         {allowlist.map((r) => (
-          <div key={r.id} className="brand-card rounded-2xl p-3.5 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              {r.label && <div className="text-[13px] font-bold text-[#160510] truncate">{r.label}</div>}
-              <div className="text-[10px] font-mono text-[#8A2B57]/60 truncate">{r.address}</div>
+          <div key={r.id} className="brand-card rounded-2xl p-3.5">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="text-[13px] font-bold text-[#160510] truncate">{r.label || '未命名地址'}</div>
+              <button
+                type="button"
+                onClick={() => void removeWhitelist(r.address)}
+                className="tap shrink-0 p-2 rounded-lg text-red-500/70 bg-red-500/8"
+                aria-label="删除"
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void removeWhitelist(r.address)}
-              className="tap shrink-0 p-2 rounded-lg text-red-500/70 bg-red-500/8"
-              aria-label="删除"
-            >
-              <Trash2 size={14} />
-            </button>
+            <AddressDisplay address={r.address} />
           </div>
         ))}
       </div>
@@ -276,7 +277,9 @@ export function TransferTab() {
                 {STATUS_LABEL[t.status] ?? t.status}
               </span>
             </div>
-            <div className="text-[10px] text-[#8A2B57]/55 mt-1 font-mono truncate">→ {shortAddr(t.to_address)}</div>
+            <div className="mt-1.5">
+              <AddressDisplay address={t.to_address} label="收款地址" />
+            </div>
             {t.status === 'awaiting_consensus' && (
               <>
                 <div className="flex items-center gap-2 mt-2">

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, ExternalLink, ShieldAlert, RefreshCw, Loader2, ArrowUpRight } from 'lucide-react';
-import { api, turnkeyActivityUrl, type InfraWallet, type PendingApproval } from '@/lib/api';
-import { shortAddr, fmt } from '@/lib/supabase';
+import { Wallet, RefreshCw, Loader2, ArrowUpRight } from 'lucide-react';
+import { api, type InfraWallet } from '@/lib/api';
+import { fmt } from '@/lib/supabase';
+import { AddressDisplay } from '@/components/AddressDisplay';
 
 const WALLET_META: Record<string, { label: string; accent: string }> = {
   treasury: { label: '金库钱包', accent: '#8A2B57' },
@@ -13,7 +14,6 @@ const WALLET_META: Record<string, { label: string; accent: string }> = {
 
 export function WalletsTab({ onGoTransfer }: { onGoTransfer: () => void }) {
   const [wallets, setWallets] = useState<InfraWallet[]>([]);
-  const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,10 +21,8 @@ export function WalletsTab({ onGoTransfer }: { onGoTransfer: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const [w, a] = await Promise.allSettled([api.wallets(), api.approvals()]);
-      if (w.status === 'fulfilled') setWallets(w.value.wallets ?? []);
-      else throw w.reason;
-      if (a.status === 'fulfilled') setApprovals(a.value.approvals ?? []);
+      const w = await api.wallets();
+      setWallets(w.wallets ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -47,7 +45,7 @@ export function WalletsTab({ onGoTransfer }: { onGoTransfer: () => void }) {
 
       {error && <div className="brand-card rounded-2xl p-4 text-[13px] text-red-500 font-medium">{error}</div>}
 
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="space-y-2.5">
         {wallets.map((wlt, i) => {
           const meta = WALLET_META[wlt.wallet_type] ?? { label: wlt.wallet_type, accent: '#8A2B57' };
           return (
@@ -56,25 +54,29 @@ export function WalletsTab({ onGoTransfer }: { onGoTransfer: () => void }) {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="brand-card rounded-2xl p-3.5"
+              className="brand-card rounded-2xl p-4"
             >
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <span className="w-6 h-6 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.accent }}>
-                  <Wallet size={13} />
-                </span>
-                <span className="text-[12px] font-bold text-[#160510] truncate">{meta.label}</span>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.accent }}>
+                    <Wallet size={14} />
+                  </span>
+                  <span className="text-[14px] font-bold text-[#160510] truncate">{meta.label}</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-extrabold tracking-tight text-[#160510] leading-none">
+                    {fmt(wlt.usdt)}
+                    <span className="text-[10px] font-bold text-[#8A2B57]/60 ml-1">USDT</span>
+                  </div>
+                  <div className="text-[10px] text-[#8A2B57]/55 mt-1">{fmt(wlt.bnb, 4)} BNB</div>
+                </div>
               </div>
-              <div className="text-lg font-extrabold tracking-tight text-[#160510] leading-none">
-                {fmt(wlt.usdt)}
-                <span className="text-[10px] font-bold text-[#8A2B57]/60 ml-1">USDT</span>
-              </div>
-              <div className="text-[10px] text-[#8A2B57]/55 mt-1">{fmt(wlt.bnb, 4)} BNB</div>
-              <div className="text-[9px] text-[#8A2B57]/40 mt-1 font-mono truncate">{shortAddr(wlt.address)}</div>
+              <AddressDisplay address={wlt.address} />
             </motion.div>
           );
         })}
         {!loading && wallets.length === 0 && !error && (
-          <div className="col-span-2 brand-card rounded-2xl p-4 text-[13px] text-[#8A2B57]/60 text-center">暂无钱包数据</div>
+          <div className="brand-card rounded-2xl p-4 text-[13px] text-[#8A2B57]/60 text-center">暂无钱包数据</div>
         )}
       </div>
 
@@ -85,43 +87,6 @@ export function WalletsTab({ onGoTransfer }: { onGoTransfer: () => void }) {
       >
         <ArrowUpRight size={18} /> 从金库钱包转账（发起多签）
       </button>
-
-      <div className="flex items-center justify-between pt-1">
-        <h2 className="text-[13px] font-bold text-[#8A2B57]/80 uppercase tracking-wider">待批准</h2>
-        <span className="text-[11px] font-bold text-[#E0568F]">{approvals.length}</span>
-      </div>
-      <div className="space-y-2">
-        {approvals.length === 0 && !loading && (
-          <div className="brand-card rounded-2xl p-4 text-[13px] text-[#8A2B57]/55 text-center">暂无待批准事项</div>
-        )}
-        {approvals.map((ap) => (
-          <div key={ap.id} className="brand-card rounded-2xl p-3.5 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-[13px] font-bold text-[#160510] truncate">{ap.action}</div>
-              <div className="text-[10px] text-[#8A2B57]/55 mt-0.5">
-                {ap.status} · {new Date(ap.created_at).toLocaleString()}
-              </div>
-            </div>
-            <a
-              href={turnkeyActivityUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="tap shrink-0 flex items-center gap-1 text-[11px] font-bold text-white brand-gradient px-2.5 py-1.5 rounded-lg"
-            >
-              <ShieldAlert size={12} /> 去 Turnkey
-            </a>
-          </div>
-        ))}
-      </div>
-
-      <a
-        href={turnkeyActivityUrl()}
-        target="_blank"
-        rel="noreferrer"
-        className="tap flex items-center justify-center gap-2 brand-card rounded-2xl px-4 py-3 text-[13px] font-bold text-[#8A2B57] mt-1"
-      >
-        <ExternalLink size={15} /> 打开 Turnkey 多签后台
-      </a>
     </>
   );
 }

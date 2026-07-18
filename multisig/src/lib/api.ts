@@ -112,6 +112,16 @@ export const api = {
     }),
   approvals: () => adminFetch<{ approvals?: PendingApproval[] }>('/approvals'),
   securityOverview: () => adminFetch<SecurityOverview>('/security/overview'),
+  securityAlerts: () => adminFetch<{ rows?: SecurityAlert[] }>('/security/alerts?status=open'),
+};
+
+export type SecurityAlert = {
+  id: string;
+  severity?: string;
+  kind?: string;
+  title?: string;
+  message?: string;
+  created_at: string;
 };
 
 /** Idempotency key for a treasury transfer proposal. */
