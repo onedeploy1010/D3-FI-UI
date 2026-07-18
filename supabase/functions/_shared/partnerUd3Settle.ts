@@ -2,27 +2,52 @@
  * Allocate UD3 when a USDT stake intent is credited
  * (partner_join / crowdfund_stake — not SD3 re-stake).
  *
+ * v2: the reward split is computed by the versioned, exact-Decimal calculator
+ * (_shared/ud3Reward.ts + ud3RewardConfig.ts). This module only resolves the
+ * on-chain/DB context (referrer 档位 + upline chain), hands a fully-materialised
+ * input to the calculator, then persists an audited snapshot (GUIDE_REWARD /
+ * NETWORK_DIFFERENCE_REWARD / BURN rows) and credits the winners' pending_ud3.
+ *
+ * Money is NEVER a JS Number: every amount is a Decimal and is written to the
+ * numeric columns / RPCs as a fixed-6 decimal STRING so full precision survives.
+ *
+ * Idempotency: the calculator's deterministic idempotency_key is a unique index on
+ * partner_ud3_ledger, so a re-run that races past the intent_id short-circuit hits a
+ * 23505 on the row insert — we skip that row and do NOT re-credit it.
+ *
  * Call after rollupPartnerPerformance so 引路人 total perf includes the new volume.
  */
+import Decimal from 'npm:decimal.js@10';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   getUd3Tier,
   resolveUd3SLevel,
-  settleUd3DepositEvent,
   type Ud3UplineNode,
 } from './partnerUd3Rules.ts';
+import {
+  calculateUd3RewardDistribution,
+  ud3RewardIdempotencyKey,
+  type CalculateUd3RewardInput,
+} from './ud3Reward.ts';
+import {
+  getUd3RewardConfig,
+  guideLevelRateFor,
+  networkCumulativeRateFor,
+} from './ud3RewardConfig.ts';
 import { sumReferralTreePerformance } from './partnerPerformance.ts';
 import { toSgtDateString } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
 
 const UD3_STAKE_INTENT_TYPES = new Set(['partner_join', 'crowdfund_stake']);
+const BURN_SINK = 'burn:ud3';
 
-function round6(n: number): number {
-  return Math.round(n * 1e6) / 1e6;
+/** Fixed-6 decimal string for numeric columns / RPC params (never a JS Number). */
+function f6(value: Decimal): string {
+  return value.toFixed(6);
 }
 
-function parseSLevelId(label?: string): number | null {
+function parseSLevelId(label?: string | null): number | null {
   if (!label) return null;
   const m = /^[SVs]?(\d+)$/.exec(label.trim());
   if (!m) return null;
@@ -83,7 +108,7 @@ async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud
   return chain;
 }
 
-/** Credits UD3 for a deposit using referrer tier + network differential. Idempotent on intent_id. */
+/** Credits UD3 for a deposit using referrer 档位 + network 级差. Idempotent on intent_id. */
 export async function allocateUd3ForCreditedIntent(
   sb: Sb,
   input: {
@@ -98,6 +123,7 @@ export async function allocateUd3ForCreditedIntent(
     return { ok: true, skipped: true };
   }
 
+  // Primary idempotency: an event for this intent already settled → nothing to do.
   const { data: existing } = await sb
     .from('partner_ud3_events')
     .select('id')
@@ -108,32 +134,71 @@ export async function allocateUd3ForCreditedIntent(
   await cacheAccountLevels(sb, input.referrerWallet, input.referrerTotalPerfUsdt).catch(() => {});
 
   const networkChain = await fetchUplineChainAbove(sb, input.referrerWallet);
-  const settled = settleUd3DepositEvent({
-    depositUsdt: input.depositUsdt,
-    referrerWallet: input.referrerWallet,
-    referrerTotalPerfUsdt: input.referrerTotalPerfUsdt,
-    networkChainAboveReferrer: networkChain,
+
+  // ── Build the calculator input (config-versioned, Decimal, single source) ───
+  const config = getUd3RewardConfig();
+  const version = config.version;
+
+  const guideTier = getUd3Tier(input.referrerTotalPerfUsdt);
+  const guideLevel = guideTier?.label ?? null;
+  const guideLevelRate = guideLevelRateFor(guideLevel, config);
+
+  // Include ALL uplines above the referrer (even same/lower level) so NO_DIFFERENCE
+  // rows are recorded for audit. Cumulative rates come from ud3RewardConfig ONLY.
+  const networkAncestors = networkChain.map((node, i) => {
+    const level = node.vLabel ?? 'S0';
+    return {
+      userId: node.wallet,
+      relationDepth: i + 1,
+      level,
+      cumulativeRate: networkCumulativeRateFor(level, config),
+    };
   });
 
-  if (settled.generatedUd3 <= 0) {
+  const rewardInput: CalculateUd3RewardInput = {
+    orderId: input.intentId,
+    principalAmount: new Decimal(input.depositUsdt),
+    bribeRate: config.bribeRate,
+    guideUserId: input.referrerWallet,
+    guideLevel,
+    guideLevelRate,
+    networkAncestors,
+    levelConfigVersion: version,
+  };
+
+  const dist = calculateUd3RewardDistribution(rewardInput);
+
+  if (dist.totalBribeAmount.lte(0)) {
     return { ok: true, skipped: true };
   }
 
+  // Conservation invariant (defence-in-depth; the calculator also asserts this).
+  const conserved = dist.guideReward.rewardAmount
+    .plus(dist.networkRewardTotal)
+    .plus(dist.burnAmount);
+  if (!conserved.equals(dist.totalBribeAmount)) {
+    console.error(
+      `[ud3] conservation violated for ${input.intentId}: ${conserved.toString()} != ${dist.totalBribeAmount.toString()}`,
+    );
+    return { ok: false };
+  }
+
+  // ── Event snapshot (legacy columns kept for existing readers) ──────────────
   const { data: event, error: eventErr } = await sb
     .from('partner_ud3_events')
     .insert({
       intent_id: input.intentId,
       depositor_wallet: input.depositorWallet,
       referrer_wallet: input.referrerWallet,
-      deposit_usdt: input.depositUsdt,
+      deposit_usdt: f6(dist.principalAmount),
       referrer_total_perf_usdt: input.referrerTotalPerfUsdt,
-      tier_id: settled.tier?.id ?? null,
-      tier_rate_pct: settled.tierRatePct,
-      generated_ud3: settled.generatedUd3,
-      direct_ud3: settled.directUd3,
-      network_pool_ud3: settled.networkPoolUd3,
-      network_allocated_ud3: settled.network.allocatedUd3,
-      network_remaining_ud3: settled.network.remainingUd3,
+      tier_id: guideTier?.id ?? null,
+      tier_rate_pct: guideTier?.ratePct ?? 0,
+      generated_ud3: f6(dist.totalBribeAmount),
+      direct_ud3: f6(dist.guideReward.rewardAmount),
+      network_pool_ud3: f6(dist.networkBasePool),
+      network_allocated_ud3: f6(dist.networkRewardTotal),
+      network_remaining_ud3: f6(dist.burnAmount),
     })
     .select('id')
     .single();
@@ -144,52 +209,87 @@ export async function allocateUd3ForCreditedIntent(
   }
 
   const eventId = event.id as string;
-  // Rewards accrue as UNSETTLED (settled=false) and only become spendable at the
-  // daily SGT-midnight run (settle_pending_ud3). The reserve row has no recipient
-  // account, so it is marked settled immediately (informational only).
-  const ledgerRows = [
-    {
-      event_id: eventId,
-      recipient_wallet: input.referrerWallet,
-      role: 'direct',
-      v_level: settled.tier?.id ?? null,
-      v_share_pct: null as number | null,
-      gap_pct: null as number | null,
-      ud3_amount: settled.directUd3,
+  const nowIso = new Date().toISOString();
+
+  // Winners to credit, keyed by lowercased wallet. Only rows whose ledger insert
+  // actually succeeds (no 23505 replay) are added — that's what makes retries safe.
+  const creditMap = new Map<string, Decimal>();
+  const addCredit = (wallet: string, amount: Decimal) => {
+    if (amount.lte(0)) return;
+    const k = wallet.trim().toLowerCase();
+    creditMap.set(k, (creditMap.get(k) ?? new Decimal(0)).plus(amount));
+  };
+
+  const baseSnapshot = {
+    event_id: eventId,
+    principal_amount: f6(dist.principalAmount),
+    total_bribe_amount: f6(dist.totalBribeAmount),
+    network_base_pool: f6(dist.networkBasePool),
+    level_config_version: version,
+    calculated_at: nowIso,
+  };
+
+  // ① 引路人 GUIDE_REWARD row.
+  const guideAmount = dist.guideReward.rewardAmount;
+  const guideStatus = await insertLedgerRow(sb, {
+    ...baseSnapshot,
+    recipient_wallet: input.referrerWallet,
+    role: 'direct',
+    reward_type: 'GUIDE_REWARD',
+    reward_status: guideAmount.gt(0) ? 'CREDITED' : 'NO_DIFFERENCE',
+    beneficiary_level: guideLevel,
+    guide_level_rate: f6(dist.guideReward.levelRate),
+    v_level: guideTier?.id ?? null,
+    v_share_pct: null,
+    gap_pct: null,
+    ud3_amount: f6(guideAmount),
+    idempotency_key: ud3RewardIdempotencyKey(input.intentId, input.referrerWallet, 'GUIDE_REWARD', version),
+    settled: false,
+  });
+  if (guideStatus === 'inserted' && guideAmount.gt(0)) {
+    addCredit(input.referrerWallet, guideAmount);
+  }
+
+  // ② 网体 NETWORK_DIFFERENCE_REWARD rows — one per ancestor, incl. NO_DIFFERENCE.
+  for (const nr of dist.networkRewards) {
+    const rewarded = nr.rewardStatus === 'REWARDED';
+    const st = await insertLedgerRow(sb, {
+      ...baseSnapshot,
+      recipient_wallet: nr.userId,
+      role: 'differential',
+      reward_type: 'NETWORK_DIFFERENCE_REWARD',
+      reward_status: rewarded ? 'CREDITED' : 'NO_DIFFERENCE',
+      relation_depth: nr.relationDepth,
+      beneficiary_level: nr.level,
+      cumulative_rate: f6(nr.cumulativeRate),
+      previous_released_rate: f6(nr.previousReleasedRate),
+      difference_rate: f6(nr.differenceRate),
+      v_level: parseSLevelId(nr.level),
+      v_share_pct: f6(nr.cumulativeRate.times(100)),
+      gap_pct: f6(nr.differenceRate.times(100)),
+      ud3_amount: f6(nr.rewardAmount),
+      idempotency_key: ud3RewardIdempotencyKey(input.intentId, nr.userId, 'NETWORK_DIFFERENCE_REWARD', version),
       settled: false,
-    },
-    ...settled.network.payouts
-      .filter((p) => p.ud3Amount > 0)
-      .map((p) => ({
-        event_id: eventId,
-        recipient_wallet: p.wallet,
-        role: 'differential' as const,
-        v_level: parseSLevelId(p.vLabel),
-        v_share_pct: p.vSharePct,
-        gap_pct: p.gapPct,
-        ud3_amount: p.ud3Amount,
-        settled: false,
-      })),
-  ];
-
-  if (settled.network.remainingUd3 > 0) {
-    ledgerRows.push({
-      event_id: eventId,
-      recipient_wallet: 'treasury:ud3_reserve',
-      role: 'reserve',
-      v_level: null,
-      v_share_pct: settled.network.remainingPct,
-      gap_pct: settled.network.remainingPct,
-      ud3_amount: settled.network.remainingUd3,
-      settled: true,
     });
+    if (st === 'inserted' && rewarded) {
+      addCredit(nr.userId, nr.rewardAmount);
+    }
   }
 
-  const { error: ledgerErr } = await sb.from('partner_ud3_ledger').insert(ledgerRows);
-  if (ledgerErr) {
-    console.error('[ud3] ledger insert:', ledgerErr.message);
-    return { ok: false };
-  }
+  // ③ BURN row — absorbs the unreleased tail. No recipient account, informational.
+  await insertLedgerRow(sb, {
+    ...baseSnapshot,
+    recipient_wallet: BURN_SINK,
+    role: 'reserve',
+    reward_type: 'BURN',
+    reward_status: 'CALCULATED',
+    v_level: null,
+    v_share_pct: null,
+    gap_pct: null,
+    ud3_amount: f6(dist.burnAmount),
+    idempotency_key: ud3RewardIdempotencyKey(input.intentId, BURN_SINK, 'BURN', version),
+    settled: true,
+  });
 
   await sb.from('partner_ud3_calc_logs').insert({
     event_id: eventId,
@@ -198,36 +298,41 @@ export async function allocateUd3ForCreditedIntent(
       depositUsdt: input.depositUsdt,
       referrerWallet: input.referrerWallet,
       referrerTotalPerfUsdt: input.referrerTotalPerfUsdt,
+      guideLevel,
       networkChain,
-      referrerNetworkSharePct: settled.referrerNetworkSharePct,
+      configVersion: version,
     },
-    output: settled,
+    output: dist,
   });
 
-  // Credit UD3 balances for referrer + differential winners
-  const creditMap = new Map<string, number>();
-  if (settled.directUd3 > 0) {
-    creditMap.set(input.referrerWallet.toLowerCase(), settled.directUd3);
-  }
-  for (const p of settled.network.payouts) {
-    if (p.ud3Amount <= 0) continue;
-    const k = p.wallet.toLowerCase();
-    creditMap.set(k, round6((creditMap.get(k) ?? 0) + p.ud3Amount));
-  }
-
+  // Credit each winner's pending_ud3 (amounts as fixed-6 decimal strings).
   for (const [walletLower, amount] of creditMap) {
-    if (amount <= 0) continue;
-    await creditPendingUd3Reward(sb, walletLower, round6(amount));
+    if (amount.lte(0)) continue;
+    await creditPendingUd3Reward(sb, walletLower, f6(amount));
   }
 
-  // Immediate settlement (product change): UD3 becomes spendable the instant the
-  // downline deposit is credited — no waiting for the SGT-midnight run. Move each
-  // recipient's pending_ud3 into ud3_balance now and flip this event's ledger rows
-  // to settled. The daily run still acts as a retry safety net: any wallet whose
-  // settle errors here keeps its rows settled=false and is caught at midnight.
+  // Immediate settlement: move pending_ud3 → ud3_balance now and flip this event's
+  // rows to settled. The daily SGT-midnight run remains a retry safety net.
   await settleEventImmediately(sb, eventId, [...creditMap.keys()]);
 
   return { ok: true, eventId };
+}
+
+/**
+ * Insert one ledger row. Returns 'inserted' on success, 'duplicate' on the
+ * idempotency 23505 conflict (retry replay — caller must NOT re-credit), or 'error'.
+ */
+async function insertLedgerRow(
+  sb: Sb,
+  row: Record<string, unknown>,
+): Promise<'inserted' | 'duplicate' | 'error'> {
+  const { error } = await sb.from('partner_ud3_ledger').insert(row);
+  if (!error) return 'inserted';
+  const code = (error as { code?: string }).code;
+  const msg = (error as { message?: string }).message ?? '';
+  if (code === '23505' || msg.includes('duplicate key')) return 'duplicate';
+  console.error('[ud3] ledger insert:', msg);
+  return 'error';
 }
 
 /**
@@ -255,7 +360,7 @@ async function settleEventImmediately(
   }
   if (settledWallets.length === 0) return;
 
-  const flip = { settled: true, settled_at: nowIso, settlement_date: settlementDate };
+  const flip = { settled: true, settled_at: nowIso, settlement_date: settlementDate, credited_at: nowIso };
   if (settledWallets.length === recipientWalletsLower.length) {
     // All recipients settled — flip every still-unsettled row of this event in one shot.
     const { error } = await sb
@@ -281,15 +386,14 @@ async function settleEventImmediately(
 /**
  * Accrue a UD3 reward to the recipient's PENDING (unsettled) bucket atomically.
  *
- * Two-phase settlement (043): generation credits `pending_ud3` only — the reward is
- * not spendable until the daily SGT-midnight run moves it into `ud3_balance` and
- * bumps `lifetime_ud3_earned` (settle_pending_ud3). The atomic `credit_pending_ud3`
- * RPC is a single UPDATE ... += under a row lock, matching case-insensitively.
+ * Two-phase settlement (043): generation credits `pending_ud3` only via the atomic
+ * `credit_pending_ud3` RPC (single UPDATE ... += under a row lock, case-insensitive).
+ * `amount` is a fixed-6 decimal STRING so the numeric column keeps full precision.
  *
  * Credit-first, provision-on-not-found: only a genuinely absent account triggers a
  * row insert + single retry.
  */
-async function creditPendingUd3Reward(sb: Sb, walletLower: string, amount: number): Promise<void> {
+async function creditPendingUd3Reward(sb: Sb, walletLower: string, amount: string): Promise<void> {
   const { error: creditErr } = await sb.rpc('credit_pending_ud3', {
     p_wallet: walletLower,
     p_amount: amount,

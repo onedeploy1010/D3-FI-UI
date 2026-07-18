@@ -1,3 +1,4 @@
+import Decimal from 'npm:decimal.js@10';
 import { jsonResponse, optionsResponse } from '../_shared/cors.ts';
 import {
   adminHasPermission,
@@ -1555,6 +1556,159 @@ async function deleteAdmin(sb: Sb, targetUserId: string, caller: AdminProfile) {
   return { removed: targetUserId };
 }
 
+// ── UD3 反向金 (bribe) reward distribution for the admin order dialog ─────────
+//
+// Maps a partner_ud3_events row + its partner_ud3_ledger rows into the split the
+// admin dialog renders: the GUIDE (直推) reward, the per-level NETWORK (级差)
+// rewards, and the BURN (销毁) remainder. Prefers the v2 snapshot columns
+// (reward_type / cumulative_rate / difference_rate / …) and falls back to the
+// legacy columns (role / v_level / v_share_pct / gap_pct / ud3_amount +
+// event.network_remaining_ud3) so BOTH new and historical orders render. Pure +
+// exported so the row→payload mapping is unit-testable without a DB.
+
+type Ud3EventRow = Record<string, unknown>;
+type Ud3LedgerRow = Record<string, unknown>;
+
+// First non-null/undefined value stringified (numbers stay strings to preserve
+// the numeric(24,6) precision Supabase returns as text). null if all are absent.
+function firstStr(...vals: unknown[]): string | null {
+  for (const v of vals) {
+    if (v !== null && v !== undefined) return String(v);
+  }
+  return null;
+}
+
+function decOf(v: unknown): Decimal {
+  const s = firstStr(v);
+  if (s === null || s === '') return new Decimal(0);
+  try {
+    return new Decimal(s);
+  } catch {
+    return new Decimal(0);
+  }
+}
+
+// The reward amount lives in ud3_amount (NOT NULL in both schema versions); a v2
+// `reward_amount` alias wins if a future migration adds one.
+function rowAmount(row: Ud3LedgerRow): string {
+  return firstStr(row.reward_amount, row.ud3_amount) ?? '0';
+}
+
+// Classify a ledger row. reward_type (v2) is authoritative when present;
+// otherwise fall back to the legacy `role` enum (direct / differential / reserve).
+function ledgerKind(row: Ud3LedgerRow): 'guide' | 'network' | 'burn' | 'other' {
+  const rt = row.reward_type;
+  if (rt != null) {
+    if (rt === 'GUIDE_REWARD') return 'guide';
+    if (rt === 'NETWORK_DIFFERENCE_REWARD') return 'network';
+    if (rt === 'BURN') return 'burn';
+    return 'other';
+  }
+  if (row.role === 'direct') return 'guide';
+  if (row.role === 'differential') return 'network';
+  if (row.role === 'reserve') return 'burn';
+  return 'other';
+}
+
+function legacyStatus(reward_status: unknown, amount: string): string {
+  const s = firstStr(reward_status);
+  if (s) return s;
+  return decOf(amount).gt(0) ? 'REWARDED' : 'NO_DIFFERENCE';
+}
+
+export function mapUd3OrderReward(eventRow: Ud3EventRow, ledgerRows: Ud3LedgerRow[]) {
+  const rows = Array.isArray(ledgerRows) ? ledgerRows : [];
+
+  const guideRow = rows.find((r) => ledgerKind(r) === 'guide') ?? null;
+  const burnRow = rows.find((r) => ledgerKind(r) === 'burn') ?? null;
+  const networkRows = rows.filter((r) => ledgerKind(r) === 'network');
+
+  // Order by relation_depth asc; legacy rows without a depth keep insertion order.
+  const depthOf = (r: Ud3LedgerRow) =>
+    r.relation_depth != null ? Number(r.relation_depth) : Number.POSITIVE_INFINITY;
+  networkRows.sort((a, b) => depthOf(a) - depthOf(b));
+
+  const guide = guideRow
+    ? {
+        wallet: firstStr(guideRow.recipient_wallet),
+        level: firstStr(guideRow.beneficiary_level, guideRow.v_level),
+        levelRate: firstStr(guideRow.guide_level_rate, guideRow.v_share_pct),
+        amount: rowAmount(guideRow),
+        status: firstStr(guideRow.reward_status) ?? 'REWARDED',
+      }
+    : null;
+
+  const network = networkRows.map((r) => {
+    const amount = rowAmount(r);
+    return {
+      wallet: firstStr(r.recipient_wallet),
+      relationDepth: r.relation_depth != null ? Number(r.relation_depth) : null,
+      level: firstStr(r.beneficiary_level, r.v_level),
+      cumulativeRate: firstStr(r.cumulative_rate, r.v_share_pct),
+      previousReleasedRate: firstStr(r.previous_released_rate),
+      differenceRate: firstStr(r.difference_rate, r.gap_pct),
+      amount,
+      status: legacyStatus(r.reward_status, amount),
+    };
+  });
+
+  const networkTotal = network.reduce((s, n) => s.plus(decOf(n.amount)), new Decimal(0));
+
+  // Burn: dedicated BURN/reserve ledger line, else the event's remaining pool.
+  const burnUd3 = burnRow ? rowAmount(burnRow) : firstStr(eventRow.network_remaining_ud3) ?? '0';
+
+  const guideAmt = guide ? decOf(guide.amount) : new Decimal(0);
+  const total = guideAmt.plus(networkTotal).plus(decOf(burnUd3));
+
+  const totalBribeUd3 = firstStr(eventRow.total_bribe_amount, eventRow.generated_ud3);
+  // Tolerant to a numeric(24,6) rounding tail for the admin audit flag.
+  const conserved =
+    totalBribeUd3 != null && decOf(totalBribeUd3).minus(total).abs().lte('0.000001');
+
+  return {
+    order: {
+      intentId: firstStr(eventRow.intent_id),
+      depositorWallet: firstStr(eventRow.depositor_wallet),
+      referrerWallet: firstStr(eventRow.referrer_wallet),
+      principalUsdt: firstStr(eventRow.principal_amount, eventRow.deposit_usdt),
+      bribeRatePct: firstStr(eventRow.bribe_rate_pct, eventRow.tier_rate_pct),
+      totalBribeUd3,
+    },
+    guide,
+    network,
+    networkTotalUd3: networkTotal.toString(),
+    burnUd3,
+    totalUd3: total.toString(),
+    configVersion: firstStr(eventRow.level_config_version),
+    conserved,
+  };
+}
+
+// Load a stake order's UD3 reward distribution by stake_intents.id. Selects `*`
+// from both tables so v2 snapshot columns are picked up automatically once their
+// migration lands (owned by another agent), without breaking legacy orders.
+async function getUd3OrderReward(sb: Sb, intentId: string) {
+  const { data: event, error } = await sb
+    .from('partner_ud3_events')
+    .select('*')
+    .eq('intent_id', intentId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!event) return { ok: true as const, found: false as const };
+
+  const { data: ledger, error: ledgerErr } = await sb
+    .from('partner_ud3_ledger')
+    .select('*')
+    .eq('event_id', event.id);
+  if (ledgerErr) throw ledgerErr;
+
+  return {
+    ok: true as const,
+    found: true as const,
+    ...mapUd3OrderReward(event as Ud3EventRow, (ledger ?? []) as Ud3LedgerRow[]),
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse();
 
@@ -1846,6 +2000,16 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && path === '/stakes') {
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listStakes(sb, url.searchParams)) });
+    }
+
+    // A stake order's UD3 反向金 (bribe) reward distribution + burn, for the admin
+    // order dialog. Read-only → stakes.read (superadmin bypasses).
+    const ud3RewardMatch = path.match(/^\/orders\/([0-9a-f-]{36})\/ud3-reward$/);
+    if (req.method === 'GET' && ud3RewardMatch) {
+      if (!adminHasPermission(admin, 'stakes.read')) {
+        throw new HttpError(403, 'Missing stakes.read permission');
+      }
+      return jsonResponse(await getUd3OrderReward(sb, ud3RewardMatch[1]));
     }
 
     if (req.method === 'GET' && path === '/subsidy-tickets') {

@@ -291,6 +291,55 @@ export type StakeRow = {
   createdAt: string;
 };
 
+// ---- Order UD3 (反向金) reward distribution (Stakes page dialog) ----
+// Backend keys on stake_intents.id (partner_stake_positions.intent_id). All
+// numeric fields arrive as strings so precision is preserved — never Number()
+// them for display; format from the string. DB keeps 反向金 as UD3.
+
+export type Ud3RewardGuide = {
+  wallet: string | null;
+  level: string | null;
+  /** Equity ratio as a decimal string, e.g. '1.1' → 110%. */
+  levelRate: string | null;
+  amount: string | null;
+  status: string;
+};
+
+export type Ud3RewardNetworkNode = {
+  wallet: string | null;
+  relationDepth: number | null;
+  level: string | null;
+  cumulativeRate: string | null;
+  previousReleasedRate: string | null;
+  differenceRate: string | null;
+  amount: string | null;
+  status: string;
+};
+
+export type OrderUd3Reward = {
+  ok: boolean;
+  found: boolean;
+  order?: {
+    intentId: string | null;
+    depositorWallet: string | null;
+    referrerWallet: string | null;
+    principalUsdt: string | null;
+    bribeRatePct: string | null;
+    totalBribeUd3: string | null;
+  };
+  guide?: Ud3RewardGuide | null;
+  network?: Ud3RewardNetworkNode[];
+  networkTotalUd3?: string;
+  burnUd3?: string;
+  totalUd3?: string;
+  configVersion?: string | null;
+  conserved?: boolean;
+};
+
+export function getOrderUd3Reward(intentId: string) {
+  return adminFetch<OrderUd3Reward>(`/orders/${intentId}/ud3-reward`);
+}
+
 export function getStakes(params: {
   kind?: StakeKind;
   wallet?: string;

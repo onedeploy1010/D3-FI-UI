@@ -5,8 +5,10 @@ import { AddressChip } from '@/components/address-chip';
 import { getStakes, type StakeKind, type StakeRow } from '@/lib/adminApi';
 import { fmtUsd } from '@/lib/supabase';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Ud3RewardDialog } from '@/components/ud3-reward-dialog';
 import { cn } from '@/lib/utils';
-import { Layers, Coins } from 'lucide-react';
+import { Layers, Coins, Gift } from 'lucide-react';
 
 /**
  * Stake orders — USDT (partner_join / crowdfund_stake) and UD3 stakes.
@@ -24,6 +26,11 @@ type StakeDetail = StakeRow & {
   releasedUsdt?: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  // The stake order's intent id (partner_stake_positions.intent_id), which the
+  // 反向金 endpoint keys on. Raw DB rows expose it as `intent_id`; kept optional
+  // + both casings so we degrade gracefully to the row id when absent.
+  intentId?: string | null;
+  intent_id?: string | null;
 };
 
 // A normalized row: `principal` collapses the USDT/UD3 principal into one
@@ -97,6 +104,8 @@ export default function StakesPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 反向金分配 dialog — holds the open order's intent id (null when closed).
+  const [rewardIntentId, setRewardIntentId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +206,17 @@ export default function StakesPage() {
           <AddressChip address={r.wallet} variant="full" />
         </div>
       </div>
+      <div className="col-span-2 sm:col-span-3 lg:col-span-4">
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full gap-1.5 sm:w-auto"
+          onClick={() => setRewardIntentId(r.intent_id ?? r.intentId ?? r.id)}
+        >
+          <Gift className="h-3.5 w-3.5" />
+          查看反向金分配
+        </Button>
+      </div>
     </div>
   );
 
@@ -242,6 +262,14 @@ export default function StakesPage() {
         loading={loading}
         emptyText="暂无质押订单"
         pageSize={20}
+      />
+
+      <Ud3RewardDialog
+        intentId={rewardIntentId}
+        open={rewardIntentId != null}
+        onOpenChange={(o) => {
+          if (!o) setRewardIntentId(null);
+        }}
       />
     </PageShell>
   );
