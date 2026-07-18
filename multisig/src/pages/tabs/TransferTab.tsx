@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, ShieldAlert, CheckCircle2, ArrowUpRight, RefreshCw } from 'lucide-react';
+import { Loader2, ShieldAlert, CheckCircle2, ArrowUpRight, RefreshCw, Send } from 'lucide-react';
 import {
   api,
   newRequestKey,
@@ -27,6 +27,8 @@ export function TransferTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [broadcasting, setBroadcasting] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +70,22 @@ export function TransferTab() {
       setError(e instanceof Error ? e.message : '发起失败');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Broadcast an on-chain-approved (Turnkey 2/3) transfer. Backend enforces
+  // maker-checker: the broadcaster must differ from the proposer.
+  const broadcast = async (id: string) => {
+    if (broadcasting) return;
+    setBroadcasting(id);
+    setRowError((prev) => ({ ...prev, [id]: '' }));
+    try {
+      await api.broadcastTransfer(id);
+      await load();
+    } catch (e) {
+      setRowError((prev) => ({ ...prev, [id]: e instanceof Error ? e.message : '广播失败' }));
+    } finally {
+      setBroadcasting(null);
     }
   };
 
@@ -160,14 +178,31 @@ export function TransferTab() {
             </div>
             <div className="text-[10px] text-[#8A2B57]/55 mt-1 font-mono truncate">→ {shortAddr(t.to_address)}</div>
             {t.status === 'awaiting_consensus' && (
-              <a
-                href={turnkeyActivityUrl(t.turnkey_activity_id)}
-                target="_blank"
-                rel="noreferrer"
-                className="tap mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-white brand-gradient px-2.5 py-1.5 rounded-lg"
-              >
-                <ShieldAlert size={12} /> 去 Turnkey 批准
-              </a>
+              <>
+                <div className="flex items-center gap-2 mt-2">
+                  <a
+                    href={turnkeyActivityUrl(t.turnkey_activity_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tap inline-flex items-center gap-1 text-[11px] font-bold text-white brand-gradient px-2.5 py-1.5 rounded-lg"
+                  >
+                    <ShieldAlert size={12} /> 去 Turnkey 批准
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void broadcast(t.id)}
+                    disabled={broadcasting === t.id}
+                    className="tap inline-flex items-center gap-1 text-[11px] font-bold text-[#8A2B57] bg-[#8A2B57]/10 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                  >
+                    {broadcasting === t.id ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                    广播
+                  </button>
+                </div>
+                {rowError[t.id] && (
+                  <div className="text-[10px] text-red-500 font-medium mt-1.5">{rowError[t.id]}</div>
+                )}
+                <p className="text-[9px] text-[#8A2B57]/45 mt-1">需 Turnkey 完成 2/3 批准，且广播人须与发起人不同</p>
+              </>
             )}
           </div>
         ))}
