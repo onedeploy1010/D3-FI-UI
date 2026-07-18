@@ -58,18 +58,63 @@ export type PendingApproval = {
   created_at: string;
 };
 
+export type AllowlistRow = {
+  id: string;
+  address: string;
+  label?: string | null;
+  asset?: string | null;
+  created_at?: string;
+};
+
+export type PauseFlag = { flag: string; paused: boolean; reason?: string | null; updated_at?: string };
+
+export type Solvency = {
+  ratio?: number;
+  reserveUsdt?: number;
+  liabilityUsdt?: number;
+  healthy?: boolean;
+  minRatio?: number;
+} | null;
+
+export type SecurityOverview = {
+  ok: boolean;
+  pauseFlags: PauseFlag[];
+  limits: Record<string, unknown> | null;
+  solvency: Solvency;
+  alertCounts: Record<string, number> | null;
+};
+
 export const api = {
   wallets: () => adminFetch<{ ok: boolean; wallets?: InfraWallet[] } & Record<string, unknown>>('/wallets'),
   transfers: () => adminFetch<{ transfers?: TreasuryTransfer[] }>('/treasury/transfers'),
-  proposeTransfer: (payload: { toAddress: string; amountUsdt: number }) =>
-    adminFetch<{ ok: boolean; id?: string; status?: string }>('/treasury/transfers', {
+  allowlist: () => adminFetch<{ rows?: AllowlistRow[] }>('/treasury/allowlist'),
+  proposeTransfer: (payload: {
+    asset?: 'usdt' | 'bnb';
+    toAddress: string;
+    amount: number;
+    requestKey: string;
+    note?: string;
+  }) =>
+    adminFetch<{ ok: boolean; transfer?: TreasuryTransfer }>('/treasury/transfers', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
   broadcastTransfer: (id: string) =>
-    adminFetch<{ ok: boolean }>(`/treasury/transfers/${id}/broadcast`, { method: 'POST' }),
+    adminFetch<{ ok: boolean; transfer?: TreasuryTransfer }>(`/treasury/transfers/${id}/broadcast`, {
+      method: 'POST',
+    }),
   approvals: () => adminFetch<{ approvals?: PendingApproval[] }>('/approvals'),
+  securityOverview: () => adminFetch<SecurityOverview>('/security/overview'),
 };
+
+/** Idempotency key for a treasury transfer proposal. */
+export function newRequestKey(): string {
+  const rnd =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+  return `ms-${rnd}`;
+}
 
 /** Deep-link into the Turnkey dashboard for a pending consensus activity.
  *  NOTE: exact URL must be confirmed against the live Turnkey console. */
