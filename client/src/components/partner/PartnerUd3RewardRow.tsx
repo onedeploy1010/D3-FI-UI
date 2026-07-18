@@ -86,6 +86,7 @@ export function PartnerUd3RewardRow({
     return { deposit, tier, depth };
   }, [row, isDirect]);
 
+  // Direct(引路人) vs network(级差) distinction is the header chip below — a simple tag.
   const attrLabel = isDirect
     ? p('team.ud3RoleDirect')
     : fx.depth != null
@@ -179,8 +180,6 @@ export function PartnerUd3RewardRow({
           />
           <Metric label={p('team.ud3FieldTier')} value={fx.tier} isDark={isDark} />
         </div>
-
-        <Metric label={p('team.ud3FieldAttr')} value={attrLabel} isDark={isDark} />
 
         {(row.sourceAddress || row.guideAddress) && (
           <div className="flex items-center justify-end gap-1.5">
