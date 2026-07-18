@@ -2,7 +2,7 @@
   D3 多签系统 — 邮箱验证码 (OTP) 邮件模板
   Supabase → Authentication → Email Templates → "Magic Link"
     Subject 建议：D3 多签系统登录验证码 {{ .Token }}
-  关键：必须包含 {{ .Token }}（6 位验证码），app 用 verifyOtp 验证。
+  关键：必须包含 {{ .Token }}（8 位验证码），app 用 verifyOtp 验证。
   也保留了 {{ .ConfirmationURL }} 作为「一键登录」备用链接。
   邮件安全：table 布局 + 全内联样式，无外部资源。
 -->
@@ -40,14 +40,14 @@
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td align="center" style="padding:8px 0 4px 0;">
-                  <div style="display:inline-block;padding:18px 28px;background-color:#fbf7f9;border:1px solid rgba(224,86,143,0.25);border-radius:14px;">
-                    <div style="font-size:32px;font-weight:800;letter-spacing:0.36em;color:#8A2B57;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;">{{ .Token }}</div>
+                  <div style="display:inline-block;padding:18px 24px;background-color:#fbf7f9;border:1px solid rgba(224,86,143,0.25);border-radius:14px;">
+                    <div style="font-size:30px;font-weight:800;letter-spacing:0.22em;color:#8A2B57;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;">{{ .Token }}</div>
                   </div>
                 </td>
               </tr>
             </table>
             <p style="margin:12px 0 0 0;font-size:12px;line-height:1.5;color:#8A2B57;opacity:0.7;text-align:center;">
-              把这 6 位验证码填入登录页即可。
+              把这 8 位验证码填入登录页即可。
             </p>
           </td>
         </tr>

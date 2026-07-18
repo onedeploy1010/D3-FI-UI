@@ -94,23 +94,23 @@ export function Login() {
             <div className="text-[12px] text-[#8A2B57]/70">
               验证码已发送到 <span className="font-bold text-[#160510]">{email}</span>
             </div>
-            <label className="text-[11px] font-semibold text-[#8A2B57]/70">6 位验证码</label>
+            <label className="text-[11px] font-semibold text-[#8A2B57]/70">8 位验证码</label>
             <div className="relative">
               <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A2B57]/40" />
               <input
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 inputMode="numeric"
                 autoFocus
-                className="w-full pl-9 pr-3.5 py-3 rounded-xl bg-white/70 border border-[#8A2B57]/12 outline-none text-lg font-bold tracking-[0.4em] text-center text-[#160510] focus:border-[#E0568F]/50"
-                placeholder="••••••"
+                className="w-full pl-9 pr-3.5 py-3 rounded-xl bg-white/70 border border-[#8A2B57]/12 outline-none text-lg font-bold tracking-[0.28em] text-center text-[#160510] focus:border-[#E0568F]/50"
+                placeholder="••••••••"
               />
             </div>
             {error && <div className="text-[12px] text-red-500 font-medium">{error}</div>}
             <motion.button
               type="submit"
               whileTap={{ scale: 0.98 }}
-              disabled={busy || code.length < 6}
+              disabled={busy || code.length < 8}
               className="w-full py-3.5 rounded-xl brand-gradient text-white font-bold text-[15px] flex items-center justify-center gap-2 disabled:opacity-50 tap"
             >
               {busy ? <Loader2 size={18} className="animate-spin" /> : '验证登录'}
