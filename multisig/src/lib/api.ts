@@ -88,6 +88,13 @@ export const api = {
   wallets: () => adminFetch<{ ok: boolean; wallets?: InfraWallet[] } & Record<string, unknown>>('/wallets'),
   transfers: () => adminFetch<{ transfers?: TreasuryTransfer[] }>('/treasury/transfers'),
   allowlist: () => adminFetch<{ rows?: AllowlistRow[] }>('/treasury/allowlist'),
+  addAllowlist: (payload: { address: string; label?: string }) =>
+    adminFetch<{ ok: boolean; entry?: AllowlistRow }>('/treasury/allowlist', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  removeAllowlist: (address: string) =>
+    adminFetch<{ ok: boolean }>(`/treasury/allowlist/${address}`, { method: 'DELETE' }),
   proposeTransfer: (payload: {
     asset?: 'usdt' | 'bnb';
     toAddress: string;

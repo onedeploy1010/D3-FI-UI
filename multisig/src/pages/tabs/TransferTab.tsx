@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, ShieldAlert, CheckCircle2, ArrowUpRight, RefreshCw, Send } from 'lucide-react';
+import { Loader2, ShieldAlert, CheckCircle2, ArrowUpRight, RefreshCw, Send, Plus, Trash2 } from 'lucide-react';
 import {
   api,
   newRequestKey,
@@ -29,6 +29,12 @@ export function TransferTab() {
   const [ok, setOk] = useState<string | null>(null);
   const [broadcasting, setBroadcasting] = useState<string | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  // Whitelist management
+  const [showAl, setShowAl] = useState(false);
+  const [newAddr, setNewAddr] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [alBusy, setAlBusy] = useState(false);
+  const [alError, setAlError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -89,6 +95,36 @@ export function TransferTab() {
     }
   };
 
+  const addWhitelist = async () => {
+    const addr = newAddr.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+      setAlError('地址格式无效（0x + 40 位十六进制）');
+      return;
+    }
+    setAlBusy(true);
+    setAlError(null);
+    try {
+      await api.addAllowlist({ address: addr, label: newLabel.trim() || undefined });
+      setNewAddr('');
+      setNewLabel('');
+      await load();
+    } catch (e) {
+      setAlError(e instanceof Error ? e.message : '添加失败');
+    } finally {
+      setAlBusy(false);
+    }
+  };
+
+  const removeWhitelist = async (address: string) => {
+    setAlError(null);
+    try {
+      await api.removeAllowlist(address);
+      await load();
+    } catch (e) {
+      setAlError(e instanceof Error ? e.message : '删除失败');
+    }
+  };
+
   return (
     <>
       <h2 className="text-[13px] font-bold text-[#8A2B57]/80 uppercase tracking-wider">从金库钱包转账</h2>
@@ -146,6 +182,70 @@ export function TransferTab() {
         <p className="text-[10px] text-[#8A2B57]/45 text-center">
           发起后需在 Turnkey 完成 2/3 批准，再由另一位管理员广播。
         </p>
+      </div>
+
+      {/* 收款白名单管理 */}
+      <div className="flex items-center justify-between pt-1">
+        <h2 className="text-[13px] font-bold text-[#8A2B57]/80 uppercase tracking-wider">收款白名单</h2>
+        <button
+          type="button"
+          onClick={() => { setShowAl((v) => !v); setAlError(null); }}
+          className="tap flex items-center gap-1 text-[11px] font-bold text-[#E0568F]"
+        >
+          <Plus size={13} /> {showAl ? '收起' : '添加'}
+        </button>
+      </div>
+      {showAl && (
+        <div className="brand-card rounded-2xl p-4 space-y-2.5">
+          <input
+            value={newAddr}
+            onChange={(e) => setNewAddr(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full px-3.5 py-3 rounded-xl bg-white/70 border border-[#8A2B57]/12 outline-none text-[13px] font-mono text-[#160510] focus:border-[#E0568F]/50"
+            placeholder="0x 收款地址（42 位）"
+          />
+          <input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            className="w-full px-3.5 py-3 rounded-xl bg-white/70 border border-[#8A2B57]/12 outline-none text-[14px] text-[#160510] focus:border-[#E0568F]/50"
+            placeholder="备注（可选，如 OKX 提现）"
+          />
+          {alError && <div className="text-[12px] text-red-500 font-medium">{alError}</div>}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.98 }}
+            disabled={alBusy || !newAddr.trim()}
+            onClick={() => void addWhitelist()}
+            className="w-full py-3 rounded-xl brand-gradient text-white font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 tap"
+          >
+            {alBusy ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            添加到白名单
+          </motion.button>
+          <p className="text-[10px] text-[#8A2B57]/45 text-center">仅白名单地址可作为转账收款方（新增会记入审计）。</p>
+        </div>
+      )}
+      <div className="space-y-2">
+        {allowlist.length === 0 && !loading && (
+          <div className="brand-card rounded-2xl p-4 text-[13px] text-[#8A2B57]/55 text-center">白名单为空，先添加收款地址</div>
+        )}
+        {allowlist.map((r) => (
+          <div key={r.id} className="brand-card rounded-2xl p-3.5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              {r.label && <div className="text-[13px] font-bold text-[#160510] truncate">{r.label}</div>}
+              <div className="text-[10px] font-mono text-[#8A2B57]/60 truncate">{r.address}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void removeWhitelist(r.address)}
+              className="tap shrink-0 p-2 rounded-lg text-red-500/70 bg-red-500/8"
+              aria-label="删除"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="flex items-center justify-between pt-1">
