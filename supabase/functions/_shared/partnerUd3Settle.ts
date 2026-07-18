@@ -2,37 +2,41 @@
  * Allocate UD3 when a USDT stake intent is credited
  * (partner_join / crowdfund_stake — not SD3 re-stake).
  *
- * v2: the reward split is computed by the versioned, exact-Decimal calculator
- * (_shared/ud3Reward.ts + ud3RewardConfig.ts). This module only resolves the
- * on-chain/DB context (referrer 档位 + upline chain), hands a fully-materialised
- * input to the calculator, then persists an audited snapshot (GUIDE_REWARD /
- * NETWORK_DIFFERENCE_REWARD / BURN rows) and credits the winners' pending_ud3.
+ * V3: the reward split is computed by the versioned, exact-Decimal calculator
+ * (_shared/ud3Reward.ts + ud3RewardConfig.ts, model
+ * "tier-coefficient × cumulative-difference"). This module only resolves the
+ * on-chain/DB context (引路人 档位 + up-chain ancestors, each with their OWN 档位/rank
+ * and 资格 eligibility), hands a fully-materialised input to the calculator, then
+ * persists an audited snapshot and credits each RECEIVER's pending_ud3.
+ *
+ * The 网体 reward is six independent tier slots S1..S6. Each slot is matched to the
+ * nearest up-chain ancestor whose OWN tier rank >= the slot rank AND who is
+ * reward-eligible (资格). A matched slot is CALCULATED (paid to that receiver); an
+ * unmatched slot is UNALLOCATED (recorded, never credited). The 引路人 (guide) reward
+ * is an independent ladder always paid to the referrer.
  *
  * Money is NEVER a JS Number: every amount is a Decimal and is written to the
  * numeric columns / RPCs as a fixed-6 decimal STRING so full precision survives.
  *
- * Idempotency: the calculator's deterministic idempotency_key is a unique index on
- * partner_ud3_ledger, so a re-run that races past the intent_id short-circuit hits a
- * 23505 on the row insert — we skip that row and do NOT re-credit it.
+ * Idempotency: the calculator's deterministic per-slot idempotency_key is a unique
+ * index on partner_ud3_ledger, so a re-run that races past the intent_id
+ * short-circuit hits a 23505 on the row insert — we skip that row and do NOT
+ * re-credit it.
  *
  * Call after rollupPartnerPerformance so 引路人 total perf includes the new volume.
  */
 import Decimal from 'npm:decimal.js@10';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { getUd3Tier, resolveUd3SLevel } from './partnerUd3Rules.ts';
 import {
-  getUd3Tier,
-  resolveUd3SLevel,
-  type Ud3UplineNode,
-} from './partnerUd3Rules.ts';
-import {
-  calculateUd3RewardDistribution,
-  ud3RewardIdempotencyKey,
-  type CalculateUd3RewardInput,
+  calculateUd3TierDifferenceRewards,
+  ud3TierRewardIdempotencyKey,
+  type Ud3NetworkAncestor,
 } from './ud3Reward.ts';
 import {
   getUd3RewardConfig,
-  guideLevelRateFor,
-  networkCumulativeRateFor,
+  tierRank,
+  UD3_ALGO_VERSION_V3,
 } from './ud3RewardConfig.ts';
 import { sumReferralTreePerformance } from './partnerPerformance.ts';
 import { toSgtDateString } from './partnerTimezone.ts';
@@ -40,7 +44,8 @@ import { toSgtDateString } from './partnerTimezone.ts';
 type Sb = SupabaseClient;
 
 const UD3_STAKE_INTENT_TYPES = new Set(['partner_join', 'crowdfund_stake']);
-const BURN_SINK = 'burn:ud3';
+/** Sentinel recipient for an UNALLOCATED tier slot (no account is credited). */
+const UD3_UNALLOCATED_SINK = 'unallocated:ud3';
 
 /** Fixed-6 decimal string for numeric columns / RPC params (never a JS Number). */
 function f6(value: Decimal): string {
@@ -73,8 +78,27 @@ async function cacheAccountLevels(
   );
 }
 
-async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud3UplineNode[]> {
-  const chain: Ud3UplineNode[] = [];
+/**
+ * Reward eligibility (资格) of an ancestor account: it must exist AND be a partner.
+ * This is the 资格 gate that is orthogonal to 档位 (tier-rank) matching — a
+ * high-tier but non-partner ancestor can still be skipped for a slot.
+ */
+async function isRewardEligibleAccount(sb: Sb, wallet: string): Promise<boolean> {
+  const { data } = await sb
+    .from('partner_accounts')
+    .select('is_partner')
+    .ilike('wallet_address', wallet)
+    .maybeSingle();
+  return (data as { is_partner?: boolean } | null)?.is_partner === true;
+}
+
+/**
+ * Walk UP from the referrer, materialising each ancestor's OWN 档位 (tierCode/rank
+ * from their team performance) and their 资格 eligibility. Nearest ancestor first
+ * (relationDepth 1 = the referrer's own sponsor). Caches level snapshots best-effort.
+ */
+async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud3NetworkAncestor[]> {
+  const chain: Ud3NetworkAncestor[] = [];
   let current = referrerWallet;
   const seen = new Set<string>([referrerWallet.trim().toLowerCase()]);
 
@@ -94,11 +118,17 @@ async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud
     seen.add(key);
 
     const teamPerf = await sumReferralTreePerformance(sb, sponsor);
-    const level = resolveUd3SLevel({ totalPerfUsdt: teamPerf, smallAreaPerfUsdt: 0 });
+    const tier = getUd3Tier(teamPerf);
+    const tierCode = tier?.label ?? 'S0';
+    const rank = tier ? tierRank(tierCode) : 0;
+    const eligible = await isRewardEligibleAccount(sb, sponsor);
+
     chain.push({
-      wallet: sponsor,
-      vSharePct: level?.sharePct ?? 0,
-      vLabel: level?.label,
+      userId: sponsor,
+      relationDepth: chain.length + 1,
+      tierCode,
+      tierRank: rank,
+      isRewardEligible: eligible,
     });
     await cacheAccountLevels(sb, sponsor, teamPerf).catch(() => {});
 
@@ -108,7 +138,7 @@ async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud
   return chain;
 }
 
-/** Credits UD3 for a deposit using referrer 档位 + network 级差. Idempotent on intent_id. */
+/** Credits UD3 for a deposit using referrer 档位 + network tier-difference slots. Idempotent on intent_id. */
 export async function allocateUd3ForCreditedIntent(
   sb: Sb,
   input: {
@@ -133,72 +163,72 @@ export async function allocateUd3ForCreditedIntent(
 
   await cacheAccountLevels(sb, input.referrerWallet, input.referrerTotalPerfUsdt).catch(() => {});
 
-  const networkChain = await fetchUplineChainAbove(sb, input.referrerWallet);
+  const networkAncestors = await fetchUplineChainAbove(sb, input.referrerWallet);
 
   // ── Build the calculator input (config-versioned, Decimal, single source) ───
   const config = getUd3RewardConfig();
   const version = config.version;
+  const algoVersion = config.algorithmVersion ?? UD3_ALGO_VERSION_V3;
 
   const guideTier = getUd3Tier(input.referrerTotalPerfUsdt);
-  const guideLevel = guideTier?.label ?? null;
-  const guideLevelRate = guideLevelRateFor(guideLevel, config);
+  const guideTierCode = guideTier?.label ?? null;
 
-  // Include ALL uplines above the referrer (even same/lower level) so NO_DIFFERENCE
-  // rows are recorded for audit. Cumulative rates come from ud3RewardConfig ONLY.
-  const networkAncestors = networkChain.map((node, i) => {
-    const level = node.vLabel ?? 'S0';
-    return {
-      userId: node.wallet,
-      relationDepth: i + 1,
-      level,
-      cumulativeRate: networkCumulativeRateFor(level, config),
-    };
-  });
-
-  const rewardInput: CalculateUd3RewardInput = {
+  const result = calculateUd3TierDifferenceRewards({
     orderId: input.intentId,
     principalAmount: new Decimal(input.depositUsdt),
-    bribeRate: config.bribeRate,
     guideUserId: input.referrerWallet,
-    guideLevel,
-    guideLevelRate,
+    guideTierCode,
     networkAncestors,
-    levelConfigVersion: version,
-  };
+    configVersion: version,
+  });
 
-  const dist = calculateUd3RewardDistribution(rewardInput);
-
-  if (dist.totalBribeAmount.lte(0)) {
-    return { ok: true, skipped: true };
-  }
-
-  // Conservation invariant (defence-in-depth; the calculator also asserts this).
-  const conserved = dist.guideReward.rewardAmount
-    .plus(dist.networkRewardTotal)
-    .plus(dist.burnAmount);
-  if (!conserved.equals(dist.totalBribeAmount)) {
+  // Conservation (defence-in-depth; the calculator also asserts this).
+  const reconciled = result.networkAllocated.plus(result.networkUnallocated);
+  if (!reconciled.equals(result.networkTotalCalculated)) {
     console.error(
-      `[ud3] conservation violated for ${input.intentId}: ${conserved.toString()} != ${dist.totalBribeAmount.toString()}`,
+      `[ud3] conservation violated for ${input.intentId}: ` +
+        `${reconciled.toString()} != ${result.networkTotalCalculated.toString()}`,
+    );
+    return { ok: false };
+  }
+  // Allocated must equal the sum of CALCULATED tier slots — invariant on the
+  // calculator output (independent of what actually inserts on replay).
+  const calcAllocated = result.tierRewards
+    .filter((t) => t.status === 'CALCULATED')
+    .reduce((s, t) => s.plus(t.rewardAmount), new Decimal(0));
+  if (!calcAllocated.equals(result.networkAllocated)) {
+    console.error(
+      `[ud3] allocated mismatch for ${input.intentId}: ` +
+        `${calcAllocated.toString()} != ${result.networkAllocated.toString()}`,
     );
     return { ok: false };
   }
 
+  const guideAmount = result.guideReward.rewardAmount;
+  // Nothing to distribute at all → skip (no event, safe to retry later).
+  if (guideAmount.lte(0) && result.networkTotalCalculated.lte(0)) {
+    return { ok: true, skipped: true };
+  }
+
   // ── Event snapshot (legacy columns kept for existing readers) ──────────────
+  // generated_ud3 = guide + full network calculated; network_pool_ud3 = network total;
+  // network_allocated_ud3 / network_remaining_ud3 = allocated / unallocated slices.
+  const generatedUd3 = guideAmount.plus(result.networkTotalCalculated);
   const { data: event, error: eventErr } = await sb
     .from('partner_ud3_events')
     .insert({
       intent_id: input.intentId,
       depositor_wallet: input.depositorWallet,
       referrer_wallet: input.referrerWallet,
-      deposit_usdt: f6(dist.principalAmount),
+      deposit_usdt: f6(new Decimal(input.depositUsdt)),
       referrer_total_perf_usdt: input.referrerTotalPerfUsdt,
       tier_id: guideTier?.id ?? null,
       tier_rate_pct: guideTier?.ratePct ?? 0,
-      generated_ud3: f6(dist.totalBribeAmount),
-      direct_ud3: f6(dist.guideReward.rewardAmount),
-      network_pool_ud3: f6(dist.networkBasePool),
-      network_allocated_ud3: f6(dist.networkRewardTotal),
-      network_remaining_ud3: f6(dist.burnAmount),
+      generated_ud3: f6(generatedUd3),
+      direct_ud3: f6(guideAmount),
+      network_pool_ud3: f6(result.networkTotalCalculated),
+      network_allocated_ud3: f6(result.networkAllocated),
+      network_remaining_ud3: f6(result.networkUnallocated),
     })
     .select('id')
     .single();
@@ -222,74 +252,78 @@ export async function allocateUd3ForCreditedIntent(
 
   const baseSnapshot = {
     event_id: eventId,
-    principal_amount: f6(dist.principalAmount),
-    total_bribe_amount: f6(dist.totalBribeAmount),
-    network_base_pool: f6(dist.networkBasePool),
+    principal_amount: f6(new Decimal(input.depositUsdt)),
+    total_bribe_amount: f6(generatedUd3),
+    network_base_pool: f6(result.networkTotalCalculated),
     level_config_version: version,
+    reward_algorithm_version: algoVersion,
     calculated_at: nowIso,
   };
 
-  // ① 引路人 GUIDE_REWARD row.
-  const guideAmount = dist.guideReward.rewardAmount;
+  // ① 引路人 GUIDE_REWARD row (independent ladder — always to the referrer).
   const guideStatus = await insertLedgerRow(sb, {
     ...baseSnapshot,
     recipient_wallet: input.referrerWallet,
     role: 'direct',
     reward_type: 'GUIDE_REWARD',
-    reward_status: guideAmount.gt(0) ? 'CREDITED' : 'NO_DIFFERENCE',
-    beneficiary_level: guideLevel,
-    guide_level_rate: f6(dist.guideReward.levelRate),
+    reward_status: guideAmount.gt(0) ? 'CALCULATED' : 'NO_DIFFERENCE',
+    beneficiary_level: guideTierCode,
+    // The guide (引路人) ladder is INDEPENDENT of the S1..S6 network slots. Do NOT
+    // stamp reward_tier_code here — a guide at tier S1 would otherwise collide with
+    // the network S1 slot and shadow it in per-tier readers. The guide 档位 lives in
+    // beneficiary_level; tier_coefficient carries its 系数.
+    reward_tier_code: null,
+    reward_tier_rank: null,
+    tier_coefficient: f6(result.guideReward.coefficient),
+    guide_level_rate: f6(result.guideReward.coefficient),
     v_level: guideTier?.id ?? null,
     v_share_pct: null,
     gap_pct: null,
     ud3_amount: f6(guideAmount),
-    idempotency_key: ud3RewardIdempotencyKey(input.intentId, input.referrerWallet, 'GUIDE_REWARD', version),
+    idempotency_key: ud3TierRewardIdempotencyKey(input.intentId, 'GUIDE', algoVersion),
     settled: false,
   });
   if (guideStatus === 'inserted' && guideAmount.gt(0)) {
     addCredit(input.referrerWallet, guideAmount);
   }
 
-  // ② 网体 NETWORK_DIFFERENCE_REWARD rows — one per ancestor, incl. NO_DIFFERENCE.
-  for (const nr of dist.networkRewards) {
-    const rewarded = nr.rewardStatus === 'REWARDED';
+  // ② 网体 rows — one per tier slot S1..S6.
+  //    CALCULATED → NETWORK_DIFFERENCE_REWARD paid to the matched receiver.
+  //    No qualified/eligible ancestor → the slot is BURNED (记录销毁): a BURN row is
+  //    recorded to the burn sink (no credit), keeping reward_status=UNALLOCATED +
+  //    unallocated_reason for audit. Policy: 网体无合格上级 → 销毁.
+  for (const slot of result.tierRewards) {
+    const calculated = slot.status === 'CALCULATED';
+    const recipient = calculated ? slot.receiverUserId! : UD3_UNALLOCATED_SINK;
     const st = await insertLedgerRow(sb, {
       ...baseSnapshot,
-      recipient_wallet: nr.userId,
-      role: 'differential',
-      reward_type: 'NETWORK_DIFFERENCE_REWARD',
-      reward_status: rewarded ? 'CREDITED' : 'NO_DIFFERENCE',
-      relation_depth: nr.relationDepth,
-      beneficiary_level: nr.level,
-      cumulative_rate: f6(nr.cumulativeRate),
-      previous_released_rate: f6(nr.previousReleasedRate),
-      difference_rate: f6(nr.differenceRate),
-      v_level: parseSLevelId(nr.level),
-      v_share_pct: f6(nr.cumulativeRate.times(100)),
-      gap_pct: f6(nr.differenceRate.times(100)),
-      ud3_amount: f6(nr.rewardAmount),
-      idempotency_key: ud3RewardIdempotencyKey(input.intentId, nr.userId, 'NETWORK_DIFFERENCE_REWARD', version),
+      recipient_wallet: recipient,
+      role: calculated ? 'differential' : 'reserve',
+      reward_type: calculated ? 'NETWORK_DIFFERENCE_REWARD' : 'BURN',
+      reward_status: calculated ? 'CALCULATED' : 'UNALLOCATED',
+      unallocated_reason: calculated ? null : slot.unallocatedReason,
+      relation_depth: slot.receiverRelationDepth,
+      reward_tier_code: slot.rewardTierCode,
+      reward_tier_rank: slot.rewardTierRank,
+      receiver_tier_code: slot.receiverTierCode,
+      receiver_tier_rank: slot.receiverTierRank,
+      beneficiary_level: slot.receiverTierCode,
+      tier_coefficient: f6(slot.tierCoefficient),
+      cumulative_rate: f6(slot.cumulativeRate),
+      previous_released_rate: f6(slot.previousCumulativeRate),
+      difference_rate: f6(slot.incrementalRate),
+      incremental_rate: f6(slot.incrementalRate),
+      v_level: parseSLevelId(slot.receiverTierCode),
+      v_share_pct: f6(slot.cumulativeRate.times(100)),
+      gap_pct: f6(slot.incrementalRate.times(100)),
+      ud3_amount: f6(slot.rewardAmount),
+      idempotency_key: ud3TierRewardIdempotencyKey(input.intentId, slot.rewardTierCode, algoVersion),
       settled: false,
     });
-    if (st === 'inserted' && rewarded) {
-      addCredit(nr.userId, nr.rewardAmount);
+    if (st === 'inserted' && calculated) {
+      addCredit(slot.receiverUserId!, slot.rewardAmount);
     }
   }
-
-  // ③ BURN row — absorbs the unreleased tail. No recipient account, informational.
-  await insertLedgerRow(sb, {
-    ...baseSnapshot,
-    recipient_wallet: BURN_SINK,
-    role: 'reserve',
-    reward_type: 'BURN',
-    reward_status: 'CALCULATED',
-    v_level: null,
-    v_share_pct: null,
-    gap_pct: null,
-    ud3_amount: f6(dist.burnAmount),
-    idempotency_key: ud3RewardIdempotencyKey(input.intentId, BURN_SINK, 'BURN', version),
-    settled: true,
-  });
 
   await sb.from('partner_ud3_calc_logs').insert({
     event_id: eventId,
@@ -298,11 +332,35 @@ export async function allocateUd3ForCreditedIntent(
       depositUsdt: input.depositUsdt,
       referrerWallet: input.referrerWallet,
       referrerTotalPerfUsdt: input.referrerTotalPerfUsdt,
-      guideLevel,
-      networkChain,
+      guideTierCode,
+      networkAncestors,
       configVersion: version,
+      algorithmVersion: algoVersion,
     },
-    output: dist,
+    output: {
+      guideReward: {
+        userId: result.guideReward.userId,
+        tierCode: result.guideReward.tierCode,
+        coefficient: result.guideReward.coefficient.toString(),
+        rewardAmount: f6(result.guideReward.rewardAmount),
+      },
+      networkRate: result.networkRate.toString(),
+      networkTotalCalculated: f6(result.networkTotalCalculated),
+      networkAllocated: f6(result.networkAllocated),
+      networkUnallocated: f6(result.networkUnallocated),
+      tierRewards: result.tierRewards.map((t) => ({
+        rewardTierCode: t.rewardTierCode,
+        rewardTierRank: t.rewardTierRank,
+        status: t.status,
+        rewardAmount: f6(t.rewardAmount),
+        receiverUserId: t.receiverUserId,
+        receiverTierCode: t.receiverTierCode,
+        receiverRelationDepth: t.receiverRelationDepth,
+        unallocatedReason: t.unallocatedReason,
+      })),
+      algorithmVersion: result.algorithmVersion,
+      configVersion: result.configVersion,
+    },
   });
 
   // Credit each winner's pending_ud3 (amounts as fixed-6 decimal strings).

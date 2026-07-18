@@ -23,18 +23,22 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { AddressChip } from './address-chip';
-import { getOrderUd3Reward, type OrderUd3Reward } from '@/lib/adminApi';
+import { getOrderUd3Reward, type OrderUd3Reward, type Ud3RewardTier } from '@/lib/adminApi';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import { Flame } from 'lucide-react';
 
 /**
- * 反向金 (UD3) reward-distribution audit view for a single stake order.
- * Backend endpoint: GET /orders/:intentId/ud3-reward.
+ * 反向金 (UD3) reward-distribution audit view for a single stake order — V3 model
+ * ("档位系数 × 累计权益级差"). Backend endpoint: GET /orders/:intentId/ud3-reward.
  *
- * All amounts / rates come from the API as strings to preserve numeric(24,6)
- * precision — we format straight from the string and never round-trip through
- * Number() for UD3 amounts. Rates are small enough that Number() is safe there.
+ * The 网体 (network) reward is split across SIX fixed tier slots S1..S6; each slot
+ * is either 已计算 (CALCULATED — paid to the nearest qualified + eligible up-chain
+ * ancestor) or 未分配 (UNALLOCATED). The 引路人 (guide) reward is an independent
+ * ladder. The tier table always renders all six rows.
+ *
+ * All amounts / rates come from the API as strings to preserve numeric(…)
+ * precision — we format straight from the string and never round-trip UD3 amounts
+ * through Number(). Rates are small enough that Number() is safe there.
  */
 
 /** Decimal string like '0.20' → '20%', '1.5' → '150%'. Never '0.2%'. */
@@ -56,17 +60,50 @@ function fmtUd3(v: string | null | undefined): string {
   return trimmed === '' || trimmed === '-0' ? '0' : trimmed;
 }
 
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  REWARDED: { label: '已发放', className: 'bg-emerald-500/20 text-emerald-400' },
-  CREDITED: { label: '已入账', className: 'bg-emerald-500/20 text-emerald-400' },
-  NO_DIFFERENCE: { label: '无极差', className: 'bg-muted text-muted-foreground' },
+/** Human 层级 label: relationDepth 2 → '第2代'. */
+function fmtDepth(v: number | null | undefined): string {
+  return v != null ? `第${v}代` : '—';
+}
+
+const UNALLOCATED_REASON_LABEL: Record<string, string> = {
+  NO_QUALIFIED_ANCESTOR: '无符合档位的上级',
+  EMPTY_REFERRAL_CHAIN: '无推荐链',
+  ALL_MATCHED_USERS_INELIGIBLE: '符合档位但无资格',
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const meta = STATUS_META[status];
+function reasonLabel(reason: string | null | undefined): string {
+  if (!reason) return '销毁';
+  return UNALLOCATED_REASON_LABEL[reason] ?? reason;
+}
+
+function TierStatusBadge({ status }: { status: Ud3RewardTier['status'] }) {
+  if (status === 'CALCULATED') {
+    return (
+      <Badge className="border-transparent bg-emerald-500/20 text-emerald-400">已计算</Badge>
+    );
+  }
+  // 网体无合格上级 → 记录销毁 (BURN).
   return (
-    <Badge className={cn('border-transparent', meta?.className ?? 'bg-secondary text-secondary-foreground')}>
-      {meta?.label ?? status ?? '—'}
+    <Badge className="border-transparent bg-rose-500/20 text-rose-400">销毁</Badge>
+  );
+}
+
+function GuideStatusBadge({ status }: { status: string }) {
+  const calculated = status === 'CALCULATED' || status === 'CREDITED' || status === 'REWARDED';
+  const label =
+    status === 'CREDITED' ? '已入账'
+      : status === 'REWARDED' ? '已发放'
+      : status === 'CALCULATED' ? '已计算'
+      : status === 'UNALLOCATED' ? '未分配'
+      : status ?? '—';
+  return (
+    <Badge
+      className={cn(
+        'border-transparent',
+        calculated ? 'bg-emerald-500/20 text-emerald-400' : 'bg-secondary text-secondary-foreground',
+      )}
+    >
+      {label}
     </Badge>
   );
 }
@@ -131,16 +168,16 @@ function DialogBody({ intentId }: { intentId: string }) {
   }
 
   const { order, guide } = data;
-  const network = data.network ?? [];
+  const tiers = data.tiers ?? [];
 
   return (
     <div className="space-y-5">
       {/* 订单头 */}
       <Section title="订单信息 Order">
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-border/60 bg-card/40 p-3 sm:grid-cols-3">
-          <Field label="入金金额" value={`${fmtUd3(order.principalUsdt)} USDT`} />
-          <Field label="贿赂比例" value={fmtPct(order.bribeRatePct)} />
-          <Field label="总贿赂金" value={`${fmtUd3(order.totalBribeUd3)} UD3`} />
+          <Field label="入金本金" value={`${fmtUd3(order.principalUsdt)} USDT`} />
+          <Field label="网体基础比例" value={fmtPct(order.networkRatePct)} />
+          <Field label="算法版本" value={<span className="text-[11px] break-all">{order.algorithmVersion ?? '—'}</span>} />
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="min-w-0">
@@ -166,13 +203,13 @@ function DialogBody({ intentId }: { intentId: string }) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border/60 bg-card/40 p-3 text-sm">
             <AddressChip address={guide.wallet} variant="compact" />
             <span className="text-muted-foreground">
-              等级 <span className="font-semibold text-foreground">{guide.level ?? '—'}</span>
+              档位 <span className="font-semibold text-foreground">{guide.tierCode ?? '—'}</span>
             </span>
             <span className="text-muted-foreground">
-              权益 <span className="font-semibold tabular-nums text-foreground">{fmtPct(guide.levelRate)}</span>
+              系数 <span className="font-semibold tabular-nums text-foreground">{fmtPct(guide.coefficient)}</span>
             </span>
             <span className="font-semibold tabular-nums text-[#E0568F]">{fmtUd3(guide.amount)} UD3</span>
-            <StatusBadge status={guide.status} />
+            <GuideStatusBadge status={guide.status} />
           </div>
         ) : (
           <p className="rounded-xl border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground">
@@ -181,78 +218,77 @@ function DialogBody({ intentId }: { intentId: string }) {
         )}
       </Section>
 
-      {/* 网体极差奖励 */}
-      <Section title="网体极差奖励 Network">
-        {network.length === 0 ? (
-          <p className="rounded-xl border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground">
-            无网体极差记录
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-border/60">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="whitespace-nowrap">层级</TableHead>
-                  <TableHead className="whitespace-nowrap">钱包</TableHead>
-                  <TableHead className="whitespace-nowrap">等级</TableHead>
-                  <TableHead className="whitespace-nowrap text-right">累计权益</TableHead>
-                  <TableHead className="whitespace-nowrap text-right">此前已释放</TableHead>
-                  <TableHead className="whitespace-nowrap text-right">实际极差</TableHead>
-                  <TableHead className="whitespace-nowrap text-right">金额 UD3</TableHead>
-                  <TableHead className="whitespace-nowrap">状态</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {network.map((n, i) => {
-                  const muted = n.status === 'NO_DIFFERENCE';
-                  return (
-                    <TableRow key={`${n.wallet ?? 'row'}-${i}`} className={cn(muted && 'text-muted-foreground')}>
-                      <TableCell className="whitespace-nowrap font-medium">
-                        {n.relationDepth != null ? `第${n.relationDepth}层` : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <AddressChip address={n.wallet} variant="compact" />
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">{n.level ?? '—'}</TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
-                        {fmtPct(n.cumulativeRate)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
-                        {fmtPct(n.previousReleasedRate)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
-                        {fmtPct(n.differenceRate)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
-                        {muted ? '0' : fmtUd3(n.amount)} UD3
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {muted ? (
-                          <span className="text-[11px] text-muted-foreground">同级无极差 / 低于已释放档位</span>
-                        ) : (
-                          <StatusBadge status={n.status} />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+      {/* 网体档位级差奖励 — S1..S6 */}
+      <Section title="网体档位奖励 Network (S1–S6)">
+        <div className="overflow-x-auto rounded-xl border border-border/60">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="whitespace-nowrap">档位</TableHead>
+                <TableHead className="whitespace-nowrap text-right">系数</TableHead>
+                <TableHead className="whitespace-nowrap text-right">累计权益</TableHead>
+                <TableHead className="whitespace-nowrap text-right">本档新增</TableHead>
+                <TableHead className="whitespace-nowrap text-right">金额 UD3</TableHead>
+                <TableHead className="whitespace-nowrap">状态</TableHead>
+                <TableHead className="whitespace-nowrap">接收人</TableHead>
+                <TableHead className="whitespace-nowrap">接收人档位</TableHead>
+                <TableHead className="whitespace-nowrap">层级</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tiers.map((t) => {
+                const burned = t.status !== 'CALCULATED';
+                return (
+                  <TableRow key={t.rewardTierCode} className={cn(burned && 'text-muted-foreground')}>
+                    <TableCell className="whitespace-nowrap font-medium">{t.rewardTierCode}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {fmtPct(t.coefficient)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {fmtPct(t.cumulativeRate)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {fmtPct(t.incrementalRate)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">
+                      {fmtUd3(t.amount)} UD3
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {burned ? (
+                        <div className="flex flex-col gap-0.5">
+                          <TierStatusBadge status={t.status} />
+                          <span className="text-[11px] text-muted-foreground">
+                            {reasonLabel(t.unallocatedReason)}
+                          </span>
+                        </div>
+                      ) : (
+                        <TierStatusBadge status={t.status} />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {burned ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <AddressChip address={t.receiverWallet} variant="compact" />
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {burned ? '—' : t.receiverTierCode ?? '—'}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {burned ? '—' : fmtDepth(t.receiverRelationDepth)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </Section>
 
       <Separator />
 
-      {/* 销毁数量 */}
-      <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-amber-500">
-          <Flame className="h-4 w-4" /> 销毁数量
-        </span>
-        <span className="text-sm font-bold tabular-nums text-amber-500">{fmtUd3(data.burnUd3)} UD3</span>
-      </div>
-
-      {/* 合计 + 守恒 */}
+      {/* 网体合计 + 守恒 */}
       <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">引路人</span>
@@ -263,24 +299,33 @@ function DialogBody({ intentId }: { intentId: string }) {
           <span className="font-medium tabular-nums">{fmtUd3(data.networkTotalUd3)} UD3</span>
         </div>
         <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">已分配</span>
+          <span className="font-medium tabular-nums text-emerald-400">{fmtUd3(data.networkAllocatedUd3)} UD3</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">销毁</span>
-          <span className="font-medium tabular-nums">{fmtUd3(data.burnUd3)} UD3</span>
+          <span className="font-medium tabular-nums text-rose-400">{fmtUd3(data.networkBurnedUd3)} UD3</span>
         </div>
         <Separator />
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-sm font-semibold">
-            合计
+            守恒校验
             {data.conserved ? (
               <Badge className="border-transparent bg-emerald-500/20 text-emerald-400">守恒 ✓</Badge>
             ) : (
               <Badge className="border-transparent bg-destructive/20 text-destructive">不守恒 ⚠</Badge>
             )}
           </span>
-          <span className="text-base font-bold tabular-nums text-[#E0568F]">{fmtUd3(data.totalUd3)} UD3</span>
+          <span className="text-xs text-muted-foreground">已分配 + 销毁 = 网体合计</span>
         </div>
-        {data.configVersion && (
-          <p className="text-[10px] text-muted-foreground">配置版本 {data.configVersion}</p>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[10px] text-muted-foreground">
+          {(data.algorithmVersion ?? order.algorithmVersion) && (
+            <span>算法版本 {data.algorithmVersion ?? order.algorithmVersion}</span>
+          )}
+          {(data.configVersion ?? order.configVersion) && (
+            <span>配置版本 {data.configVersion ?? order.configVersion}</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -315,7 +360,7 @@ export function Ud3RewardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-sm">{title}</DialogTitle>
         </DialogHeader>

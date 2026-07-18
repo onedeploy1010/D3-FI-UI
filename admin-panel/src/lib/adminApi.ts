@@ -291,29 +291,55 @@ export type StakeRow = {
   createdAt: string;
 };
 
-// ---- Order UD3 (反向金) reward distribution (Stakes page dialog) ----
-// Backend keys on stake_intents.id (partner_stake_positions.intent_id). All
-// numeric fields arrive as strings so precision is preserved — never Number()
+// ---- Order UD3 (反向金) reward distribution — V3 tier-difference model ----
+// Backend keys on stake_intents.id (partner_stake_positions.intent_id). The 网体
+// (network) reward is split across SIX fixed tier slots S1..S6; each slot is
+// CALCULATED (paid to the nearest qualified + eligible up-chain ancestor) or
+// UNALLOCATED. The 引路人 (guide) reward is an independent ladder. All numeric
+// fields arrive as STRINGS so numeric(…) precision is preserved — never Number()
 // them for display; format from the string. DB keeps 反向金 as UD3.
+
+// A network tier slot is either paid to a matched ancestor (CALCULATED) or, when no
+// qualified/eligible ancestor exists, BURNED (记录销毁).
+export type Ud3TierRewardStatus = 'CALCULATED' | 'BURN';
+export type Ud3UnallocatedReason =
+  | 'NO_QUALIFIED_ANCESTOR'
+  | 'EMPTY_REFERRAL_CHAIN'
+  | 'ALL_MATCHED_USERS_INELIGIBLE'
+  | string;
 
 export type Ud3RewardGuide = {
   wallet: string | null;
-  level: string | null;
-  /** Equity ratio as a decimal string, e.g. '1.1' → 110%. */
-  levelRate: string | null;
+  /** Guide's own 档位 'S1'..'S6'. */
+  tierCode: string | null;
+  /** 档位系数 as a decimal string, e.g. '1.1' → 110%. */
+  coefficient: string | null;
   amount: string | null;
   status: string;
 };
 
-export type Ud3RewardNetworkNode = {
-  wallet: string | null;
-  relationDepth: number | null;
-  level: string | null;
-  cumulativeRate: string | null;
-  previousReleasedRate: string | null;
-  differenceRate: string | null;
-  amount: string | null;
-  status: string;
+export type Ud3RewardTier = {
+  /** Tier slot 'S1'..'S6'. */
+  rewardTierCode: string;
+  rewardTierRank: number;
+  /** 档位系数 decimal string (e.g. '1.1' → 110%). */
+  coefficient: string;
+  /** 累计权益 decimal string (e.g. '0.4' → 40%). */
+  cumulativeRate: string;
+  /** 上一档累计权益 decimal string. */
+  previousCumulativeRate: string;
+  /** 本档新增 (级差) decimal string. */
+  incrementalRate: string;
+  /** Per-tier reward, UD3 string. */
+  amount: string;
+  status: Ud3TierRewardStatus;
+  /** Receiving ancestor (null when BURNED). */
+  receiverWallet: string | null;
+  receiverTierCode: string | null;
+  receiverTierRank: number | null;
+  receiverRelationDepth: number | null;
+  /** Why the slot was burned — no qualified/eligible ancestor (null when CALCULATED). */
+  unallocatedReason: Ud3UnallocatedReason | null;
 };
 
 export type OrderUd3Reward = {
@@ -324,15 +350,21 @@ export type OrderUd3Reward = {
     depositorWallet: string | null;
     referrerWallet: string | null;
     principalUsdt: string | null;
-    bribeRatePct: string | null;
-    totalBribeUd3: string | null;
+    /** 网体基础比例 decimal string (e.g. '0.4' → 40%). */
+    networkRatePct: string | null;
+    algorithmVersion: string | null;
+    configVersion: string | null;
   };
   guide?: Ud3RewardGuide | null;
-  network?: Ud3RewardNetworkNode[];
+  /** ALWAYS 6 rows S1..S6, ordered by rank. */
+  tiers?: Ud3RewardTier[];
   networkTotalUd3?: string;
-  burnUd3?: string;
-  totalUd3?: string;
+  networkAllocatedUd3?: string;
+  /** 网体销毁合计 — sum of burned (unmatched) tier slots. */
+  networkBurnedUd3?: string;
+  algorithmVersion?: string | null;
   configVersion?: string | null;
+  /** allocated + burned == total. */
   conserved?: boolean;
 };
 

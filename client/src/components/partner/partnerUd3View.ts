@@ -77,6 +77,7 @@ export function mapUd3AllocationsToHistory(rows: PartnerUd3AllocationRow[] = [])
     role: r.role,
     sourceAddress: r.source_wallet,
     ud3Amount: Number(r.sd3_amount),
+    tierCodes: r.reward_tier_codes,
   }));
 }
 

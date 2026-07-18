@@ -275,6 +275,8 @@ export type PartnerUd3AllocationRow = {
   created_at?: string;
   /** Two-phase settlement (043): false until the daily SGT-midnight run settles it. */
   settled?: boolean;
+  /** V3: received tier slots for this order (e.g. ['S2','S3']); empty/absent for direct. */
+  reward_tier_codes?: string[];
 };
 
 export type PartnerDirectLineStat = {

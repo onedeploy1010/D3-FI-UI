@@ -409,6 +409,8 @@ export type Ud3SettlementRecord = {
   guideLabel?: string;
   /** 引路人档位标签，如 S1 */
   guideTierLabel?: string;
+  /** V3: 本笔订单收到的档位槽位，如 ['S2','S3']；直推为空 */
+  tierCodes?: string[];
   /** 入金 × 引路人档位 = 总受贿金 */
   generatedUd3?: number;
   /** 总受贿金 × 40% 网体池 */
@@ -972,6 +974,8 @@ export function hydratePartnerStateFromApi(
           role: r.role,
           sourceAddress: r.source_wallet,
           ud3Amount: Number(r.sd3_amount),
+          // V3: received tier slots (e.g. ['S2','S3']) for the simplified row 档位.
+          tierCodes: r.reward_tier_codes,
           // Two-phase (043): unsettled until the daily SGT-midnight run flips it.
           settlementStatus: ((r as { settled?: boolean }).settled === false
             ? 'pending'

@@ -537,25 +537,55 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
       .in('id', eventIds);
     eventsById = Object.fromEntries((evs ?? []).map((e) => [e.id as string, e]));
   }
-  const ud3Allocations = ledgerRows.map((r) => {
-    const ev = eventsById[r.event_id as string] ?? {};
+  // V3 writes one ledger row PER tier slot, so a single deposit can hand a member
+  // several near-duplicate network rows (e.g. S2 + S3). Aggregate per
+  // (event_id + recipient + role) into ONE member-facing row: sum the UD3, collect
+  // the distinct tier codes, and settle only when every slot in the group is settled.
+  const TIER_ORDER: Record<string, number> = { S1: 1, S2: 2, S3: 3, S4: 4, S5: 5, S6: 6 };
+  const groups = new Map<string, typeof ledgerRows>();
+  for (const r of ledgerRows) {
+    const key = `${r.event_id}|${String(r.recipient_wallet ?? '').toLowerCase()}|${r.role}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(r);
+    else groups.set(key, [r]);
+  }
+  const ud3Allocations = [...groups.values()].map((rows) => {
+    const first = rows[0];
+    const ev = eventsById[first.event_id as string] ?? {};
+    const isDirect = first.role === 'direct';
+    // Distinct received tier codes, sorted S1..S6 (guide/direct row → none).
+    const rewardTierCodes = isDirect
+      ? []
+      : [...new Set(rows.map((r) => r.reward_tier_code).filter(Boolean) as string[])].sort(
+          (a, b) => (TIER_ORDER[a] ?? 99) - (TIER_ORDER[b] ?? 99),
+        );
+    // Latest settlement/creation timestamp across the group (ISO strings sort lexically).
+    const settlementDate =
+      [...rows.map((r) => (r.settled ? r.settled_at : null) ?? r.created_at).filter(Boolean)]
+        .sort()
+        .at(-1) ?? first.created_at;
     return {
-      id: r.id,
-      recipient_wallet: r.recipient_wallet,
-      // Show when it settled if already settled, else when it was generated.
-      settlement_date: (r.settled ? r.settled_at : null) ?? r.created_at,
+      // Composite key so aggregated rows stay stable/unique as React keys.
+      id: `${first.event_id}:${first.role}`,
+      recipient_wallet: first.recipient_wallet,
+      settlement_date: settlementDate,
       event_amount_usd: Number(ev.deposit_usdt ?? 0),
       tier_rate_pct: Number(ev.tier_rate_pct ?? 0),
-      // Direct reward is the fixed 60% cut; network (级差) rewards carry their gap %.
-      reward_share_pct: r.role === 'direct' ? 60 : Number(r.gap_pct ?? r.v_share_pct ?? 0),
+      // Direct reward is the fixed 60% cut; network (级差) rows carry their gap %
+      // (summed across the group). Kept only for back-compat — not shown in the list.
+      reward_share_pct: isDirect
+        ? 60
+        : rows.reduce((s, r) => s + Number(r.gap_pct ?? r.v_share_pct ?? 0), 0),
       // The client renders only 'direct' vs 'upline' (isDirect = role !== 'upline').
       // Map the ledger's 'differential' role to 'upline' so 级差 rewards aren't
       // mislabeled 直推 with the direct 60% formula.
-      role: r.role === 'direct' ? 'direct' : 'upline',
+      role: isDirect ? 'direct' : 'upline',
       source_wallet: ev.depositor_wallet ?? null,
-      sd3_amount: Number(r.ud3_amount ?? 0),
-      // Two-phase (043): false until the daily SGT-midnight run settles it.
-      settled: r.settled === true,
+      sd3_amount: rows.reduce((s, r) => s + Number(r.ud3_amount ?? 0), 0),
+      // Two-phase (043): settled only when EVERY slot in the group is settled.
+      settled: rows.every((r) => r.settled === true),
+      // Received tier slots for this order (e.g. ['S2','S3']); empty for direct.
+      reward_tier_codes: rewardTierCodes,
     };
   });
 

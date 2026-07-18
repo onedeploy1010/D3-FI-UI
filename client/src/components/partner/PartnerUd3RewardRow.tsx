@@ -2,13 +2,9 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, Compass, UserRound } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { type Ud3SettlementRecord } from '@/components/partner/partnerData';
-import { UD3_DIRECT_SHARE, UD3_NETWORK_SHARE } from '@/components/partner/ud3Rules';
+import { UD3_TIERS } from '@/components/partner/ud3Rules';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 function fmt(n: number): string {
   return Number(n.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -71,20 +67,23 @@ export function PartnerUd3RewardRow({
   const p = usePartnerTranslation(lang);
   const isPending = row.settlementStatus === 'pending';
   const isDirect = row.role !== 'upline';
-  // Details (deposit / tier / formula) collapsed by default for a cleaner list.
+  // Details (deposit / tier / attribution) collapsed by default for a cleaner list.
   const [expanded, setExpanded] = useState(false);
 
   const fx = useMemo(() => {
     const deposit = row.dailyNewPerformanceUsd;
     const ratePct = row.tierRatePct;
-    const generated =
-      row.generatedUd3 != null && row.generatedUd3 > 0
-        ? row.generatedUd3
-        : round2(deposit * (ratePct / 100));
-    const gapPct = row.gapPct ?? row.rewardSharePct ?? 0;
-    const tier = row.guideTierLabel ?? (ratePct > 0 ? 'S1' : '—');
+    // 档位: network rows show the received tier slots (e.g. "S2 · S3"); the
+    // direct/guide row falls back to the 引路人 tier derived from its rate.
+    const codes = row.tierCodes ?? [];
+    const tier =
+      codes.length > 0
+        ? codes.join(' · ')
+        : row.guideTierLabel ??
+          UD3_TIERS.find((t) => t.ratePct === Math.round(ratePct))?.label ??
+          (ratePct > 0 ? 'S1' : '—');
     const depth = row.sourceDepth ?? (isDirect ? 1 : undefined);
-    return { deposit, ratePct, generated, gapPct, tier, depth };
+    return { deposit, tier, depth };
   }, [row, isDirect]);
 
   const attrLabel = isDirect
@@ -178,47 +177,13 @@ export function PartnerUd3RewardRow({
             hint="USDT"
             isDark={isDark}
           />
-          <Metric
-            label={p('team.ud3FieldTier')}
-            value={fx.tier}
-            hint={`${fx.ratePct}%`}
-            isDark={isDark}
-          />
-          <Metric
-            label={p('team.ud3FieldBribe')}
-            value={fmt(fx.generated)}
-            hint="UD3"
-            isDark={isDark}
-          />
-          <Metric label={p('team.ud3FieldAttr')} value={attrLabel} isDark={isDark} />
+          <Metric label={p('team.ud3FieldTier')} value={fx.tier} isDark={isDark} />
         </div>
 
-        <div
-          className={`flex items-center gap-2 rounded-xl px-2.5 py-2 border ${
-            isDark
-              ? 'border-white/[0.06] bg-gradient-to-r from-[#E0568F]/10 to-transparent'
-              : 'border-[#E0568F]/12 bg-gradient-to-r from-[#E0568F]/08 to-transparent'
-          }`}
-        >
-          <p
-            className={`min-w-0 flex-1 text-[11px] font-medium tabular-nums leading-snug ${
-              isDark ? 'text-white/65' : 'text-[#160510]/65'
-            }`}
-          >
-            {isDirect
-              ? p('team.ud3EqDirect', {
-                  bribe: fmt(fx.generated),
-                  share: Math.round(UD3_DIRECT_SHARE * 100),
-                  amount: fmt(row.ud3Amount),
-                })
-              : p('team.ud3EqUpline', {
-                  bribe: fmt(fx.generated),
-                  pool: Math.round(UD3_NETWORK_SHARE * 100),
-                  gap: fx.gapPct,
-                  amount: fmt(row.ud3Amount),
-                })}
-          </p>
-          <div className="flex items-center gap-1 shrink-0">
+        <Metric label={p('team.ud3FieldAttr')} value={attrLabel} isDark={isDark} />
+
+        {(row.sourceAddress || row.guideAddress) && (
+          <div className="flex items-center justify-end gap-1.5">
             {row.sourceAddress && (
               <button
                 type="button"
@@ -250,7 +215,7 @@ export function PartnerUd3RewardRow({
               </button>
             )}
           </div>
-        </div>
+        )}
         </>
         )}
       </div>

@@ -29,6 +29,12 @@ import {
   writeAuditLog,
 } from '../_shared/audit.ts';
 import { resolveUd3SLevel } from '../_shared/partnerUd3Rules.ts';
+import {
+  getUd3RewardConfig,
+  incrementalRate as ud3IncrementalRate,
+  previousCumulativeRate as ud3PreviousCumulativeRate,
+  type Ud3RewardConfig,
+} from '../_shared/ud3RewardConfig.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
 import {
   getInfraWalletBalances,
@@ -1556,21 +1562,28 @@ async function deleteAdmin(sb: Sb, targetUserId: string, caller: AdminProfile) {
   return { removed: targetUserId };
 }
 
-// ── UD3 反向金 (bribe) reward distribution for the admin order dialog ─────────
+// ── UD3 反向金 reward distribution for the admin order dialog — V3 model ───────
 //
-// Maps a partner_ud3_events row + its partner_ud3_ledger rows into the split the
-// admin dialog renders: the GUIDE (直推) reward, the per-level NETWORK (级差)
-// rewards, and the BURN (销毁) remainder. Prefers the v2 snapshot columns
-// (reward_type / cumulative_rate / difference_rate / …) and falls back to the
-// legacy columns (role / v_level / v_share_pct / gap_pct / ud3_amount +
-// event.network_remaining_ud3) so BOTH new and historical orders render. Pure +
-// exported so the row→payload mapping is unit-testable without a DB.
+// V3 = "tier-coefficient × cumulative-difference" (_shared/ud3Reward.ts +
+// ud3RewardConfig.ts, UD3_ALGO_VERSION_V3). The 网体 (network) reward is split
+// across SIX fixed tier slots S1..S6; each slot is either paid to the nearest
+// qualified + eligible up-chain ancestor (CALCULATED) or left UNALLOCATED. The
+// GUIDE (引路人) reward is an independent ladder.
+//
+// This maps a partner_ud3_events row + its per-tier partner_ud3_ledger rows
+// (migration 054 columns: reward_tier_code / reward_tier_rank / receiver_tier_* /
+// tier_coefficient / incremental_rate / reward_status / unallocated_reason / …)
+// into the audit payload the dialog renders. The tier ladder is ALWAYS returned
+// as 6 rows S1..S6 (driven off the resolved config), with amount / status /
+// receiver taken from the matching ledger row. Every money/rate field is a STRING
+// so numeric(…) precision is preserved — never round-tripped through Number().
+// Pure + exported so the row→payload mapping is unit-testable without a DB.
 
 type Ud3EventRow = Record<string, unknown>;
 type Ud3LedgerRow = Record<string, unknown>;
 
 // First non-null/undefined value stringified (numbers stay strings to preserve
-// the numeric(24,6) precision Supabase returns as text). null if all are absent.
+// the numeric(…) precision Supabase returns as text). null if all are absent.
 function firstStr(...vals: unknown[]): string | null {
   for (const v of vals) {
     if (v !== null && v !== undefined) return String(v);
@@ -1588,105 +1601,160 @@ function decOf(v: unknown): Decimal {
   }
 }
 
-// The reward amount lives in ud3_amount (NOT NULL in both schema versions); a v2
-// `reward_amount` alias wins if a future migration adds one.
+// The reward amount lives in ud3_amount (NOT NULL); a future `reward_amount` alias wins.
 function rowAmount(row: Ud3LedgerRow): string {
   return firstStr(row.reward_amount, row.ud3_amount) ?? '0';
 }
 
-// Classify a ledger row. reward_type (v2) is authoritative when present;
-// otherwise fall back to the legacy `role` enum (direct / differential / reserve).
-function ledgerKind(row: Ud3LedgerRow): 'guide' | 'network' | 'burn' | 'other' {
-  const rt = row.reward_type;
-  if (rt != null) {
-    if (rt === 'GUIDE_REWARD') return 'guide';
-    if (rt === 'NETWORK_DIFFERENCE_REWARD') return 'network';
-    if (rt === 'BURN') return 'burn';
-    return 'other';
+// A V3 network tier-slot row carries a reward_tier_code ('S1'..'S6'). The guide
+// (引路人) row is NOT a network slot even if legacy data stamped a tier code on it —
+// exclude it so a guide at tier S1 can never shadow the network S1 slot.
+function isV3TierRow(row: Ud3LedgerRow): boolean {
+  if (row.reward_type === 'GUIDE_REWARD' || (row.reward_type == null && row.role === 'direct')) {
+    return false;
   }
-  if (row.role === 'direct') return 'guide';
-  if (row.role === 'differential') return 'network';
-  if (row.role === 'reserve') return 'burn';
-  return 'other';
+  return row.reward_tier_code != null && row.reward_tier_code !== '';
 }
 
-function legacyStatus(reward_status: unknown, amount: string): string {
-  const s = firstStr(reward_status);
-  if (s) return s;
-  return decOf(amount).gt(0) ? 'REWARDED' : 'NO_DIFFERENCE';
+// A guide row is the independent 引路人 ladder line.
+function isGuideRow(row: Ud3LedgerRow): boolean {
+  if (row.reward_type === 'GUIDE_REWARD') return true;
+  return row.reward_type == null && row.role === 'direct';
+}
+
+// Whether an order has V3 per-tier ledger rows (else it predates V3 → found:false).
+function hasV3TierRows(rows: Ud3LedgerRow[]): boolean {
+  return rows.some(isV3TierRow);
+}
+
+// Resolve the config for an order from its stored version, tolerant to an
+// unknown/absent version (defaults to the latest so display never 500s).
+function resolveUd3Config(version: string | null): Ud3RewardConfig {
+  try {
+    return getUd3RewardConfig(version ?? undefined);
+  } catch {
+    return getUd3RewardConfig();
+  }
 }
 
 export function mapUd3OrderReward(eventRow: Ud3EventRow, ledgerRows: Ud3LedgerRow[]) {
   const rows = Array.isArray(ledgerRows) ? ledgerRows : [];
 
-  const guideRow = rows.find((r) => ledgerKind(r) === 'guide') ?? null;
-  const burnRow = rows.find((r) => ledgerKind(r) === 'burn') ?? null;
-  const networkRows = rows.filter((r) => ledgerKind(r) === 'network');
+  const guideRow = rows.find(isGuideRow) ?? null;
+  const tierRows = rows.filter(isV3TierRow);
 
-  // Order by relation_depth asc; legacy rows without a depth keep insertion order.
-  const depthOf = (r: Ud3LedgerRow) =>
-    r.relation_depth != null ? Number(r.relation_depth) : Number.POSITIVE_INFINITY;
-  networkRows.sort((a, b) => depthOf(a) - depthOf(b));
+  // Config version + algorithm version snapshot (prefer stored, else config default).
+  const configVersion = firstStr(
+    guideRow?.level_config_version,
+    ...tierRows.map((r) => r.level_config_version),
+    eventRow.level_config_version,
+  );
+  const config = resolveUd3Config(configVersion);
+  const algorithmVersion = firstStr(
+    guideRow?.reward_algorithm_version,
+    ...tierRows.map((r) => r.reward_algorithm_version),
+  ) ?? config.algorithmVersion;
 
+  // ── 引路人 (guide) — independent ladder line ──
   const guide = guideRow
     ? {
         wallet: firstStr(guideRow.recipient_wallet),
-        level: firstStr(guideRow.beneficiary_level, guideRow.v_level),
-        levelRate: firstStr(guideRow.guide_level_rate, guideRow.v_share_pct),
+        tierCode: firstStr(guideRow.receiver_tier_code, guideRow.beneficiary_level),
+        coefficient: firstStr(guideRow.tier_coefficient),
         amount: rowAmount(guideRow),
-        status: firstStr(guideRow.reward_status) ?? 'REWARDED',
+        status: firstStr(guideRow.reward_status) ?? 'CALCULATED',
       }
     : null;
 
-  const network = networkRows.map((r) => {
-    const amount = rowAmount(r);
-    return {
-      wallet: firstStr(r.recipient_wallet),
-      relationDepth: r.relation_depth != null ? Number(r.relation_depth) : null,
-      level: firstStr(r.beneficiary_level, r.v_level),
-      cumulativeRate: firstStr(r.cumulative_rate, r.v_share_pct),
-      previousReleasedRate: firstStr(r.previous_released_rate),
-      differenceRate: firstStr(r.difference_rate, r.gap_pct),
-      amount,
-      status: legacyStatus(r.reward_status, amount),
-    };
-  });
+  // ── 网体 tier ladder — ALWAYS 6 rows S1..S6, ordered by rank, driven off config. ──
+  const byCode = new Map<string, Ud3LedgerRow>();
+  for (const r of tierRows) {
+    const code = firstStr(r.reward_tier_code);
+    if (code && !byCode.has(code)) byCode.set(code, r);
+  }
 
-  const networkTotal = network.reduce((s, n) => s.plus(decOf(n.amount)), new Decimal(0));
+  let networkTotal = new Decimal(0);
+  let networkAllocated = new Decimal(0);
+  let networkBurned = new Decimal(0);
 
-  // Burn: dedicated BURN/reserve ledger line, else the event's remaining pool.
-  const burnUd3 = burnRow ? rowAmount(burnRow) : firstStr(eventRow.network_remaining_ud3) ?? '0';
+  const tiers = [...config.tiers]
+    .sort((a, b) => a.rank - b.rank)
+    .map((tier) => {
+      const r = byCode.get(tier.code) ?? null;
+      const amount = r ? rowAmount(r) : '0';
+      const amtDec = decOf(amount);
+      networkTotal = networkTotal.plus(amtDec);
 
-  const guideAmt = guide ? decOf(guide.amount) : new Decimal(0);
-  const total = guideAmt.plus(networkTotal).plus(decOf(burnUd3));
+      // Status: CALCULATED (paid to a receiver) vs BURN (no qualified/eligible
+      // ancestor → 记录销毁). A burned slot is reward_type=BURN and/or
+      // reward_status=UNALLOCATED; both map to the display status 'BURN'.
+      const rawStatus = firstStr(r?.reward_status);
+      const status: 'CALCULATED' | 'BURN' =
+        rawStatus === 'UNALLOCATED' || r?.reward_type === 'BURN' ? 'BURN' : 'CALCULATED';
+      const allocated = status === 'CALCULATED';
+      if (allocated) networkAllocated = networkAllocated.plus(amtDec);
+      else networkBurned = networkBurned.plus(amtDec);
 
-  const totalBribeUd3 = firstStr(eventRow.total_bribe_amount, eventRow.generated_ud3);
-  // Tolerant to a numeric(24,6) rounding tail for the admin audit flag.
-  const conserved =
-    totalBribeUd3 != null && decOf(totalBribeUd3).minus(total).abs().lte('0.000001');
+      // Ladder rates: prefer the stored snapshot string, else the config ladder.
+      const coefficient = firstStr(r?.tier_coefficient) ?? tier.coefficient.toString();
+      const cumulativeRate = firstStr(r?.cumulative_rate) ?? tier.cumulativeRate.toString();
+      const previousCumulativeRate =
+        firstStr(r?.previous_cumulative_rate, r?.previous_released_rate) ??
+        ud3PreviousCumulativeRate(tier.code, config).toString();
+      const incremental =
+        firstStr(r?.incremental_rate) ?? ud3IncrementalRate(tier.code, config).toString();
+
+      return {
+        rewardTierCode: tier.code,
+        rewardTierRank: tier.rank,
+        coefficient,
+        cumulativeRate,
+        previousCumulativeRate,
+        incrementalRate: incremental,
+        amount,
+        status,
+        receiverWallet: allocated ? firstStr(r?.recipient_wallet) : null,
+        receiverTierCode: allocated ? firstStr(r?.receiver_tier_code) : null,
+        receiverTierRank:
+          allocated && r?.receiver_tier_rank != null ? Number(r.receiver_tier_rank) : null,
+        receiverRelationDepth:
+          allocated && r?.relation_depth != null ? Number(r.relation_depth) : null,
+        unallocatedReason: allocated ? null : firstStr(r?.unallocated_reason),
+      };
+    });
+
+  // Conservation — allocated + burned must reconcile to the total exactly.
+  const conserved = networkAllocated.plus(networkBurned).equals(networkTotal);
 
   return {
     order: {
       intentId: firstStr(eventRow.intent_id),
       depositorWallet: firstStr(eventRow.depositor_wallet),
       referrerWallet: firstStr(eventRow.referrer_wallet),
-      principalUsdt: firstStr(eventRow.principal_amount, eventRow.deposit_usdt),
-      bribeRatePct: firstStr(eventRow.bribe_rate_pct, eventRow.tier_rate_pct),
-      totalBribeUd3,
+      principalUsdt: firstStr(
+        eventRow.principal_amount,
+        eventRow.deposit_usdt,
+        guideRow?.principal_amount,
+        ...tierRows.map((r) => r.principal_amount),
+      ),
+      networkRatePct: config.networkRate.toString(),
+      algorithmVersion,
+      configVersion: configVersion ?? config.version,
     },
     guide,
-    network,
+    tiers,
     networkTotalUd3: networkTotal.toString(),
-    burnUd3,
-    totalUd3: total.toString(),
-    configVersion: firstStr(eventRow.level_config_version),
+    networkAllocatedUd3: networkAllocated.toString(),
+    networkBurnedUd3: networkBurned.toString(),
+    algorithmVersion,
+    configVersion: configVersion ?? config.version,
     conserved,
   };
 }
 
 // Load a stake order's UD3 reward distribution by stake_intents.id. Selects `*`
-// from both tables so v2 snapshot columns are picked up automatically once their
-// migration lands (owned by another agent), without breaking legacy orders.
+// from both tables so the V3 per-tier snapshot columns are picked up. Orders with
+// no V3 tier ledger rows (older/absent) return found:false gracefully.
 async function getUd3OrderReward(sb: Sb, intentId: string) {
   const { data: event, error } = await sb
     .from('partner_ud3_events')
@@ -1702,10 +1770,13 @@ async function getUd3OrderReward(sb: Sb, intentId: string) {
     .eq('event_id', event.id);
   if (ledgerErr) throw ledgerErr;
 
+  const rows = (ledger ?? []) as Ud3LedgerRow[];
+  if (!hasV3TierRows(rows)) return { ok: true as const, found: false as const };
+
   return {
     ok: true as const,
     found: true as const,
-    ...mapUd3OrderReward(event as Ud3EventRow, (ledger ?? []) as Ud3LedgerRow[]),
+    ...mapUd3OrderReward(event as Ud3EventRow, rows),
   };
 }
 

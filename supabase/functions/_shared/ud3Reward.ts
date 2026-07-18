@@ -1,69 +1,100 @@
 /**
- * Pure, exact-decimal UD3 (反向金) reward calculator.
+ * Pure, exact-decimal UD3 (反向金) reward calculator — V3 model.
  *
  * NO side effects, NO DB, NO network, NO JS `Number` money math — every value is
- * a `Decimal`. The caller resolves levels/rates (from ud3RewardConfig.ts) and the
- * on-chain/DB context, then hands this function a fully-materialised input; this
- * function only computes the split. Determinism + purity make it safe to replay
- * for reconciliation and to unit-test against exact spec vectors.
+ * a `Decimal`. The caller resolves tiers/ranks/eligibility (from ud3RewardConfig.ts
+ * and the on-chain/DB context) then hands this function a fully-materialised input;
+ * this function only computes the split. Determinism + purity make it safe to
+ * replay for reconciliation and to unit-test against exact spec vectors.
  *
- * Conservation invariant (asserted): for every result,
- *   guideReward + networkRewardTotal + burnAmount === totalBribeAmount
- * with no negative amounts and networkRewardTotal ≤ networkBasePool × maxCumulative.
+ * Model — "tier-coefficient × cumulative-difference":
+ *   For EACH tier slot S1..S6:
+ *     rewardAmount[Sk] = principal × networkRate × coefficient[Sk] × incremental[Sk]
+ *   where incremental[Sk] is the級差 derived from the cumulative ladder.
+ *
+ *   Each slot is matched INDEPENDENTLY to the NEAREST up-chain ancestor whose own
+ *   tier rank is >= the slot rank AND who is reward-eligible. A single ancestor may
+ *   absorb multiple slots. A slot never skips a nearer qualified ancestor for a
+ *   farther higher-tier one. A slot with no such ancestor is UNALLOCATED.
+ *
+ *   GUIDE (引路人) reward is an INDEPENDENT ladder:
+ *     guideReward = principal × guideBaseShare × coefficient[guideTier]
+ *
+ * Conservation (asserted): networkAllocated + networkUnallocated == networkTotalCalculated
+ * exactly, with no negative amounts. Total/burn are OUT OF SCOPE (no forced total).
  */
 import Decimal from 'npm:decimal.js@10';
 import {
   getUd3RewardConfig,
-  maxNetworkCumulativeRate,
+  incrementalRate,
+  previousCumulativeRate,
   UD3_REWARD_CONFIG_LATEST,
+  UD3_ALGO_VERSION_V3,
   type Ud3RewardConfig,
 } from './ud3RewardConfig.ts';
 
-export interface CalculateUd3RewardInput {
-  orderId: string;
-  principalAmount: Decimal;
-  bribeRate: Decimal;
-  guideUserId: string | null;
-  /** 'S1'..'S6' or null. */
-  guideLevel: string | null;
-  /** Caller-resolved 引路人档位 rate, e.g. Decimal(1.0) for S1. */
-  guideLevelRate: Decimal;
-  /** 网体 ancestors with caller-resolved cumulative rates (decimals like 0.20). */
-  networkAncestors: Array<{
-    userId: string;
-    relationDepth: number;
-    level: string;
-    cumulativeRate: Decimal;
-  }>;
-  levelConfigVersion: string;
-}
-
-export interface Ud3NetworkRewardRow {
+export interface Ud3NetworkAncestor {
   userId: string;
+  /** 1 = direct referrer, increasing up the chain. */
   relationDepth: number;
-  level: string;
-  cumulativeRate: Decimal;
-  previousReleasedRate: Decimal;
-  differenceRate: Decimal;
-  rewardAmount: Decimal;
-  rewardStatus: 'REWARDED' | 'NO_DIFFERENCE';
+  /** Ancestor's own 档位 'S1'..'S6'. */
+  tierCode: string;
+  /** Ancestor's own tier rank (S1=1 … S6=6). */
+  tierRank: number;
+  /** Whether this ancestor may currently receive a reward. */
+  isRewardEligible: boolean;
 }
 
-export interface CalculateUd3RewardResult {
+export interface CalculateUd3TierDifferenceRewardsInput {
   orderId: string;
   principalAmount: Decimal;
-  bribeRate: Decimal;
-  totalBribeAmount: Decimal;
-  guideReward: {
-    userId: string | null;
-    level: string | null;
-    levelRate: Decimal;
-    rewardAmount: Decimal;
-  };
-  networkBasePool: Decimal;
-  networkRewardTotal: Decimal;
-  networkRewards: Ud3NetworkRewardRow[];
-  burnAmount: Decimal;
+  guideUserId: string | null;
+  /** 引路人档位 'S1'..'S6' or null. */
+  guideTierCode: string | null;
+  /** 网体 ancestors, nearest first (any order accepted — sorted internally by depth). */
+  networkAncestors: Ud3NetworkAncestor[];
+  configVersion?: string;
+}
+
+export type Ud3TierRewardStatus = 'CALCULATED' | 'UNALLOCATED';
+export type Ud3UnallocatedReason =
+  | 'NO_QUALIFIED_ANCESTOR'
+  | 'EMPTY_REFERRAL_CHAIN'
+  | 'ALL_MATCHED_USERS_INELIGIBLE';
+
+export interface Ud3TierReward {
+  rewardTierCode: string;
+  rewardTierRank: number;
+  tierCoefficient: Decimal;
+  cumulativeRate: Decimal;
+  previousCumulativeRate: Decimal;
+  incrementalRate: Decimal;
+  /** principal × networkRate × coefficient × incrementalRate (ROUND_DOWN 6dp). */
+  rewardAmount: Decimal;
+  status: Ud3TierRewardStatus;
+  receiverUserId: string | null;
+  receiverTierCode: string | null;
+  receiverTierRank: number | null;
+  receiverRelationDepth: number | null;
+  unallocatedReason: Ud3UnallocatedReason | null;
+}
+
+export interface Ud3GuideReward {
+  userId: string | null;
+  tierCode: string | null;
+  coefficient: Decimal;
+  rewardAmount: Decimal;
+}
+
+export interface CalculateUd3TierDifferenceRewardsResult {
+  orderId: string;
+  guideReward: Ud3GuideReward;
+  networkRate: Decimal;
+  tierRewards: Ud3TierReward[];
+  networkTotalCalculated: Decimal;
+  networkAllocated: Decimal;
+  networkUnallocated: Decimal;
+  algorithmVersion: string;
   configVersion: string;
 }
 
@@ -73,172 +104,139 @@ function roundDown(value: Decimal, decimals: number): Decimal {
 }
 
 /**
- * Compute the full UD3 reward distribution for a single credited deposit/order.
+ * Compute the full UD3 tier-difference reward distribution for one order.
  * Pure: identical input → identical output.
  */
-export function calculateUd3RewardDistribution(
-  input: CalculateUd3RewardInput,
-): CalculateUd3RewardResult {
-  const config: Ud3RewardConfig = getUd3RewardConfig(input.levelConfigVersion);
+export function calculateUd3TierDifferenceRewards(
+  input: CalculateUd3TierDifferenceRewardsInput,
+): CalculateUd3TierDifferenceRewardsResult {
+  const config: Ud3RewardConfig = getUd3RewardConfig(input.configVersion);
   const dp = config.udDecimals;
-
   const principal = input.principalAmount;
-  const bribeRate = input.bribeRate;
+  const networkRate = config.networkRate;
 
-  // The 引路人档位 (guide tier rate) is the GENERATION multiplier: no valid tier →
-  // no bribe generated at all (guards against an unbacked network payout / negative burn).
-  const genRate = input.guideLevelRate && input.guideLevelRate.gt(0) ? input.guideLevelRate : new Decimal(0);
-  if (genRate.lte(0)) {
-    return {
-      orderId: input.orderId,
-      principalAmount: principal,
-      bribeRate,
-      totalBribeAmount: new Decimal(0),
-      guideReward: { userId: null, level: null, levelRate: new Decimal(0), rewardAmount: new Decimal(0) },
-      networkBasePool: new Decimal(0),
-      networkRewardTotal: new Decimal(0),
-      networkRewards: [],
-      burnAmount: new Decimal(0),
-      configVersion: config.version,
-    };
-  }
-
-  // ── 总贿赂 = 入金 × 引路人档位 × bribeRate ──────────────────────────────────
-  const totalBribeAmount = roundDown(principal.times(genRate).times(bribeRate), dp);
-
-  // ── 引路人 (guide) — 60% base pool × 档位 rate ─────────────────────────────
-  // Missing guide (no user OR no level) contributes nothing; the slice is burned.
-  const hasGuide = input.guideUserId != null && input.guideLevel != null;
-  const guideRewardAmount = hasGuide
-    ? roundDown(principal.times(config.guideBaseShare).times(input.guideLevelRate), dp)
-    : new Decimal(0);
-
-  const guideReward = {
+  // ── 引路人 (guide) — independent ladder: principal × 0.6 × coefficient(guideTier) ──
+  const guideTier = input.guideTierCode != null
+    ? config.tiers.find((t) => t.code === input.guideTierCode)
+    : undefined;
+  const hasGuide = input.guideUserId != null && guideTier != null;
+  const guideCoefficient = hasGuide ? guideTier!.coefficient : new Decimal(0);
+  const guideReward: Ud3GuideReward = {
     userId: hasGuide ? input.guideUserId : null,
-    level: hasGuide ? input.guideLevel : null,
-    levelRate: hasGuide ? input.guideLevelRate : new Decimal(0),
-    rewardAmount: guideRewardAmount,
+    tierCode: hasGuide ? input.guideTierCode : null,
+    coefficient: guideCoefficient,
+    rewardAmount: hasGuide
+      ? roundDown(principal.times(config.guideBaseShare).times(guideCoefficient), dp)
+      : new Decimal(0),
   };
 
-  // ── 网体基础池 (network base pool) — 40% of principal ──────────────────────
-  const networkBasePool = roundDown(principal.times(config.networkBaseShare), dp);
+  // Nearest-first ancestor ordering. Stable within equal depth by original order.
+  const sorted = input.networkAncestors
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => (x.a.relationDepth - y.a.relationDepth) || (x.i - y.i))
+    .map((x) => x.a);
+  const noAncestors = sorted.length === 0;
 
-  // ── 网体级差 (cumulative-difference) allocation ────────────────────────────
-  // Sort closest-first; dedupe by userId (keep the closest depth). Walk up: each
-  // ancestor releases only the gap above the highest cumulative rate released so
-  // far. Same-or-lower level than someone already released → NO_DIFFERENCE (0),
-  // and it does NOT advance the released frontier.
-  const sorted = [...input.networkAncestors].sort((a, b) => a.relationDepth - b.relationDepth);
-  const seen = new Set<string>();
+  const tierRewards: Ud3TierReward[] = [];
+  let networkTotalCalculated = new Decimal(0);
+  let networkAllocated = new Decimal(0);
+  let networkUnallocated = new Decimal(0);
 
-  const networkRewards: Ud3NetworkRewardRow[] = [];
-  let previousReleasedRate = new Decimal(0);
-  let networkRewardTotal = new Decimal(0);
-  const maxCumulative = maxNetworkCumulativeRate(config);
-  const networkCeiling = roundDown(networkBasePool.times(maxCumulative), dp);
+  for (const tier of config.tiers) {
+    const coefficient = tier.coefficient;
+    const incremental = incrementalRate(tier.code, config);
+    const prevCumulative = previousCumulativeRate(tier.code, config);
+    const rewardAmount = roundDown(
+      principal.times(networkRate).times(coefficient).times(incremental),
+      dp,
+    );
+    networkTotalCalculated = networkTotalCalculated.plus(rewardAmount);
 
-  for (const ancestor of sorted) {
-    if (seen.has(ancestor.userId)) continue;
-    seen.add(ancestor.userId);
+    // Match receiver: nearest ancestor with tierRank >= slot rank AND eligible.
+    let receiver: Ud3NetworkAncestor | null = null;
+    let anyRankQualified = false; // some ancestor had rank >= slot rank (eligible or not)
+    for (const ancestor of sorted) {
+      if (ancestor.tierRank >= tier.rank) {
+        anyRankQualified = true;
+        if (ancestor.isRewardEligible === true) {
+          receiver = ancestor;
+          break;
+        }
+      }
+    }
 
-    const currentRate = ancestor.cumulativeRate;
-
-    if (currentRate.lte(previousReleasedRate)) {
-      networkRewards.push({
-        userId: ancestor.userId,
-        relationDepth: ancestor.relationDepth,
-        level: ancestor.level,
-        cumulativeRate: currentRate,
-        previousReleasedRate,
-        differenceRate: new Decimal(0),
-        rewardAmount: new Decimal(0),
-        rewardStatus: 'NO_DIFFERENCE',
+    if (receiver) {
+      networkAllocated = networkAllocated.plus(rewardAmount);
+      tierRewards.push({
+        rewardTierCode: tier.code,
+        rewardTierRank: tier.rank,
+        tierCoefficient: coefficient,
+        cumulativeRate: tier.cumulativeRate,
+        previousCumulativeRate: prevCumulative,
+        incrementalRate: incremental,
+        rewardAmount,
+        status: 'CALCULATED',
+        receiverUserId: receiver.userId,
+        receiverTierCode: receiver.tierCode,
+        receiverTierRank: receiver.tierRank,
+        receiverRelationDepth: receiver.relationDepth,
+        unallocatedReason: null,
       });
-      continue;
+    } else {
+      networkUnallocated = networkUnallocated.plus(rewardAmount);
+      const reason: Ud3UnallocatedReason = noAncestors
+        ? 'EMPTY_REFERRAL_CHAIN'
+        : anyRankQualified
+          ? 'ALL_MATCHED_USERS_INELIGIBLE'
+          : 'NO_QUALIFIED_ANCESTOR';
+      tierRewards.push({
+        rewardTierCode: tier.code,
+        rewardTierRank: tier.rank,
+        tierCoefficient: coefficient,
+        cumulativeRate: tier.cumulativeRate,
+        previousCumulativeRate: prevCumulative,
+        incrementalRate: incremental,
+        rewardAmount,
+        status: 'UNALLOCATED',
+        receiverUserId: null,
+        receiverTierCode: null,
+        receiverTierRank: null,
+        receiverRelationDepth: null,
+        unallocatedReason: reason,
+      });
     }
-
-    const differenceRate = currentRate.minus(previousReleasedRate);
-    let rewardAmount = roundDown(networkBasePool.times(differenceRate), dp);
-
-    // Defensive clamp: total network payout can never exceed the ceiling.
-    const remainingCeiling = networkCeiling.minus(networkRewardTotal);
-    if (rewardAmount.gt(remainingCeiling)) {
-      rewardAmount = remainingCeiling.gt(0) ? remainingCeiling : new Decimal(0);
-    }
-
-    networkRewards.push({
-      userId: ancestor.userId,
-      relationDepth: ancestor.relationDepth,
-      level: ancestor.level,
-      cumulativeRate: currentRate,
-      previousReleasedRate,
-      differenceRate,
-      rewardAmount,
-      rewardStatus: 'REWARDED',
-    });
-
-    networkRewardTotal = networkRewardTotal.plus(rewardAmount);
-    previousReleasedRate = currentRate;
   }
 
-  // ── Burn absorbs the tail (rounding + unreleased guide/network slice) ──────
-  let effectiveGuide = guideRewardAmount;
-  let effectiveNetworkTotal = networkRewardTotal;
-
-  // Guard against a mis-configured input producing negative burn: clamp network,
-  // then guide, so burn is never negative. With the shipped config this branch is
-  // never taken (max guide 90% + max network 60% == 150% == totalBribe).
-  let burnAmount = totalBribeAmount.minus(effectiveGuide).minus(effectiveNetworkTotal);
-  if (burnAmount.isNegative()) {
-    const overshoot = burnAmount.abs();
-    const networkReducible = Decimal.min(effectiveNetworkTotal, overshoot);
-    effectiveNetworkTotal = effectiveNetworkTotal.minus(networkReducible);
-    let remaining = overshoot.minus(networkReducible);
-    if (remaining.gt(0)) {
-      const guideReducible = Decimal.min(effectiveGuide, remaining);
-      effectiveGuide = effectiveGuide.minus(guideReducible);
-      remaining = remaining.minus(guideReducible);
-    }
-    guideReward.rewardAmount = effectiveGuide;
-    networkRewardTotal = effectiveNetworkTotal;
-    burnAmount = totalBribeAmount.minus(effectiveGuide).minus(effectiveNetworkTotal);
-  }
-
-  // Hard invariants — fail loudly rather than emit an unbalanced distribution.
-  if (burnAmount.isNegative()) {
-    throw new Error(`calculateUd3RewardDistribution: negative burn for order ${input.orderId}`);
-  }
-  const reconciled = guideReward.rewardAmount.plus(networkRewardTotal).plus(burnAmount);
-  if (!reconciled.equals(totalBribeAmount)) {
+  // Hard invariant — allocated + unallocated must reconcile exactly to the total.
+  const reconciled = networkAllocated.plus(networkUnallocated);
+  if (!reconciled.equals(networkTotalCalculated)) {
     throw new Error(
-      `calculateUd3RewardDistribution: conservation violated for order ${input.orderId}: ` +
-        `${reconciled.toString()} != ${totalBribeAmount.toString()}`,
+      `calculateUd3TierDifferenceRewards: conservation violated for order ${input.orderId}: ` +
+        `${reconciled.toString()} != ${networkTotalCalculated.toString()}`,
     );
   }
 
   return {
     orderId: input.orderId,
-    principalAmount: principal,
-    bribeRate,
-    totalBribeAmount,
     guideReward,
-    networkBasePool,
-    networkRewardTotal,
-    networkRewards,
-    burnAmount,
+    networkRate,
+    tierRewards,
+    networkTotalCalculated,
+    networkAllocated,
+    networkUnallocated,
+    algorithmVersion: config.algorithmVersion ?? UD3_ALGO_VERSION_V3,
     configVersion: config.version,
   };
 }
 
 /**
- * Deterministic idempotency key for persisting a single UD3 reward payout. The
- * caller uses this as a unique constraint so retries never double-credit.
+ * Deterministic idempotency key for persisting a single UD3 tier reward slot. The
+ * caller uses this as a unique constraint so retries never double-credit a slot.
  */
-export function ud3RewardIdempotencyKey(
+export function ud3TierRewardIdempotencyKey(
   orderId: string,
-  beneficiaryUserId: string,
-  rewardType: string,
-  configVersion: string = UD3_REWARD_CONFIG_LATEST,
+  rewardTierCode: string,
+  algoVersion: string = UD3_ALGO_VERSION_V3,
 ): string {
-  return `UD3_REWARD:${orderId}:${beneficiaryUserId}:${rewardType}:${configVersion}`;
+  return `UD3_TIER_REWARD:${orderId}:${rewardTierCode}:${algoVersion}`;
 }
