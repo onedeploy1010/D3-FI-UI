@@ -1,4 +1,4 @@
--- 052: Add the `super_partner` (项目方/超级合伙人) admin role.
+-- 055: Add the `super_partner` (项目方/超级合伙人) admin role.
 --
 -- The standalone multisig system identifies the project party as a `super_partner`
 -- admin_user (set via the admin-panel roles page). Its permission preset lives in
