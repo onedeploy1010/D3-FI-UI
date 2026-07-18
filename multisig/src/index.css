@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* D3 品牌色（与主 App 一致） */
+:root {
+  --brand-imperial: #5e1a3c;
+  --brand-primary: #8a2b57;
+  --brand-vivid: #b23a6e;
+  --brand-accent: #e0568f;
+  --brand-ink: #160510;
+
+  --ivory-50: #fdfbfc;
+  --ivory-100: #fbf7f9;
+  --ivory-200: #f7f0f4;
+  --ivory-300: #efe6ec;
+  --ivory-400: #e8dce5;
+
+  --rose-glow: rgba(178, 58, 110, 0.08);
+  --brand-glow: rgba(138, 43, 87, 0.07);
+  --blush-warm: rgba(224, 86, 143, 0.06);
+
+  --text-primary: var(--brand-ink);
+  --text-muted: color-mix(in srgb, var(--brand-imperial) 55%, white);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  background: var(--ivory-200);
+}
+
+/* 移动端 App 外框：居中，最大宽度手机尺寸，D3 温润珍珠背景 */
+.app-frame {
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  background:
+    radial-gradient(ellipse 70% 45% at 8% 0%, var(--brand-glow) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 95% 15%, var(--rose-glow) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, var(--blush-warm) 0%, transparent 65%),
+    linear-gradient(168deg, var(--ivory-50) 0%, var(--ivory-100) 30%, var(--ivory-200) 62%, var(--ivory-300) 88%, var(--ivory-400) 100%);
+}
+
+/* 品牌卡片 */
+.brand-card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(138, 43, 87, 0.1);
+  box-shadow: 0 8px 28px rgba(138, 43, 87, 0.08);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent));
+}
+
+.tap {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tap:active {
+  transform: scale(0.97);
+}
+
+.safe-pt {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.safe-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}

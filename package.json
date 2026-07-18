@@ -28,6 +28,8 @@
     "supabase:deploy": "supabase secrets set PRIVY_APP_ID=$PRIVY_APP_ID PRIVY_JWKS_URL=$PRIVY_JWKS_URL DEMO_WALLET_ADDRESS=$DEMO_WALLET_ADDRESS && supabase functions deploy union --no-verify-jwt && supabase functions deploy market --no-verify-jwt && supabase functions deploy polymarket --no-verify-jwt",
     "admin:dev": "npm run dev --prefix admin-panel",
     "admin:build": "npm run build --prefix admin-panel",
+    "multisig:dev": "npm run dev --prefix multisig",
+    "multisig:build": "npm run build --prefix multisig",
     "format": "prettier --write ."
   },
   "dependencies": {
