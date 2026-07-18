@@ -81,14 +81,18 @@ async function fetchVault(vaultAddress: string): Promise<HLVault> {
   const equityHistory = seriesToPoints(allTime.accountValueHistory);
   const pnlHistory = seriesToPoints(allTime.pnlHistory);
 
-  const followerState: unknown[] = data.followerState ?? data.followers ?? [];
+  // `followers` is the array of depositors (it includes a synthetic "Leader" entry);
+  // `followerState` is the *viewer's own* follow-state object — reading it as the count
+  // gave Number({}) === NaN → 0, so the page always showed 0 followers.
+  const followerList: Array<{ user?: string }> = Array.isArray(data.followers) ? data.followers : [];
+  const followerCount = followerList.filter((f) => f.user !== "Leader").length;
 
   return {
     name: data.name ?? "",
     leader: data.leader ?? "",
     description: data.description ?? "",
     apr: Number(data.apr ?? 0),
-    followers: Array.isArray(followerState) ? followerState.length : Number(followerState) || 0,
+    followers: followerCount,
     leaderFraction: Number(data.leaderFraction ?? 0),
     leaderCommission: Number(data.leaderCommission ?? 0),
     isClosed: Boolean(data.isClosed),
