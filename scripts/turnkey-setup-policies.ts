@@ -70,9 +70,17 @@ export interface Erc20TransferPolicyParams {
  *
  * NOTE: the transfer AMOUNT lives ABI-encoded inside calldata (`eth.tx.data[10..74]`).
  * A ceiling can be layered on by comparing that slice, but a reliable numeric bound in the
- * DSL is brittle across encodings, so amount limits are enforced at the application layer
- * (per-tx / daily caps) rather than baked into this condition. See `buildNativeGasPolicyCondition`
- * for the value-bounded native case where `eth.tx.value` IS directly expressible.
+ * DSL is brittle across encodings, so amount limits are NOT baked into this condition. See
+ * `buildNativeGasPolicyCondition` for the value-bounded native case where `eth.tx.value` IS
+ * directly expressible.
+ *
+ * T-D: the TREASURY outflow caps that this policy cannot express are now ENFORCED at the
+ * application layer in `_shared/fundManagement.ts#proposeTreasuryTransfer`, before any Turnkey
+ * signing activity is created:
+ *   - per-transfer ceiling      TREASURY_MAX_TRANSFER_USDT (default 50,000 USDT)
+ *   - platform daily cap        TREASURY_DAILY_CAP_USDT     (default 200,000 USDT/day)
+ *   - destination allowlist     treasury_transfer_allowlist (a `to` not listed is rejected)
+ * (This note previously implied app-layer caps existed when they did not — they do now.)
  */
 export function buildErc20TransferPolicyCondition(params: Erc20TransferPolicyParams): string {
   const chainId = params.chainId;

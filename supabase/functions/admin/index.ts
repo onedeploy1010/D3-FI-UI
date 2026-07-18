@@ -1,8 +1,21 @@
 import { jsonResponse, optionsResponse } from '../_shared/cors.ts';
-import { adminHasPermission, requireAdminUser } from '../_shared/adminAuth.ts';
-import { fetchPartnerTeamStats } from '../_shared/partnerPerformance.ts';
+import {
+  adminHasPermission,
+  requireAdminUser,
+  assertCanManageAdmin,
+  isValidRole,
+  isValidPermissionKey,
+  permissionsForRole,
+  PERMISSION_CATALOG,
+  ROLE_PRESETS,
+} from '../_shared/adminAuth.ts';
+import {
+  collectPartnerDownlineWallets,
+  fetchDirectPartnerReferrals,
+  fetchPartnerTeamStats,
+} from '../_shared/partnerPerformance.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
-import { HttpError } from '../_shared/wallet.ts';
+import { HttpError, shortWallet } from '../_shared/wallet.ts';
 import {
   getPartnerProgramSettings,
   signSubsidyReceiptDownloads,
@@ -12,7 +25,9 @@ import {
   assertDifferentApprover,
   isPayoutAuthorizingChange,
   writeAdminAudit,
+  writeAuditLog,
 } from '../_shared/audit.ts';
+import { resolveUd3SLevel } from '../_shared/partnerUd3Rules.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
 import {
   getInfraWalletBalances,
@@ -211,6 +226,211 @@ async function getMemberDetail(sb: Sb, wallet: string) {
   };
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// Per-wallet referral node used by BOTH the member detail bundle and the
+// referral tree. S/V level share one bracket resolution (resolveUd3SLevel);
+// bigArea/smallArea come from the team-stats rollup.
+type ReferralNode = {
+  wallet: string;
+  shortWallet: string;
+  sponsorWallet: string | null;
+  directCount: number;
+  teamCount: number;
+  bigAreaPerfUsdt: number;
+  smallAreaPerfUsdt: number;
+  sLevel: string | null;
+  vLevel: string | null;
+  isPartner: boolean;
+  marketLeaderStatus: string;
+};
+
+async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> {
+  const pk = w(wallet);
+  const [accountRes, referralRes, directs, downline, stats] = await Promise.all([
+    sb
+      .from('partner_accounts')
+      .select('is_partner, market_leader_status')
+      .ilike('wallet_address', pk)
+      .maybeSingle(),
+    sb
+      .from('referrals')
+      .select('sponsor_wallet_address')
+      .ilike('wallet_address', pk)
+      .eq('referral_type', 'partner')
+      .maybeSingle(),
+    fetchDirectPartnerReferrals(sb, pk),
+    collectPartnerDownlineWallets(sb, pk),
+    fetchPartnerTeamStats(sb, pk),
+  ]);
+  const sLevel =
+    resolveUd3SLevel({
+      totalPerfUsdt: stats.teamPerformanceUsd,
+      smallAreaPerfUsdt: stats.smallAreaPerformanceUsd,
+    })?.label ?? null;
+  return {
+    wallet: pk,
+    shortWallet: shortWallet(pk),
+    sponsorWallet: (referralRes.data?.sponsor_wallet_address as string) ?? null,
+    directCount: directs.length,
+    teamCount: downline.length,
+    bigAreaPerfUsdt: stats.largeAreaPerformanceUsd,
+    smallAreaPerfUsdt: stats.smallAreaPerformanceUsd,
+    sLevel,
+    vLevel: sLevel, // S/V qualify off the same 总业绩 bracket
+    isPartner: Boolean(accountRes.data?.is_partner),
+    marketLeaderStatus: (accountRes.data?.market_leader_status as string) ?? 'none',
+  };
+}
+
+const USDT_STAKE_KINDS = ['partner_join', 'crowdfund_stake'];
+const UD3_STAKE_KINDS = ['sd3', 'ud3'];
+
+// Mobile admin UI: compact member detail bundle (exact API contract).
+async function getMemberBundle(sb: Sb, wallet: string) {
+  const pk = w(wallet);
+  const [profileRes, accountRes, stakesRes, node] = await Promise.all([
+    sb
+      .from('profiles')
+      .select('display_name, remark, created_at, lang')
+      .ilike('wallet_address', pk)
+      .maybeSingle(),
+    sb.from('partner_accounts').select('*').ilike('wallet_address', pk).maybeSingle(),
+    sb
+      .from('partner_stake_positions')
+      .select('kind, principal_usdt, status')
+      .ilike('wallet_address', pk),
+    buildReferralNode(sb, pk),
+  ]);
+  const profile = profileRes.data;
+  const account = accountRes.data as Record<string, unknown> | null;
+  const stakes = (stakesRes.data ?? []) as Array<{ kind: string; principal_usdt: number; status: string }>;
+
+  const sumKinds = (kinds: string[]) =>
+    round2(
+      stakes
+        .filter((s) => kinds.includes(s.kind))
+        .reduce((acc, s) => acc + Number(s.principal_usdt ?? 0), 0),
+    );
+
+  return {
+    wallet: pk,
+    profile: {
+      displayName: (profile?.display_name as string) ?? null,
+      remark: (profile?.remark as string) ?? null,
+      createdAt: (profile?.created_at as string) ?? null,
+      lang: (profile?.lang as string) ?? null,
+    },
+    marketLeaderStatus: node.marketLeaderStatus,
+    isPartner: node.isPartner,
+    stakeSummary: {
+      count: stakes.length,
+      usdtPrincipal: sumKinds(USDT_STAKE_KINDS),
+      ud3Principal: sumKinds(UD3_STAKE_KINDS),
+      activeCount: stakes.filter((s) => s.status === 'active').length,
+    },
+    balances: {
+      ud3Balance: Number(account?.sd3_balance ?? 0),
+      pendingUd3: Number(account?.pending_ud3 ?? 0),
+      pendingD3Yield: Number(account?.pending_d3_yield ?? 0),
+    },
+    referral: {
+      sponsorWallet: node.sponsorWallet,
+      directCount: node.directCount,
+      teamCount: node.teamCount,
+      bigAreaPerfUsdt: node.bigAreaPerfUsdt,
+      smallAreaPerfUsdt: node.smallAreaPerfUsdt,
+      sLevel: node.sLevel,
+      vLevel: node.vLevel,
+    },
+  };
+}
+
+type ReferralTree = { node: ReferralNode; children: ReferralTree[] };
+
+// Nested referral tree. Depth-bounded (1..5) AND node-capped (default 500) so a
+// wide/deep umbrella can't fan out into an unbounded walk.
+async function getReferralTree(
+  sb: Sb,
+  root: string,
+  depth: number,
+  cap = 500,
+): Promise<ReferralTree> {
+  let count = 0;
+  async function build(wallet: string, remaining: number): Promise<ReferralTree> {
+    const node = await buildReferralNode(sb, wallet);
+    count += 1;
+    const children: ReferralTree[] = [];
+    if (remaining > 0 && count < cap) {
+      const directs = await fetchDirectPartnerReferrals(sb, wallet);
+      for (const child of directs) {
+        if (count >= cap) break;
+        children.push(await build(child, remaining - 1));
+      }
+    }
+    return { node, children };
+  }
+  return build(root, depth);
+}
+
+// Unified transaction feed: flash-swap withdrawals + UD3 umbrella transfers.
+async function listTransactions(sb: Sb, params: URLSearchParams) {
+  const type = params.get('type') === 'ud3_transfer' ? 'ud3_transfer' : 'flash_swap';
+  const wallet = (params.get('wallet') ?? '').trim().toLowerCase();
+  const from = params.get('from');
+  const to = params.get('to');
+  const limit = Math.min(Number(params.get('limit') ?? 50), 200);
+  const offset = Math.max(Number(params.get('offset') ?? 0), 0);
+
+  if (type === 'flash_swap') {
+    let q = sb
+      .from('partner_yield_withdrawals')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+    if (wallet) q = q.ilike('wallet_address', wallet);
+    if (from) q = q.gte('created_at', from);
+    if (to) q = q.lte('created_at', to);
+    const { data, count, error } = await q.range(offset, offset + limit - 1);
+    if (error) throw error;
+    const rows = (data ?? []).map((r) => ({
+      id: r.id,
+      type: 'flash_swap' as const,
+      wallet: r.wallet_address,
+      counterparty: null,
+      amount: Number(r.amount_usdt ?? 0),
+      asset: 'usdt',
+      status: r.status,
+      txHash: (r.tx_hash as string) ?? null,
+      createdAt: r.created_at,
+    }));
+    return { rows, total: count ?? rows.length };
+  }
+
+  let q = sb
+    .from('partner_ud3_transfers')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false });
+  if (wallet) q = q.or(`from_wallet.ilike.${wallet},to_wallet.ilike.${wallet}`);
+  if (from) q = q.gte('created_at', from);
+  if (to) q = q.lte('created_at', to);
+  const { data, count, error } = await q.range(offset, offset + limit - 1);
+  if (error) throw error;
+  const rows = (data ?? []).map((r) => ({
+    id: r.id,
+    type: 'ud3_transfer' as const,
+    wallet: r.from_wallet,
+    counterparty: r.to_wallet,
+    amount: Number(r.amount_ud3 ?? 0),
+    asset: 'ud3',
+    status: r.status,
+    txHash: null,
+    createdAt: r.created_at,
+  }));
+  return { rows, total: count ?? rows.length };
+}
+
 async function listReferrals(sb: Sb, params: URLSearchParams) {
   const search = (params.get('q') ?? '').trim().toLowerCase();
   const limit = Math.min(Number(params.get('limit') ?? 100), 500);
@@ -260,8 +480,13 @@ async function listPartners(sb: Sb, params: URLSearchParams) {
 
 async function listStakes(sb: Sb, params: URLSearchParams) {
   const kind = params.get('kind') ?? 'usdt';
+  const wallet = (params.get('wallet') ?? '').trim().toLowerCase();
+  const from = params.get('from');
+  const to = params.get('to');
   const limit = Math.min(Number(params.get('limit') ?? 100), 500);
+  const offset = Math.max(Number(params.get('offset') ?? 0), 0);
 
+  // Legacy: kind=sd3 returned the UD3 umbrella-transfer ledger. Kept for back-compat.
   if (kind === 'sd3') {
     const { data: transfers, error } = await sb
       .from('partner_ud3_transfers')
@@ -276,14 +501,26 @@ async function listStakes(sb: Sb, params: URLSearchParams) {
     };
   }
 
-  const { data: positions, error } = await sb
+  // kind=usdt → USDT-funded stake positions; kind=ud3 → UD3-funded positions.
+  const kinds = kind === 'ud3' ? UD3_STAKE_KINDS : USDT_STAKE_KINDS;
+  let q = sb
     .from('partner_stake_positions')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(limit);
+    .select('*', { count: 'exact' })
+    .in('kind', kinds)
+    .order('started_at', { ascending: false });
+  if (wallet) q = q.ilike('wallet_address', wallet);
+  if (from) q = q.gte('started_at', from);
+  if (to) q = q.lte('started_at', to);
+  const { data: positions, count, error } = await q.range(offset, offset + limit - 1);
   if (error) throw error;
 
-  return { kind: 'usdt', rows: positions ?? [] };
+  return {
+    kind: kind === 'ud3' ? 'ud3' : 'usdt',
+    rows: positions ?? [],
+    total: count ?? 0,
+    limit,
+    offset,
+  };
 }
 
 async function listSubsidyTickets(sb: Sb, params: URLSearchParams) {
@@ -477,6 +714,9 @@ const APPROVAL_SUBSIDY_TICKET = 'subsidy_ticket.patch';
 // Security circuit-breaker maker-checker actions (Agent O).
 const APPROVAL_SECURITY_UNPAUSE = 'security.unpause';
 const APPROVAL_RISK_LIMITS = 'risk_limits.update';
+// Mobile admin UI: flipping a member's market-leader status is payout-authorizing
+// (unlocks subsidy eligibility) → maker-checker gated like the ticket path.
+const APPROVAL_MEMBER_SET_LEADER = 'member.set_leader';
 
 // R-3: the CHECKER-side permission required to approve/reject depends on the
 // action being approved. Security circuit-breaker unpauses and risk-limit
@@ -488,6 +728,11 @@ const APPROVAL_RISK_LIMITS = 'risk_limits.update';
 export function requiredPermissionForApprovalAction(action: string): string {
   if (action.startsWith('security.') || action.startsWith('risk_limits.')) {
     return 'security.write';
+  }
+  // Member mutations (e.g. member.set_leader) are proposed AND approved under
+  // members.write — a subsidies-only admin must not be able to grant leadership.
+  if (action.startsWith('member.')) {
+    return 'members.write';
   }
   return 'subsidies.write';
 }
@@ -603,7 +848,50 @@ export type ApproveDeps = {
     payload: Record<string, unknown>,
     admin: AdminProfile,
   ) => Promise<ApplyResult>;
+  applyMemberSetLeader: (
+    sb: Sb,
+    targetId: string,
+    payload: Record<string, unknown>,
+    admin: AdminProfile,
+  ) => Promise<ApplyResult>;
 };
+
+// Apply a member.set_leader approval: flip partner_accounts.market_leader_status
+// to 'approved' (grants subsidy eligibility) or 'none'. Returns the before/after
+// eligibility write as `marketLeader` so approveApproval emits the same immutable
+// audit row the subsidy-ticket path does. Exported for unit tests.
+export async function applyMemberSetLeader(
+  sb: Sb,
+  targetId: string,
+  payload: Record<string, unknown>,
+): Promise<ApplyResult> {
+  const wallet = w(targetId);
+  const next = payload.isLeader ? 'approved' : 'none';
+  const { data: before } = await sb
+    .from('partner_accounts')
+    .select('market_leader_status')
+    .ilike('wallet_address', wallet)
+    .maybeSingle();
+  if (!before) {
+    return { before: null, after: null, conflict: 'member_not_found' };
+  }
+  const { data: after, error } = await sb
+    .from('partner_accounts')
+    .update({ market_leader_status: next, updated_at: new Date().toISOString() })
+    .ilike('wallet_address', wallet)
+    .select('market_leader_status')
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    before: { market_leader_status: (before.market_leader_status as string) ?? null },
+    after: { market_leader_status: (after?.market_leader_status as string) ?? next },
+    marketLeader: {
+      wallet,
+      before: (before.market_leader_status as string | null) ?? null,
+      after: next,
+    },
+  };
+}
 
 export const defaultApproveDeps: ApproveDeps = {
   claimApproval: (sb, id, adminUserId) =>
@@ -670,6 +958,7 @@ export const defaultApproveDeps: ApproveDeps = {
     if (error) throw error;
     return { before: before ?? null, after };
   },
+  applyMemberSetLeader: (sb, targetId, payload) => applyMemberSetLeader(sb, targetId, payload),
 };
 
 // Approve a pending request. Order is: separation-of-duties check -> CLAIM the
@@ -691,6 +980,7 @@ export async function approveApproval(
     APPROVAL_SUBSIDY_TICKET,
     APPROVAL_SECURITY_UNPAUSE,
     APPROVAL_RISK_LIMITS,
+    APPROVAL_MEMBER_SET_LEADER,
   ];
   if (!KNOWN_ACTIONS.includes(action)) {
     throw new HttpError(400, `Unknown approval action: ${action}`);
@@ -717,6 +1007,8 @@ export async function approveApproval(
     result = await deps.applySubsidyTicket(sb, approval.target_id as string, payload, admin);
   } else if (action === APPROVAL_SECURITY_UNPAUSE) {
     result = await deps.applySecurityUnpause(sb, payload, admin);
+  } else if (action === APPROVAL_MEMBER_SET_LEADER) {
+    result = await deps.applyMemberSetLeader(sb, approval.target_id as string, payload, admin);
   } else {
     result = await deps.applyRiskLimits(sb, payload, admin);
   }
@@ -923,6 +1215,42 @@ export async function requestRiskLimitsUpdate(
   return approval;
 }
 
+// Flipping a member's market-leader status is payout-authorizing → maker-checker.
+// Create a pending approval; the eligibility write happens only when a DIFFERENT
+// members.write admin approves it (executor: applyMemberSetLeader).
+export async function requestMemberSetLeader(
+  sb: Sb,
+  wallet: string,
+  isLeader: boolean,
+  reason: string | null,
+  admin: AdminProfile,
+) {
+  const pk = w(wallet);
+  const { data: before } = await sb
+    .from('partner_accounts')
+    .select('market_leader_status')
+    .ilike('wallet_address', pk)
+    .maybeSingle();
+  const approval = await createApproval(sb, {
+    action: APPROVAL_MEMBER_SET_LEADER,
+    targetType: 'partner_accounts',
+    targetId: pk,
+    payload: { wallet: pk, isLeader, reason },
+    requestedBy: admin.userId,
+  });
+  await writeAdminAudit(sb, {
+    actorId: admin.userId,
+    actorRole: admin.role,
+    action: `${APPROVAL_MEMBER_SET_LEADER}.requested`,
+    entityType: 'partner_accounts',
+    entityId: pk,
+    before: { market_leader_status: (before?.market_leader_status as string | null) ?? null },
+    after: { market_leader_status: isLeader ? 'approved' : 'none' },
+    reason: reason ?? 'maker-checker requested; awaiting second admin',
+  });
+  return approval;
+}
+
 export async function ackAlert(sb: Sb, id: string, admin: AdminProfile) {
   const { data: before } = await sb
     .from('security_alerts')
@@ -1010,6 +1338,223 @@ async function dashboardStats(sb: Sb) {
   };
 }
 
+// ── Admin RBAC: role & admin management (feature/admin-redesign) ──────────────
+
+function requireSuperadmin(admin: AdminProfile) {
+  if (admin.role !== 'superadmin') {
+    throw new HttpError(403, 'Superadmin required');
+  }
+}
+
+function requirePermission(admin: AdminProfile, key: string) {
+  if (!adminHasPermission(admin, key)) {
+    throw new HttpError(403, `Missing ${key} permission`);
+  }
+}
+
+// Shape of the permission catalog + role presets served to the Roles page.
+function permissionCatalogResponse() {
+  return {
+    permissions: PERMISSION_CATALOG.map((p) => ({ key: p.key, label: p.label, group: p.group })),
+    roles: ROLE_PRESETS.map((r) => ({ key: r.key, label: r.label, permissions: r.permissions })),
+  };
+}
+
+async function listAdmins(sb: Sb) {
+  const { data, error } = await sb
+    .from('admin_users')
+    .select('user_id, username, role, permissions, created_at')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  const rows = (data ?? []).map((r) => ({
+    userId: r.user_id as string,
+    username: r.username as string,
+    role: r.role as string,
+    permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+    createdAt: (r.created_at as string) ?? null,
+  }));
+  return { rows };
+}
+
+// Validate & normalise a PATCH/POST permissions array against the catalog.
+function sanitizePermissions(input: unknown): string[] {
+  if (!Array.isArray(input)) throw new HttpError(400, 'permissions must be an array');
+  const out: string[] = [];
+  for (const raw of input) {
+    const key = String(raw);
+    if (!isValidPermissionKey(key)) throw new HttpError(400, `Unknown permission: ${key}`);
+    if (!out.includes(key)) out.push(key);
+  }
+  return out;
+}
+
+async function patchAdmin(
+  sb: Sb,
+  targetUserId: string,
+  body: { role?: string; permissions?: unknown },
+  caller: AdminProfile,
+) {
+  const patch: { role?: string; permissions?: string[] } = {};
+  if (body.role !== undefined) {
+    if (!isValidRole(String(body.role))) throw new HttpError(400, `Unknown role: ${body.role}`);
+    patch.role = String(body.role);
+  }
+  if (body.permissions !== undefined) {
+    patch.permissions = sanitizePermissions(body.permissions);
+  }
+  if (patch.role === undefined && patch.permissions === undefined) {
+    throw new HttpError(400, 'role or permissions required');
+  }
+
+  // Privilege-escalation / self-escalation guard (pure, unit-tested).
+  assertCanManageAdmin(caller, targetUserId, patch);
+
+  const { data: before, error: beforeErr } = await sb
+    .from('admin_users')
+    .select('user_id, username, role, permissions')
+    .eq('user_id', targetUserId)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
+  if (!before) throw new HttpError(404, 'Admin not found');
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.role !== undefined) update.role = patch.role;
+  // Explicit permissions win; otherwise a role-only change resets permissions to
+  // that role's preset so the stored grants stay consistent with the role.
+  if (patch.permissions !== undefined) {
+    update.permissions = patch.permissions;
+  } else if (patch.role !== undefined) {
+    update.permissions = permissionsForRole(patch.role);
+  }
+
+  const { data: after, error } = await sb
+    .from('admin_users')
+    .update(update)
+    .eq('user_id', targetUserId)
+    .select('user_id, username, role, permissions')
+    .single();
+  if (error) throw error;
+
+  await writeAdminAudit(sb, {
+    actorId: caller.userId,
+    actorRole: caller.role,
+    action: 'admin.update',
+    entityType: 'admin_users',
+    entityId: targetUserId,
+    before: { role: before.role, permissions: before.permissions },
+    after: { role: after.role, permissions: after.permissions },
+  });
+
+  return { admin: after };
+}
+
+// Find an existing auth user by email, or create one via the service-role admin
+// API. Returns the auth user id. Fails with a clear error if the admin API is
+// unavailable (e.g. running against a client-only Supabase instance).
+async function findOrCreateAuthUser(sb: Sb, email: string): Promise<string> {
+  const adminApi = (sb as { auth?: { admin?: unknown } }).auth?.admin as
+    | {
+        createUser: (a: { email: string; email_confirm?: boolean }) => Promise<{ data: { user: { id: string } | null }; error: { message?: string } | null }>;
+        listUsers: (a?: { page?: number; perPage?: number }) => Promise<{ data: { users: Array<{ id: string; email?: string | null }> }; error: { message?: string } | null }>;
+      }
+    | undefined;
+  if (!adminApi || typeof adminApi.createUser !== 'function') {
+    throw new HttpError(503, 'Auth admin API unavailable; cannot provision admin user');
+  }
+
+  const created = await adminApi.createUser({ email, email_confirm: true });
+  if (!created.error && created.data?.user?.id) {
+    return created.data.user.id;
+  }
+
+  // Likely already registered — locate the existing user by email.
+  if (typeof adminApi.listUsers === 'function') {
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await adminApi.listUsers({ page, perPage: 200 });
+      if (error) break;
+      const users = data?.users ?? [];
+      const match = users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
+      if (match) return match.id;
+      if (users.length < 200) break;
+    }
+  }
+  throw new HttpError(400, created.error?.message ?? 'Could not create or find auth user');
+}
+
+async function createAdmin(
+  sb: Sb,
+  body: { email?: string; role?: string; permissions?: unknown; username?: string },
+  caller: AdminProfile,
+) {
+  const email = String(body.email ?? '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpError(400, 'Valid email required');
+  }
+  const role = String(body.role ?? '');
+  if (!isValidRole(role)) throw new HttpError(400, `Unknown role: ${body.role}`);
+  const permissions =
+    body.permissions !== undefined ? sanitizePermissions(body.permissions) : permissionsForRole(role);
+
+  const userId = await findOrCreateAuthUser(sb, email);
+  const username = String(body.username ?? '').trim() || email;
+
+  const { data: after, error } = await sb
+    .from('admin_users')
+    .upsert(
+      {
+        user_id: userId,
+        username,
+        role,
+        permissions,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    )
+    .select('user_id, username, role, permissions, created_at')
+    .single();
+  if (error) throw error;
+
+  await writeAdminAudit(sb, {
+    actorId: caller.userId,
+    actorRole: caller.role,
+    action: 'admin.create',
+    entityType: 'admin_users',
+    entityId: userId,
+    before: null,
+    after: { email, role, permissions },
+  });
+
+  return { admin: after };
+}
+
+async function deleteAdmin(sb: Sb, targetUserId: string, caller: AdminProfile) {
+  if (targetUserId === caller.userId) {
+    throw new HttpError(400, 'Cannot revoke your own admin access');
+  }
+  const { data: before, error: beforeErr } = await sb
+    .from('admin_users')
+    .select('user_id, username, role, permissions')
+    .eq('user_id', targetUserId)
+    .maybeSingle();
+  if (beforeErr) throw beforeErr;
+  if (!before) throw new HttpError(404, 'Admin not found');
+
+  const { error } = await sb.from('admin_users').delete().eq('user_id', targetUserId);
+  if (error) throw error;
+
+  await writeAdminAudit(sb, {
+    actorId: caller.userId,
+    actorRole: caller.role,
+    action: 'admin.delete',
+    entityType: 'admin_users',
+    entityId: targetUserId,
+    before: { role: before.role, permissions: before.permissions },
+    after: null,
+  });
+
+  return { removed: targetUserId };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse();
 
@@ -1062,14 +1607,16 @@ Deno.serve(async (req) => {
     }
 
     // Propose an outbound treasury transfer → submits a Turnkey multisig request.
+    // T-A: dedicated treasury.write permission (superadmin bypasses).
     if (req.method === 'POST' && path === '/treasury/transfers') {
-      if (!adminHasPermission(admin, 'members.write')) {
-        throw new HttpError(403, 'Insufficient permission');
+      if (!adminHasPermission(admin, 'treasury.write')) {
+        throw new HttpError(403, 'Missing treasury.write permission');
       }
       const body = await readJson<{
         asset?: string;
         toAddress?: string;
         amount?: number | string;
+        requestKey?: string;
         note?: string;
       }>(req).catch(() => ({}));
       const asset = body.asset === 'bnb' ? 'bnb' : 'usdt';
@@ -1077,40 +1624,124 @@ Deno.serve(async (req) => {
       if (!body.toAddress || !Number.isFinite(amount) || amount <= 0) {
         throw new HttpError(400, '收款地址与金额必填');
       }
+      if (!body.requestKey?.trim()) {
+        throw new HttpError(400, 'requestKey 必填（幂等键）');
+      }
+      // T-B: record who proposed so broadcast can enforce a different broadcaster.
       const row = await proposeTreasuryTransfer(sb, {
         asset,
         toAddress: String(body.toAddress),
         amount,
+        requestKey: body.requestKey.trim(),
         createdBy: admin.userId,
+        proposedBy: admin.userId,
         note: body.note,
       });
-      await writeAuditLog(sb, {
-        actorType: 'admin',
+      await writeAdminAudit(sb, {
         actorId: admin.userId,
-        action: 'treasury_transfer_propose',
+        actorRole: admin.role,
+        action: 'treasury_transfer.propose',
         entityType: 'treasury_transfer_requests',
         entityId: row.id,
-        newValue: { asset, to: row.to_address, amount, status: row.status },
+        before: null,
+        after: { asset, to: row.to_address, amount, status: row.status, requestKey: row.request_key },
       });
       return jsonResponse({ ok: true, transfer: row });
     }
 
     // Broadcast an approved (2/3 quorum) transfer.
+    // T-A: treasury.write. T-B: maker-checker enforced inside broadcastTreasuryTransfer.
     const broadcastMatch = path.match(/^\/treasury\/transfers\/([0-9a-f-]{36})\/broadcast$/);
     if (req.method === 'POST' && broadcastMatch) {
-      if (!adminHasPermission(admin, 'members.write')) {
-        throw new HttpError(403, 'Insufficient permission');
+      if (!adminHasPermission(admin, 'treasury.write')) {
+        throw new HttpError(403, 'Missing treasury.write permission');
       }
-      const row = await broadcastTreasuryTransfer(sb, broadcastMatch[1]);
-      await writeAuditLog(sb, {
-        actorType: 'admin',
+      const { data: beforeRow } = await sb
+        .from('treasury_transfer_requests')
+        .select('status, tx_hash, proposed_by')
+        .eq('id', broadcastMatch[1])
+        .maybeSingle();
+      const row = await broadcastTreasuryTransfer(sb, broadcastMatch[1], admin.userId);
+      await writeAdminAudit(sb, {
         actorId: admin.userId,
-        action: 'treasury_transfer_broadcast',
+        actorRole: admin.role,
+        action: 'treasury_transfer.broadcast',
         entityType: 'treasury_transfer_requests',
         entityId: row.id,
-        newValue: { status: row.status, txHash: row.tx_hash },
+        before: beforeRow ?? null,
+        after: { status: row.status, txHash: row.tx_hash },
+        reason: `maker-checker broadcast (proposed_by=${row.proposed_by})`,
       });
       return jsonResponse({ ok: true, transfer: row });
+    }
+
+    // ── T-D: treasury destination allowlist management (treasury.write) ──
+    if (req.method === 'GET' && path === '/treasury/allowlist') {
+      const { data, error } = await sb
+        .from('treasury_transfer_allowlist')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return jsonResponse({ ok: true, rows: data ?? [] });
+    }
+
+    if (req.method === 'POST' && path === '/treasury/allowlist') {
+      if (!adminHasPermission(admin, 'treasury.write')) {
+        throw new HttpError(403, 'Missing treasury.write permission');
+      }
+      const body = await readJson<{ address?: string; label?: string }>(req).catch(() => ({}));
+      const address = String(body.address ?? '').trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+        throw new HttpError(400, '无效的地址');
+      }
+      const { data, error } = await sb
+        .from('treasury_transfer_allowlist')
+        .upsert(
+          { address, label: body.label ?? null, added_by: admin.userId },
+          { onConflict: 'address' },
+        )
+        .select('*')
+        .single();
+      if (error) throw error;
+      // Adding a destination widens what the treasury may pay out → audited.
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'treasury_allowlist.add',
+        entityType: 'treasury_transfer_allowlist',
+        entityId: address,
+        before: null,
+        after: { address, label: body.label ?? null },
+      });
+      return jsonResponse({ ok: true, entry: data });
+    }
+
+    const allowlistDelMatch = path.match(/^\/treasury\/allowlist\/(0x[a-fA-F0-9]{40})$/);
+    if (req.method === 'DELETE' && allowlistDelMatch) {
+      if (!adminHasPermission(admin, 'treasury.write')) {
+        throw new HttpError(403, 'Missing treasury.write permission');
+      }
+      const address = allowlistDelMatch[1];
+      const { data: before } = await sb
+        .from('treasury_transfer_allowlist')
+        .select('*')
+        .ilike('address', address)
+        .maybeSingle();
+      const { error } = await sb
+        .from('treasury_transfer_allowlist')
+        .delete()
+        .ilike('address', address);
+      if (error) throw error;
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'treasury_allowlist.remove',
+        entityType: 'treasury_transfer_allowlist',
+        entityId: address,
+        before: before ?? null,
+        after: null,
+      });
+      return jsonResponse({ ok: true, removed: address });
     }
 
     if (req.method === 'GET' && path === '/members') {
@@ -1118,14 +1749,93 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...(await listMembers(sb, url.searchParams)) });
     }
 
+    // Member set-leader (payout-authorizing) → maker-checker approval flow.
+    const leaderMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})\/leader$/);
+    if (req.method === 'POST' && leaderMatch) {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Missing members.write permission');
+      }
+      const body = await readJson<{ isLeader?: boolean; reason?: string }>(req);
+      if (typeof body.isLeader !== 'boolean') {
+        throw new HttpError(400, 'isLeader (boolean) required');
+      }
+      const approval = await requestMemberSetLeader(
+        sb,
+        leaderMatch[1],
+        body.isLeader,
+        body.reason ?? null,
+        admin,
+      );
+      return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+    }
+
     const memberMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})$/);
     if (req.method === 'GET' && memberMatch) {
-      return jsonResponse({ ok: true, ...(await getMemberDetail(sb, memberMatch[1])) });
+      // Legacy detail bundle + compact mobile-UI contract. The new contract keys
+      // (wallet/profile/stakeSummary/balances/referral) win on collision; the raw
+      // legacy referrals row is preserved under `referralRow`.
+      const legacy = await getMemberDetail(sb, memberMatch[1]);
+      const bundle = await getMemberBundle(sb, memberMatch[1]);
+      return jsonResponse({
+        ok: true,
+        ...legacy,
+        referralRow: legacy.referral,
+        ...bundle,
+      });
+    }
+
+    // PATCH member remark (free-text admin note) → members.write, audited.
+    if (req.method === 'PATCH' && memberMatch) {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Missing members.write permission');
+      }
+      const body = await readJson<{ remark?: string }>(req);
+      const pk = w(memberMatch[1]);
+      const { data: before } = await sb
+        .from('profiles')
+        .select('remark')
+        .ilike('wallet_address', pk)
+        .maybeSingle();
+      const { data: after, error } = await sb
+        .from('profiles')
+        .update({ remark: body.remark ?? null, updated_at: new Date().toISOString() })
+        .ilike('wallet_address', pk)
+        .select('wallet_address, remark')
+        .maybeSingle();
+      if (error) throw error;
+      if (!after) throw new HttpError(404, 'Member profile not found');
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'member.remark',
+        entityType: 'profiles',
+        entityId: pk,
+        before: { remark: (before?.remark as string | null) ?? null },
+        after: { remark: body.remark ?? null },
+      });
+      return jsonResponse({ ok: true, profile: after });
+    }
+
+    // Nested referral tree (bounded depth + node cap).
+    if (req.method === 'GET' && path === '/referrals/tree') {
+      const url = new URL(req.url);
+      const root = (url.searchParams.get('root') ?? '').trim().toLowerCase();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(root)) {
+        throw new HttpError(400, 'root wallet required');
+      }
+      const depth = Math.max(1, Math.min(5, Math.floor(Number(url.searchParams.get('depth') ?? 3))));
+      const tree = await getReferralTree(sb, root, depth);
+      return jsonResponse({ ok: true, ...tree });
     }
 
     if (req.method === 'GET' && path === '/referrals') {
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listReferrals(sb, url.searchParams)) });
+    }
+
+    if (req.method === 'GET' && path === '/transactions') {
+      const url = new URL(req.url);
+      return jsonResponse({ ok: true, ...(await listTransactions(sb, url.searchParams)) });
     }
 
     if (req.method === 'GET' && path === '/partners') {
@@ -1402,6 +2112,47 @@ Deno.serve(async (req) => {
       }
       const approval = await requestRiskLimitsUpdate(sb, patch, admin);
       return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+    }
+
+    // ── Admin RBAC: roles & admin management ─────────────────────────────────
+    // Permission catalog + role presets for the Roles page. Any admins.read holder
+    // (superadmin bypasses).
+    if (req.method === 'GET' && path === '/permissions') {
+      requirePermission(admin, 'admins.read');
+      return jsonResponse({ ok: true, ...permissionCatalogResponse() });
+    }
+
+    if (req.method === 'GET' && path === '/admins') {
+      requirePermission(admin, 'admins.read');
+      return jsonResponse({ ok: true, ...(await listAdmins(sb)) });
+    }
+
+    // Create an admin: provision/link the auth user, then upsert admin_users.
+    // Superadmin only.
+    if (req.method === 'POST' && path === '/admins') {
+      requireSuperadmin(admin);
+      const body = await readJson<{
+        email?: string;
+        role?: string;
+        permissions?: unknown;
+        username?: string;
+      }>(req);
+      return jsonResponse({ ok: true, ...(await createAdmin(sb, body, admin)) });
+    }
+
+    const adminUserMatch = path.match(/^\/admins\/([0-9a-fA-F-]{36})$/);
+    // Update an admin's role and/or explicit permissions. Requires admins.manage
+    // AND passes the privilege-escalation / self-escalation guard.
+    if (req.method === 'PATCH' && adminUserMatch) {
+      requirePermission(admin, 'admins.manage');
+      const body = await readJson<{ role?: string; permissions?: unknown }>(req);
+      return jsonResponse({ ok: true, ...(await patchAdmin(sb, adminUserMatch[1], body, admin)) });
+    }
+
+    // Revoke an admin. Superadmin only; cannot delete self.
+    if (req.method === 'DELETE' && adminUserMatch) {
+      requireSuperadmin(admin);
+      return jsonResponse({ ok: true, ...(await deleteAdmin(sb, adminUserMatch[1], admin)) });
     }
 
     throw new HttpError(404, 'Not found');

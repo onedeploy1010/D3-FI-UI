@@ -19,6 +19,7 @@ import {
   BSC_USDT_CONTRACT,
   BSC_USDT_DECIMALS,
 } from './tokens.ts';
+import { HttpError } from './wallet.ts';
 
 const transferEvent = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -547,6 +548,12 @@ export async function submitTreasuryTransfer(opts: {
 
   // Dev fallback: no multisig, sign + broadcast immediately.
   if (opts.from.provider === 'dev_hd') {
+    // T-C hard guard (defense in depth): the consensus-less dev signer may only
+    // move treasury funds when the operator has explicitly opted in. Production
+    // treasury outflows must route through the real Turnkey root-quorum wallet.
+    if (Deno.env.get('ALLOW_DEV_TREASURY') !== 'true') {
+      throw new HttpError(503, 'Treasury dev signing disabled');
+    }
     if (opts.from.hdIndex === undefined) throw new Error('Missing hd_index for dev wallet');
     const account = getDevAccount(opts.from.hdIndex);
     const signed = await account.signTransaction(prepared);

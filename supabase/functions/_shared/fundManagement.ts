@@ -10,8 +10,90 @@ import {
 } from './turnkey.ts';
 import { getTreasuryWallet } from './wallets.ts';
 import { BSC_USDT_CONTRACT, BSC_USDT_DECIMALS } from './tokens.ts';
+import { HttpError } from './wallet.ts';
+import { assertDifferentApprover } from './audit.ts';
 
 type Sb = SupabaseClient;
+
+// ── Treasury transfer hardening (T-C / T-D / T-E) ────────────────────────────
+// Pure, env-driven guards. Exported so the security suite can assert them
+// without a live DB or a Turnkey round-trip.
+
+/**
+ * T-C: refuse a `dev_hd`-provider signing of the TREASURY wallet unless the
+ * operator has explicitly opted in with ALLOW_DEV_TREASURY=true. In production
+ * the treasury must be a real Turnkey wallet routed to root-quorum consensus;
+ * the dev single-signer path (TREASURY_DEV_MNEMONIC) has NO consensus and would
+ * sign+broadcast an outflow inline, so it is hard-guarded off by default.
+ */
+export function assertTreasuryDevSigningAllowed(provider: string): void {
+  if (provider === 'dev_hd' && Deno.env.get('ALLOW_DEV_TREASURY') !== 'true') {
+    throw new HttpError(503, 'Treasury dev signing disabled');
+  }
+}
+
+/** T-D: per-transfer USDT ceiling (default 50,000). */
+export function treasuryMaxTransferUsdt(): number {
+  const raw = Deno.env.get('TREASURY_MAX_TRANSFER_USDT');
+  const n = raw ? Number(raw) : 50_000;
+  return Number.isFinite(n) && n > 0 ? n : 50_000;
+}
+
+/** T-D: platform-wide daily USDT cap across all of today's requests (default 200,000). */
+export function treasuryDailyCapUsdt(): number {
+  const raw = Deno.env.get('TREASURY_DAILY_CAP_USDT');
+  const n = raw ? Number(raw) : 200_000;
+  return Number.isFinite(n) && n > 0 ? n : 200_000;
+}
+
+/**
+ * T-D: reject a single transfer above the per-tx ceiling. The caps are
+ * USDT-denominated, so they apply to `usdt` transfers; a native `bnb` top-up
+ * (much smaller magnitude, different unit) is not compared against a USDT bound.
+ */
+export function assertTransferAmountWithinMax(asset: TreasuryTransferAsset, amount: number): void {
+  if (asset !== 'usdt') return;
+  const max = treasuryMaxTransferUsdt();
+  if (amount > max) {
+    throw new HttpError(400, `转账金额 ${amount} 超过单笔上限 ${max} USDT`);
+  }
+}
+
+/** T-D: reject when today's USDT total (already-requested + this one) would exceed the daily cap. */
+export function assertDailyCapNotExceeded(
+  asset: TreasuryTransferAsset,
+  todayTotalUsdt: number,
+  amount: number,
+): void {
+  if (asset !== 'usdt') return;
+  const cap = treasuryDailyCapUsdt();
+  if (todayTotalUsdt + amount > cap) {
+    throw new HttpError(400, `超过平台单日上限 ${cap} USDT（今日已申请 ${todayTotalUsdt}）`);
+  }
+}
+
+/** T-D: is `address` on the treasury destination allowlist? Case-insensitive. */
+export async function isTreasuryDestinationAllowlisted(sb: Sb, address: string): Promise<boolean> {
+  const { data } = await sb
+    .from('treasury_transfer_allowlist')
+    .select('address')
+    .ilike('address', address.trim())
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** T-D: sum of today's (UTC) non-failed USDT treasury requests, for the daily-cap check. */
+async function sumTodaysTreasuryUsdt(sb: Sb): Promise<number> {
+  const dayStart = new Date();
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const { data } = await sb
+    .from('treasury_transfer_requests')
+    .select('amount, asset, status')
+    .gte('created_at', dayStart.toISOString());
+  return (data ?? [])
+    .filter((r) => r.asset === 'usdt' && r.status !== 'failed')
+    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+}
 
 const erc20BalanceAbi = [
   {
@@ -102,6 +184,8 @@ export type TreasuryTransferRow = {
   error: string | null;
   created_at: string;
   broadcast_at: string | null;
+  proposed_by: string | null;
+  request_key: string | null;
 };
 
 /**
@@ -113,15 +197,46 @@ export type TreasuryTransferRow = {
  */
 export async function proposeTreasuryTransfer(
   sb: Sb,
-  opts: { asset: TreasuryTransferAsset; toAddress: string; amount: number; createdBy?: string; note?: string },
+  opts: {
+    asset: TreasuryTransferAsset;
+    toAddress: string;
+    amount: number;
+    requestKey: string;
+    createdBy?: string;
+    proposedBy: string;
+    note?: string;
+  },
 ): Promise<TreasuryTransferRow> {
   const to = opts.toAddress.trim();
-  if (!isAddress(to)) throw new Error('无效的收款地址');
-  if (!(opts.amount > 0)) throw new Error('转账金额必须大于 0');
-  if (opts.asset !== 'usdt' && opts.asset !== 'bnb') throw new Error('不支持的资产类型');
+  if (!isAddress(to)) throw new HttpError(400, '无效的收款地址');
+  if (!(opts.amount > 0)) throw new HttpError(400, '转账金额必须大于 0');
+  if (opts.asset !== 'usdt' && opts.asset !== 'bnb') throw new HttpError(400, '不支持的资产类型');
+
+  // T-E idempotency: a retried propose with the same client key returns the
+  // existing row and does NOT create a second Turnkey signing activity.
+  const requestKey = opts.requestKey?.trim();
+  if (!requestKey) throw new HttpError(400, 'requestKey 必填');
+  const { data: dup } = await sb
+    .from('treasury_transfer_requests')
+    .select('*')
+    .eq('request_key', requestKey)
+    .maybeSingle();
+  if (dup) return dup as TreasuryTransferRow;
 
   const treasury = await getTreasuryWallet(sb);
-  if (!treasury) throw new Error('未找到金库钱包');
+  if (!treasury) throw new HttpError(404, '未找到金库钱包');
+
+  // T-C: hard-guard the dev single-signer treasury path (no consensus) off by default.
+  const fromCtx = walletContextFromDbRow({ address: treasury.address, metadata: treasury.metadata });
+  assertTreasuryDevSigningAllowed(fromCtx.provider);
+
+  // T-D: server-side limits + destination allowlist BEFORE creating anything.
+  assertTransferAmountWithinMax(opts.asset, opts.amount);
+  if (!(await isTreasuryDestinationAllowlisted(sb, to))) {
+    throw new HttpError(403, '收款地址不在金库白名单内');
+  }
+  const todayTotal = await sumTodaysTreasuryUsdt(sb);
+  assertDailyCapNotExceeded(opts.asset, todayTotal, opts.amount);
 
   // Record the request first so a Turnkey failure still leaves an audit trail.
   const { data: inserted, error: insErr } = await sb
@@ -135,14 +250,25 @@ export async function proposeTreasuryTransfer(
       status: 'awaiting_consensus',
       note: opts.note ?? null,
       created_by: opts.createdBy ?? null,
+      proposed_by: opts.proposedBy,
+      request_key: requestKey,
     })
     .select('*')
     .single();
-  if (insErr || !inserted) throw new Error(insErr?.message ?? '写入转账申请失败');
+  if (insErr || !inserted) {
+    // A concurrent request with the same key won the UNIQUE race — return its row.
+    const { data: raced } = await sb
+      .from('treasury_transfer_requests')
+      .select('*')
+      .eq('request_key', requestKey)
+      .maybeSingle();
+    if (raced) return raced as TreasuryTransferRow;
+    throw new HttpError(500, insErr?.message ?? '写入转账申请失败');
+  }
 
   try {
     const submission = await submitTreasuryTransfer({
-      from: walletContextFromDbRow({ address: treasury.address, metadata: treasury.metadata }),
+      from: fromCtx,
       asset: opts.asset,
       to,
       amount: String(opts.amount),
@@ -194,15 +320,23 @@ export async function listTreasuryTransfers(sb: Sb, limit = 30): Promise<Treasur
  * it, broadcast the signed transaction and record the hash. Returns the updated
  * row. Safe to call repeatedly — it no-ops if not yet approved.
  */
-export async function broadcastTreasuryTransfer(sb: Sb, id: string): Promise<TreasuryTransferRow> {
+export async function broadcastTreasuryTransfer(
+  sb: Sb,
+  id: string,
+  broadcasterUserId: string,
+): Promise<TreasuryTransferRow> {
   const { data: row } = await sb
     .from('treasury_transfer_requests')
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (!row) throw new Error('未找到转账申请');
+  if (!row) throw new HttpError(404, '未找到转账申请');
+  // T-B maker-checker: the admin who PROPOSED the transfer must not broadcast it.
+  // (Legacy rows have a null proposed_by; assertDifferentApprover throws on empty,
+  // so an un-attributed request cannot be broadcast until re-proposed.)
+  assertDifferentApprover((row.proposed_by as string) ?? '', broadcasterUserId);
   if (row.status === 'confirmed' || row.status === 'broadcast') return row as TreasuryTransferRow;
-  if (!row.turnkey_activity_id) throw new Error('该申请没有关联 Turnkey 活动');
+  if (!row.turnkey_activity_id) throw new HttpError(400, '该申请没有关联 Turnkey 活动');
 
   const activity = await pollTurnkeyActivity(row.turnkey_activity_id);
   if (activity.failure || activity.status === 'ACTIVITY_STATUS_FAILED' || activity.status === 'ACTIVITY_STATUS_REJECTED') {
