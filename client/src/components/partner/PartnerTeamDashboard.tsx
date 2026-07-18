@@ -85,59 +85,53 @@ export function PartnerTeamDashboard({
       <div className="relative px-4 py-3.5 space-y-2.5">
         {/* S1–S2 focus: 总业绩 */}
         <div className="animate-tile-rise" style={{ ['--rise-delay']: '0ms' } as CSSProperties}>
-          <div key={`${totalPerf}:${totalNew}`} className="animate-value-pop">
-            <PartnerDualAnimatedBar
-              title={p('team.totalPerf')}
-              totalLabel={p('team.totalShort')}
-              totalValue={totalPerf}
-              totalDisplay={`$${totalPerf.toLocaleString()}`}
-              newLabel={p('team.todayNew')}
-              newValue={totalNew}
-              newDisplay={`$${totalNew.toLocaleString()}`}
-              isDark={isDark}
-              totalAccent="#8A2B57"
-              newAccent="#c084fc"
-              featured={Boolean(sLevel && sLevel.id <= 2)}
-              featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
-              badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
-            />
-          </div>
+          <PartnerDualAnimatedBar
+            title={p('team.totalPerf')}
+            totalLabel={p('team.totalShort')}
+            totalValue={totalPerf}
+            totalDisplay={`$${totalPerf.toLocaleString()}`}
+            newLabel={p('team.todayNew')}
+            newValue={totalNew}
+            newDisplay={`$${totalNew.toLocaleString()}`}
+            isDark={isDark}
+            totalAccent="#8A2B57"
+            newAccent="#c084fc"
+            featured={Boolean(sLevel && sLevel.id <= 2)}
+            featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
+            badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
+          />
         </div>
         {/* S3–S6 focus: 小区业绩（不展示大区） */}
         <div className="animate-tile-rise" style={{ ['--rise-delay']: '45ms' } as CSSProperties}>
-          <div key={`${areas.smallAreaUsd}:${areas.smallAreaNewUsd}`} className="animate-value-pop">
-            <PartnerDualAnimatedBar
-              title={p('team.smallArea')}
-              totalLabel={p('team.totalShort')}
-              totalValue={areas.smallAreaUsd}
-              totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
-              newLabel={p('team.todayNew')}
-              newValue={areas.smallAreaNewUsd}
-              newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
-              isDark={isDark}
-              totalAccent="#E0568F"
-              newAccent="#f472b6"
-              featured={Boolean(!sLevel || sLevel.id >= 3)}
-              featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
-              badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
-            />
-          </div>
+          <PartnerDualAnimatedBar
+            title={p('team.smallArea')}
+            totalLabel={p('team.totalShort')}
+            totalValue={areas.smallAreaUsd}
+            totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
+            newLabel={p('team.todayNew')}
+            newValue={areas.smallAreaNewUsd}
+            newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
+            isDark={isDark}
+            totalAccent="#E0568F"
+            newAccent="#f472b6"
+            featured={Boolean(!sLevel || sLevel.id >= 3)}
+            featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
+            badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
+          />
         </div>
         <div className="animate-tile-rise" style={{ ['--rise-delay']: '90ms' } as CSSProperties}>
-          <div key={`${lifetimeUd3}:${transferredUd3}`} className="animate-value-pop">
-            <PartnerDualAnimatedBar
-              title={p('team.ud3Rewards')}
-              totalLabel={p('team.settledShort')}
-              totalValue={lifetimeUd3}
-              totalDisplay={`${lifetimeUd3.toLocaleString()} UD3`}
-              newLabel={p('team.transferredShort')}
-              newValue={transferredUd3}
-              newDisplay={`${transferredUd3.toLocaleString()} UD3`}
-              isDark={isDark}
-              totalAccent="#E0568F"
-              newAccent="#f59e0b"
-            />
-          </div>
+          <PartnerDualAnimatedBar
+            title={p('team.ud3Rewards')}
+            totalLabel={p('team.settledShort')}
+            totalValue={lifetimeUd3}
+            totalDisplay={`${lifetimeUd3.toLocaleString()} UD3`}
+            newLabel={p('team.transferredShort')}
+            newValue={transferredUd3}
+            newDisplay={`${transferredUd3.toLocaleString()} UD3`}
+            isDark={isDark}
+            totalAccent="#E0568F"
+            newAccent="#f59e0b"
+          />
         </div>
       </div>
     </motion.div>

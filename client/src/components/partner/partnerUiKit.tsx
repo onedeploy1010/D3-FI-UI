@@ -226,32 +226,32 @@ export function PartnerDualAnimatedBar({
         </div>
       </div>
 
-      {/* 左标题 · 右大数字：两行分别展示 累积/当日新增（或 已结算/已转账） */}
-      <div className="space-y-1.5 mb-2.5">
-        <div className="partner-metric-stat rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-          <span className={`text-[13px] font-semibold shrink-0 ${muted}`}>{totalLabel}</span>
-          <span
-            className="text-xl font-extrabold leading-none tracking-tight truncate text-right"
+      {/* 手机端左右并排：左＝累积/总业绩，右＝当日新增（或 已结算 / 已转账） */}
+      <div className="grid grid-cols-2 gap-2 mb-2.5">
+        <div className="partner-metric-stat rounded-lg px-3 py-2 min-w-0">
+          <div className={`text-[12px] font-semibold mb-1 ${muted}`}>{totalLabel}</div>
+          <div
+            className="text-lg sm:text-xl font-extrabold leading-none tracking-tight truncate"
             style={{ color: totalAccent }}
           >
             {totalDisplay}
-          </span>
+          </div>
         </div>
-        <div className="partner-metric-stat rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-          <span className={`text-[13px] font-semibold shrink-0 flex items-center gap-1 ${muted}`}>
-            {newLabel}
+        <div className="partner-metric-stat rounded-lg px-3 py-2 min-w-0">
+          <div className={`text-[12px] font-semibold mb-1 flex items-center gap-1 ${muted}`}>
+            <span className="truncate">{newLabel}</span>
             {badge && (
-              <span className="text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none">
+              <span className="shrink-0 text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none">
                 {badge}
               </span>
             )}
-          </span>
-          <span
-            className="text-xl font-extrabold leading-none tracking-tight truncate text-right"
+          </div>
+          <div
+            className="text-lg sm:text-xl font-extrabold leading-none tracking-tight truncate"
             style={{ color: newAccent }}
           >
             {newDisplay}
-          </span>
+          </div>
         </div>
       </div>
 
