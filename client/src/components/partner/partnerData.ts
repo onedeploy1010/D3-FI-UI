@@ -639,8 +639,23 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function ud3AvailableForState(state: PartnerState): number {
-  const settled = round2((state.ud3SettlementHistory ?? []).reduce((s, r) => s + r.ud3Amount, 0));
+/**
+ * SINGLE SOURCE OF TRUTH for spendable UD3 — used by 首页 / 资产 / 团队 (via
+ * getUd3Available in partnerUd3View, which delegates here) so the displayed UD3
+ * 余额 never disagrees across pages. Spendable UD3 = the server account balance
+ * (debited on every stake/transfer). The settled-minus-transferred-minus-staked
+ * branch is only a demo / not-yet-hydrated fallback, and it excludes 未结算
+ * (pending) rewards, which are NOT spendable.
+ */
+export function ud3AvailableForState(state: PartnerState): number {
+  if (state.ud3Balance > 0 || state.isPartner) return Math.max(0, round2(state.ud3Balance));
+  const settledHistory = round2(
+    (state.ud3SettlementHistory ?? [])
+      .filter((r) => r.settlementStatus !== 'pending')
+      .reduce((s, r) => s + r.ud3Amount, 0),
+  );
+  const settled =
+    settledHistory > 0 ? settledHistory : state.lifetimeUd3Earned > 0 ? round2(state.lifetimeUd3Earned) : 0;
   const transferred = round2((state.transfers ?? []).reduce((s, t) => s + t.amountUd3, 0));
   return Math.max(0, round2(settled - transferred - (state.ud3StakedFromRewards ?? 0)));
 }

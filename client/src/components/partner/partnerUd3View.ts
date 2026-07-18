@@ -1,4 +1,8 @@
-import { type PartnerState, type Ud3SettlementRecord } from '@/components/partner/partnerData';
+import {
+  ud3AvailableForState,
+  type PartnerState,
+  type Ud3SettlementRecord,
+} from '@/components/partner/partnerData';
 import { computePartnerAreaStats, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import { estimatePendingUd3ForMe } from '@/components/partner/ud3DemoSettle';
 import type { PartnerUd3AllocationRow, PartnerTeamStats } from '@/lib/d3fiTypes';
@@ -40,15 +44,9 @@ export function resolveSettledUd3Base(state: PartnerState): number {
 
 /** Available UD3 — partners use server balance; others deduct transfers/stakes from settled base. */
 export function getUd3Available(state: PartnerState): number {
-  // Spendable UD3 is the current account balance, which the server debits on every
-  // stake/transfer — authoritative for partners and non-partners alike. (UD3 earned
-  // from downline deposits is credited immediately, so no separate "settled" gate.)
-  if (state.ud3Balance > 0 || state.isPartner) return Math.max(0, round2(state.ud3Balance));
-  // Fallback for demo / not-yet-hydrated local state with no live account balance.
-  const settled = resolveSettledUd3Base(state);
-  const transferred = sumUd3Transferred(state);
-  const staked = state.ud3StakedFromRewards ?? 0;
-  return Math.max(0, round2(settled - transferred - staked));
+  // Delegates to the SINGLE source of truth in partnerData.ts so 首页 / 资产 / 团队
+  // always show the same spendable UD3. Do not reimplement the math here.
+  return ud3AvailableForState(state);
 }
 
 export type PartnerUd3Metrics = {
