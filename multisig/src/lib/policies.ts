@@ -34,7 +34,25 @@ const proposerConsensus = `approvers.filter(user, ${ROOT_IDS.map((id) => `user.i
 
 const USDT = '0x55d398326f99059fF775485246999027B3197955';
 
+// d3finance@hotmail.com — the org "Root user" (backend API user), id below. It is
+// NOT part of the root quorum (DA/Ye/DADA, threshold 2). The operator policy below
+// grants this user single-approver rights so it can operate day-to-day.
+const D3FINANCE_USER_ID = '5eba34d3-7b27-4a41-8192-49d80438cb54';
+const TREASURY = '0x2802A588F575Cb040487Dc0bD9e45b58c62C3B0B';
+
 export const CURATED_POLICIES: PolicyItem[] = [
+  {
+    id: 'operator-d3finance',
+    status: 'todo',
+    descZh:
+      'd3finance@hotmail.com（用户 5eba34d3）设为操作人：可单独批准「非国库」的日常运营活动（热钱包发交易、建钱包等）。国库（treasury）出款仍必须走 2/3 根签名人。若要授予完整权限，把 condition 改成 true。',
+    body: {
+      policyName: 'd3-operator-d3finance',
+      effect: 'EFFECT_ALLOW',
+      condition: `eth.tx.from != '${TREASURY}'`,
+      consensus: `approvers.filter(user, user.id == '${D3FINANCE_USER_ID}').count() >= 1`,
+    },
+  },
   {
     id: 'backend-proposer-2of3',
     status: 'todo',
