@@ -66,6 +66,7 @@ export function PartnerHomeTab({
   const [becomePartner, setBecomePartner] = useState(true);
   const [useUd3, setUseUd3] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paySuccessOpen, setPaySuccessOpen] = useState(false);
   const [staking, setStaking] = useState(false);
 
   const availableUd3 = getUd3Available(state);
@@ -160,6 +161,8 @@ export function PartnerHomeTab({
         : await onHomeStake(stakeAmount, withPartnerJoin);
       if (ok) {
         setConfirmOpen(false);
+        // USDT 质押走链上确认，需提示「稍后到订单页查看」；UD3 质押即时完成，另有提示。
+        if (!useUd3 && !isDemo) setPaySuccessOpen(true);
         setUseUd3(false);
         setAmount(String(DEFAULT_HOME_STAKE_USDT));
         if (!state.isPartner) setBecomePartner(true);
@@ -527,6 +530,25 @@ export function PartnerHomeTab({
             {busy ? (isDemo ? p('stake.demoPaying') : p('stake.paying')) : isDemo ? p('stake.demoConfirm') : p('stake.confirm')}
           </GlassButton>
         </div>
+      </PartnerModal>
+
+      <PartnerModal
+        open={paySuccessOpen}
+        onClose={() => setPaySuccessOpen(false)}
+        title={p('stake.paySuccessTitle')}
+        isDark={isDark}
+      >
+        <div className="flex flex-col items-center text-center gap-3 mb-5">
+          <span className="w-14 h-14 rounded-full bg-[#E0568F]/12 flex items-center justify-center text-[#E0568F]">
+            <CheckCircle2 size={30} aria-hidden />
+          </span>
+          <div className={`text-[13px] leading-relaxed ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
+            {p('stake.paySuccessBody')}
+          </div>
+        </div>
+        <GlassButton className="w-full !py-3" onClick={() => setPaySuccessOpen(false)}>
+          {p('stake.confirm')}
+        </GlassButton>
       </PartnerModal>
     </div>
   );
