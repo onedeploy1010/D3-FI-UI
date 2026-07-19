@@ -105,9 +105,16 @@ export type Ud3PerfSnapshot = {
 export function resolveUd3SLevel(perf: Ud3PerfSnapshot): Ud3SLevel | null {
   const total = perf.totalPerfUsdt;
   if (!Number.isFinite(total) || total < UD3_S_LEVELS[0].minPerfUsdt) return null;
+  // S2–S6 取「小区业绩 ≥ 该级入门线」的最高一级（含边界：小区 200k → S3）。
   const small = Number.isFinite(perf.smallAreaPerfUsdt) ? perf.smallAreaPerfUsdt : 0;
-  const bySmall = getUd3Tier(small);
-  return bySmall ? (UD3_S_LEVELS[bySmall.id - 1] ?? null) : UD3_S_LEVELS[0];
+  let level: Ud3SLevel = UD3_S_LEVELS[0];
+  for (let i = UD3_S_LEVELS.length - 1; i >= 1; i--) {
+    if (small >= UD3_S_LEVELS[i].minPerfUsdt) {
+      level = UD3_S_LEVELS[i];
+      break;
+    }
+  }
+  return level;
 }
 
 /** @deprecated Use resolveUd3SLevel */

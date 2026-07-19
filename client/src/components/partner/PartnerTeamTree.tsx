@@ -286,7 +286,8 @@ export function PartnerTeamTree({
   // 大区 = 当前直推层里「个人质押 + 伞下业绩」最大的一条线；其余直推都算小区。
   // 仅在非搜索且 ≥2 条直推时标识（此时大/小区之分才有意义）。并列最大取第一条。
   const bigAreaId = (() => {
-    if (q.trim() || children.length < 2) return null;
+    // 仅在【我的直推层】(focus 为本人) 标识大区；下钻到更深层不标。
+    if (focusId !== 'me' || q.trim() || children.length < 2) return null;
     let bestId: string | null = null;
     let bestVal = -Infinity;
     for (const c of children) {
@@ -305,9 +306,9 @@ export function PartnerTeamTree({
     const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
     const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
-    // 统一等级：S1=总业绩(伞下)≥100；S2-S6=该节点小区业绩。同一等级定受贿金比例。
+    // 统一等级：S1=总业绩≥100(含本人质押,故已入金的下级也显示S1)；S2-S6=该节点小区业绩。
     const nodeSLevel = resolveUd3SLevel({
-      totalPerfUsdt: node.teamUsd,
+      totalPerfUsdt: (node.teamUsd || 0) + (node.personalUsd || 0),
       smallAreaPerfUsdt: computePartnerAreaStats(displayNodes, node.id).smallAreaUsd,
     });
     const nodeLevel = nodeSLevel ? (UD3_TIERS[nodeSLevel.id - 1] ?? null) : null;
