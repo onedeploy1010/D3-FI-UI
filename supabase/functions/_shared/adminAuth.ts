@@ -79,9 +79,17 @@ export function permissionsForRole(role: string): string[] {
       return [...READ_PERMISSION_KEYS];
     case 'super_partner':
       // 项目方/超级合伙人 — fund authority for the standalone multisig system:
-      // view wallets + propose treasury transfers. treasury.write makes this an
-      // ELEVATED preset, so only a superadmin may create a super_partner.
-      return ['dashboard.read', 'treasury.read', 'treasury.write', 'transactions.read', 'security.read'];
+      // view wallets + propose treasury transfers + view fellow super-partners.
+      // treasury.write makes this an ELEVATED preset, so only a superadmin may
+      // create a super_partner.
+      return [
+        'dashboard.read',
+        'treasury.read',
+        'treasury.write',
+        'transactions.read',
+        'security.read',
+        'admins.read',
+      ];
     default:
       return [];
   }

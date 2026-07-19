@@ -113,6 +113,15 @@ export const api = {
   approvals: () => adminFetch<{ approvals?: PendingApproval[] }>('/approvals'),
   securityOverview: () => adminFetch<SecurityOverview>('/security/overview'),
   securityAlerts: () => adminFetch<{ rows?: SecurityAlert[] }>('/security/alerts?status=open'),
+  admins: () => adminFetch<{ rows?: AdminRow[] }>('/admins'),
+};
+
+export type AdminRow = {
+  userId: string;
+  username: string;
+  role: string;
+  permissions: string[];
+  createdAt?: string | null;
 };
 
 export type SecurityAlert = {
