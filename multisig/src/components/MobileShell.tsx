@@ -7,12 +7,20 @@ export function MobileShell({
   title,
   children,
   bottom,
+  subtitle,
+  onLogout,
 }: {
   title: string;
   children: ReactNode;
   bottom?: ReactNode;
+  /** Overrides the Supabase-derived identity line (used by the wallet/partner side). */
+  subtitle?: string;
+  /** Overrides the Supabase logout (used by the wallet/partner side). */
+  onLogout?: () => void;
 }) {
   const { user, logout } = useAuth();
+  const identity = subtitle ?? (user ? `${user.username} · ${user.role === 'super_partner' ? '超级合伙人' : user.role}` : '');
+  const doLogout = onLogout ?? (() => void logout());
   return (
     <div className="app-frame flex flex-col">
       <header className="safe-pt sticky top-0 z-20 px-4 pb-3 flex items-center justify-between gap-2 backdrop-blur-md bg-white/55 border-b border-[#8A2B57]/10">
@@ -22,16 +30,12 @@ export function MobileShell({
           </span>
           <div className="min-w-0">
             <div className="text-[15px] font-extrabold tracking-tight text-[#160510] truncate">{title}</div>
-            {user && (
-              <div className="text-[10px] text-[#8A2B57]/70 truncate">
-                {user.username} · {user.role === 'super_partner' ? '超级合伙人' : user.role}
-              </div>
-            )}
+            {identity && <div className="text-[10px] text-[#8A2B57]/70 truncate">{identity}</div>}
           </div>
         </div>
         <button
           type="button"
-          onClick={() => void logout()}
+          onClick={doLogout}
           className="tap shrink-0 p-2 rounded-xl text-[#8A2B57]/70 bg-[#8A2B57]/6"
           aria-label="退出"
         >

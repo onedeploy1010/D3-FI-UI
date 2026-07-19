@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_DOMAIN?: string;
   readonly VITE_TURNKEY_ORG_ID?: string;
   readonly VITE_TURNKEY_DASHBOARD_BASE?: string;
+  readonly VITE_REOWN_PROJECT_ID?: string;
+  readonly VITE_PARTNER_APP_URL?: string;
 }
 
 interface ImportMeta {
