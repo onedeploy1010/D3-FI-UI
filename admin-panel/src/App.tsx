@@ -15,6 +15,7 @@ import StakesPage from '@/pages/admin/stakes';
 import FundsPage from '@/pages/admin/funds';
 import SubsidiesPage from '@/pages/admin/subsidies';
 import SecurityPage from '@/pages/admin/security';
+import ParamsPage from '@/pages/admin/params';
 
 const TransactionsPage = lazy(() => import('@/pages/admin/transactions'));
 const RolesPage = lazy(() => import('@/pages/admin/roles'));
@@ -38,6 +39,7 @@ function AdminRoutes() {
               <Route path="/funds" component={FundsPage} />
               <Route path="/subsidies" component={SubsidiesPage} />
               <Route path="/security" component={SecurityPage} />
+              <Route path="/params" component={ParamsPage} />
               <Route path="/transactions" component={TransactionsPage} />
               <Route path="/roles" component={RolesPage} />
               <Route path="/">

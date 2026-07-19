@@ -33,6 +33,8 @@ export const PERMISSION_CATALOG: readonly PermissionDef[] = [
   { key: 'subsidies.rates', label: '修改补贴比例', group: '补贴' },
   { key: 'security.read', label: '查看安全', group: '安全' },
   { key: 'security.write', label: '管理安全', group: '安全' },
+  { key: 'params.read', label: '查看参数', group: '参数' },
+  { key: 'params.write', label: '管理参数', group: '参数' },
   { key: 'treasury.read', label: '查看金库', group: '金库' },
   { key: 'treasury.write', label: '管理金库', group: '金库' },
   { key: 'admins.read', label: '查看管理员', group: '管理员' },

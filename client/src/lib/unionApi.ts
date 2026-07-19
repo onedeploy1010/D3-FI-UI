@@ -99,6 +99,38 @@ export function getPrivateSaleProgress() {
   return unionPublicFetch<PrivateSaleProgress>('/private-sale/progress');
 }
 
+export type HeartbeatOrder = {
+  address: string;
+  amountUsdt: number;
+  d3: number;
+  round: number;
+  /** 'real' | 'auto' | 'manual' */
+  source: string;
+  hash: string | null;
+  /** epoch ms */
+  at: number;
+};
+
+export type HeartbeatData = {
+  config: { enabled: boolean; intervalSeconds: number };
+  unitPriceUsdt: number;
+  stats: {
+    realCount: number;
+    realUsdt: number;
+    addedCount: number;
+    addedUsdt: number;
+    totalUsdt: number;
+    /** (real + simulated USDT) ÷ round-1 unit price. */
+    totalD3: number;
+  };
+  orders: HeartbeatOrder[];
+};
+
+/** Public: heartbeat widget data — real + simulated combined (stats + order list). */
+export function getHeartbeat() {
+  return unionPublicFetch<HeartbeatData>('/heartbeat');
+}
+
 export function ensureUnionProfile(
   wallet: string,
   opts?: { lang?: 'zh' | 'en'; privyUserId?: string; displayName?: string },

@@ -16,6 +16,12 @@ import {
 } from '../_shared/privySign.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import {
+  getDisplayBoostPct,
+  getHeartbeatConfig,
+  getPrivateSaleRounds,
+  getUnitPriceUsdt,
+} from '../_shared/systemParams.ts';
+import {
   collectPartnerDownlineWallets,
   fetchPartnerDirectLineStats,
   fetchPartnerMemberWallets,
@@ -725,6 +731,7 @@ Deno.serve(async (req) => {
       (path === '/health' ||
         path === '/protocol' ||
         path === '/private-sale/progress' ||
+        path === '/heartbeat' ||
         Boolean(sponsorReg));
     // Public SIWE auth handshake — apikey only, no wallet/session auth required.
     const authRoute =
@@ -786,12 +793,8 @@ Deno.serve(async (req) => {
     // confirmed 私募 (crowdfund_stake) deposits, with an admin display boost.
     // Phase 2 will source `boostPct` and the round schedule from the param store.
     if (req.method === 'GET' && path === '/private-sale/progress') {
-      const ROUNDS = [
-        { round: 1, d3: 5_000_000, priceUsdt: 5 },
-        { round: 2, d3: 5_000_000, priceUsdt: 6 },
-        { round: 3, d3: 5_000_000, priceUsdt: 7 },
-        { round: 4, d3: 5_000_000, priceUsdt: 8 },
-      ];
+      // Round schedule now sourced from the system-param store (Phase 2).
+      const ROUNDS = await getPrivateSaleRounds(sb);
       const { data: intents } = await sb
         .from('stake_intents')
         .select('amount_usdt')
@@ -818,8 +821,8 @@ Deno.serve(async (req) => {
         raised = 0;
         break;
       }
-      // Admin display boost (additive, capped at 100). Phase 2: from param store.
-      const boostPct = 0;
+      // Admin display boost (additive, capped at 100) — from the param store.
+      const boostPct = await getDisplayBoostPct(sb);
       const realPct = Math.round(roundFrac * 1000) / 10;
       const displayPct = Math.min(100, Math.round((realPct + boostPct) * 10) / 10);
       return jsonResponse({
@@ -834,6 +837,75 @@ Deno.serve(async (req) => {
         totalTargetD3: ROUNDS.reduce((s, r) => s + r.d3, 0),
         raisedUsdtTotal,
         rounds: ROUNDS,
+      });
+    }
+
+    // GET /heartbeat — public. Combines real staked totals (from stake_intents)
+    // with cumulative simulated orders (heartbeat_orders) for the 心跳指数 widget.
+    // 质押数量 = (real + simulated USDT) ÷ round-1 unit price. Real wallet
+    // addresses are masked server-side; simulated orders carry synthetic hashes.
+    if (req.method === 'GET' && path === '/heartbeat') {
+      const [cfg, unitPrice, statsRes, simRes, realRes] = await Promise.all([
+        getHeartbeatConfig(sb),
+        getUnitPriceUsdt(sb),
+        sb.from('heartbeat_stats').select('source, order_count, usdt_total'),
+        sb
+          .from('heartbeat_orders')
+          .select('address, amount_usdt, d3, round, source, tx_hash, created_at')
+          .order('created_at', { ascending: false })
+          .limit(60),
+        sb
+          .from('stake_intents')
+          .select('wallet_address, amount_usdt, created_at')
+          .eq('intent_type', 'crowdfund_stake')
+          .in('status', ['credited', 'sweep_pending', 'completed'])
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ]);
+
+      const statBy = (s: string) =>
+        (statsRes.data ?? []).find((r) => r.source === s) ?? { order_count: 0, usdt_total: 0 };
+      const real = statBy('real');
+      const added = statBy('added');
+      const realUsdt = Number(real.usdt_total ?? 0);
+      const addedUsdt = Number(added.usdt_total ?? 0);
+      const totalUsdt = realUsdt + addedUsdt;
+      const mask = (a: string) => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+
+      const simOrders = (simRes.data ?? []).map((o) => ({
+        address: o.address as string,
+        amountUsdt: Number(o.amount_usdt ?? 0),
+        d3: Number(o.d3 ?? 0),
+        round: Number(o.round ?? 1),
+        source: o.source as string,
+        hash: (o.tx_hash as string) ?? null,
+        at: new Date(o.created_at as string).getTime(),
+      }));
+      const realOrders = (realRes.data ?? [])
+        .filter((o) => o.wallet_address)
+        .map((o) => ({
+          address: mask(String(o.wallet_address)),
+          amountUsdt: Number(o.amount_usdt ?? 0),
+          d3: unitPrice > 0 ? Math.round((Number(o.amount_usdt ?? 0) / unitPrice) * 1e6) / 1e6 : 0,
+          round: 1,
+          source: 'real',
+          hash: null as string | null,
+          at: new Date(o.created_at as string).getTime(),
+        }));
+      const orders = [...simOrders, ...realOrders].sort((a, b) => b.at - a.at).slice(0, 60);
+
+      return jsonResponse({
+        config: { enabled: cfg.enabled, intervalSeconds: cfg.intervalSeconds },
+        unitPriceUsdt: unitPrice,
+        stats: {
+          realCount: Number(real.order_count ?? 0),
+          realUsdt,
+          addedCount: Number(added.order_count ?? 0),
+          addedUsdt,
+          totalUsdt,
+          totalD3: unitPrice > 0 ? Math.round((totalUsdt / unitPrice) * 1e6) / 1e6 : 0,
+        },
+        orders,
       });
     }
 

@@ -12,6 +12,7 @@ import {
   Wallet,
   ArrowLeftRight,
   KeyRound,
+  SlidersHorizontal,
   LogOut,
   Menu,
   X,
@@ -28,6 +29,7 @@ const NAV = [
   { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones },
   { href: '/roles', label: '角色权限', sub: 'Roles', icon: KeyRound },
   { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert },
+  { href: '/params', label: '参数管理', sub: 'Parameters', icon: SlidersHorizontal },
 ] as const;
 
 function isActive(location: string, href: string) {

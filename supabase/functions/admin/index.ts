@@ -18,6 +18,13 @@ import {
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { HttpError, shortWallet } from '../_shared/wallet.ts';
 import {
+  getParams,
+  updateParam,
+  getHeartbeatConfig,
+  updateHeartbeatConfig,
+} from '../_shared/systemParams.ts';
+import { insertHeartbeatOrder, generateHeartbeatOrderNow } from '../_shared/heartbeatTick.ts';
+import {
   getPartnerProgramSettings,
   setMemberSubsidyRatePct,
   signSubsidyReceiptDownloads,
@@ -2175,6 +2182,112 @@ Deno.serve(async (req) => {
         after: settings,
       });
       return jsonResponse({ ok: true, settings });
+    }
+
+    // ── System parameters (参数管理) ──────────────────────────────────────────
+    if (req.method === 'GET' && path === '/params') {
+      requirePermission(admin, 'params.read');
+      return jsonResponse({ ok: true, params: await getParams(sb) });
+    }
+
+    if (req.method === 'PATCH' && path === '/params') {
+      requirePermission(admin, 'params.write');
+      const body = await readJson<{ key?: string; value?: unknown }>(req);
+      if (!body.key) throw new HttpError(400, 'key required');
+      const before = (await getParams(sb)).find((p) => p.param_key === body.key) ?? null;
+      const updated = await updateParam(sb, body.key, body.value, admin.username);
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'params.update',
+        entityType: 'system_params',
+        entityId: body.key,
+        before,
+        after: updated,
+      });
+      return jsonResponse({ ok: true, param: updated });
+    }
+
+    // ── Heartbeat orders (心跳订单) ──────────────────────────────────────────
+    if (req.method === 'GET' && path === '/heartbeat/config') {
+      requirePermission(admin, 'params.read');
+      const [config, stateRes] = await Promise.all([
+        getHeartbeatConfig(sb),
+        sb.from('heartbeat_state').select('last_tick_at, cumulative_count').eq('id', 'default').maybeSingle(),
+      ]);
+      return jsonResponse({ ok: true, config, state: stateRes.data ?? null });
+    }
+
+    if (req.method === 'PATCH' && path === '/heartbeat/config') {
+      requirePermission(admin, 'params.write');
+      const body = await readJson<{
+        enabled?: boolean;
+        intervalSeconds?: number;
+        amountMin?: number;
+        amountMax?: number;
+      }>(req);
+      const before = await getHeartbeatConfig(sb);
+      const config = await updateHeartbeatConfig(sb, body, admin.username);
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'heartbeat.config.update',
+        entityType: 'heartbeat_config',
+        entityId: 'default',
+        before,
+        after: config,
+      });
+      return jsonResponse({ ok: true, config });
+    }
+
+    if (req.method === 'GET' && path === '/heartbeat/orders') {
+      requirePermission(admin, 'params.read');
+      const [ordersRes, statsRes] = await Promise.all([
+        sb
+          .from('heartbeat_orders')
+          .select('id, address, amount_usdt, d3, round, source, tx_hash, created_by, created_at')
+          .order('created_at', { ascending: false })
+          .limit(100),
+        sb.from('heartbeat_stats').select('source, order_count, usdt_total'),
+      ]);
+      return jsonResponse({ ok: true, orders: ordersRes.data ?? [], stats: statsRes.data ?? [] });
+    }
+
+    if (req.method === 'POST' && path === '/heartbeat/orders') {
+      requirePermission(admin, 'params.write');
+      const body = await readJson<{ amountUsdt?: number; address?: string }>(req);
+      if (body.amountUsdt == null) throw new HttpError(400, 'amountUsdt required');
+      const order = await insertHeartbeatOrder(sb, {
+        amountUsdt: Number(body.amountUsdt),
+        address: body.address,
+        source: 'manual',
+        createdBy: admin.username,
+      });
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'heartbeat.order.add',
+        entityType: 'heartbeat_orders',
+        entityId: String((order as { id?: string }).id ?? ''),
+        before: null,
+        after: order,
+      });
+      return jsonResponse({ ok: true, order });
+    }
+
+    if (req.method === 'POST' && path === '/heartbeat/orders/generate') {
+      requirePermission(admin, 'params.write');
+      const order = await generateHeartbeatOrderNow(sb, admin.username);
+      await writeAdminAudit(sb, {
+        actorId: admin.userId,
+        actorRole: admin.role,
+        action: 'heartbeat.order.generate',
+        entityType: 'heartbeat_orders',
+        entityId: String((order as { id?: string }).id ?? ''),
+        before: null,
+        after: order,
+      });
+      return jsonResponse({ ok: true, order });
     }
 
     const ticketMatch = path.match(/^\/subsidy-tickets\/([0-9a-f-]{36})$/);
