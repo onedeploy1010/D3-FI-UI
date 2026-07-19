@@ -167,11 +167,13 @@ export const CURATED_POLICIES: PolicyItem[] = [
   {
     id: 'anchor-allow',
     status: 'todo',
-    descZh: '允许后端 gas 钱包调用 DailyStateAnchor 写每日余额 Merkle 根（防篡改、每天一次）。删 broad 前必须先加这条，否则锚定会断。填入 DailyStateAnchor 合约地址。',
+    descZh:
+      '允许后端 gas 钱包（0x1f73…836c9）调用 DailyStateAnchor（0x50dc…2A8D）写每日余额 Merkle 根。这是后端唯一的合约调用——【删 broad 前必须先加这条】，否则每日锚定会断。',
     body: {
       policyName: 'd3-anchor-allow',
       effect: 'EFFECT_ALLOW',
-      condition: "eth.tx.to == '<DAILY_STATE_ANCHOR_ADDRESS>'",
+      condition:
+        "eth.tx.chain_id == 56 && eth.tx.to == '0x50dcb2a150bf34b5aa64015bc9b3ae0be77e2a8d' && eth.tx.from == '0x1f738b91da08db0c6a862d338579814eb8b836c9'",
       consensus: `approvers.any(user, user.id == '${BACKEND_USER}')`,
     },
   },
