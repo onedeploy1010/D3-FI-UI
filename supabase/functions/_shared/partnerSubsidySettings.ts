@@ -16,10 +16,38 @@ export type PartnerProgramSettings = {
 export type SubsidyTicketKind = 'partner_subsidy' | 'market_subsidy' | 'market_leader';
 export type SubsidyApplicationType = 'reserve' | 'reimbursement';
 
+// 统一默认 10%（旧的 10%/5% 硬编码取消）。可全局改，或按会员单独覆盖。
+export const DEFAULT_SUBSIDY_RATE_PCT = 10;
 const DEFAULT_SETTINGS: PartnerProgramSettings = {
-  partnerSubsidyRatePct: 10,
-  marketSubsidyRatePct: 5,
+  partnerSubsidyRatePct: DEFAULT_SUBSIDY_RATE_PCT,
+  marketSubsidyRatePct: DEFAULT_SUBSIDY_RATE_PCT,
 };
+
+/** Per-member subsidy-rate override (partner_accounts.subsidy_rate_pct), or null. */
+export async function getMemberSubsidyRatePct(sb: Sb, wallet: string): Promise<number | null> {
+  const { data } = await sb
+    .from('partner_accounts')
+    .select('subsidy_rate_pct')
+    .ilike('wallet_address', wallet)
+    .maybeSingle();
+  const v = (data as { subsidy_rate_pct?: number | null } | null)?.subsidy_rate_pct;
+  return v == null || !Number.isFinite(Number(v)) ? null : Number(v);
+}
+
+/** Admin sets/clears a member's subsidy-rate override (null = fall back to global default). */
+export async function setMemberSubsidyRatePct(sb: Sb, wallet: string, ratePct: number | null) {
+  if (ratePct != null) {
+    const v = Number(ratePct);
+    if (!Number.isFinite(v) || v < 0 || v > 100) throw new HttpError(400, 'Invalid subsidy_rate_pct');
+    ratePct = v;
+  }
+  const { error } = await sb
+    .from('partner_accounts')
+    .update({ subsidy_rate_pct: ratePct, updated_at: new Date().toISOString() })
+    .ilike('wallet_address', wallet);
+  if (error) throw new HttpError(500, error.message);
+  return { wallet, subsidyRatePct: ratePct };
+}
 
 export async function getPartnerProgramSettings(sb: Sb): Promise<PartnerProgramSettings> {
   const { data, error } = await sb
@@ -89,8 +117,11 @@ export async function computeSubsidyQuota(
   kind: 'partner_subsidy' | 'market_subsidy',
 ): Promise<SubsidyQuotaResult> {
   const settings = await getPartnerProgramSettings(sb);
-  const ratePct =
+  // 会员单独设置的补贴% 优先于全局默认。
+  const memberRate = await getMemberSubsidyRatePct(sb, wallet);
+  const globalRate =
     kind === 'partner_subsidy' ? settings.partnerSubsidyRatePct : settings.marketSubsidyRatePct;
+  const ratePct = memberRate ?? globalRate;
   const rate = ratePct / 100;
 
   const [tickets, dedupPartnerPerf, dedupLeaderPerf, marketDeductionPerf] = await Promise.all([

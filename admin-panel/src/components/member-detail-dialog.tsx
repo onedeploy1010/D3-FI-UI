@@ -18,7 +18,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { AddressChip } from './address-chip';
-import { getMember, setMemberLeader, setMemberRemark, type MemberDetail } from '@/lib/adminApi';
+import { getMember, setMemberLeader, setMemberRemark, setMemberSubsidyRate, type MemberDetail } from '@/lib/adminApi';
+import { useAdminAuth } from '@/contexts/admin-auth';
 import { fmtUsd } from '@/lib/supabase';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
@@ -67,6 +68,12 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
   const [leaderReason, setLeaderReason] = useState('');
   const [submittingLeader, setSubmittingLeader] = useState(false);
 
+  // Per-member subsidy-rate override (needs `subsidies.rates`).
+  const { hasPermission } = useAdminAuth();
+  const canEditRate = hasPermission('subsidies.rates');
+  const [rateInput, setRateInput] = useState('');
+  const [savingRate, setSavingRate] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -76,6 +83,7 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
         if (cancelled) return;
         setData(d);
         setRemark(d.profile.remark ?? '');
+        setRateInput(d.subsidyRatePct == null ? '' : String(d.subsidyRatePct));
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : '加载失败'))
       .finally(() => !cancelled && setLoading(false));
@@ -94,6 +102,25 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
       toast.error(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSavingRemark(false);
+    }
+  }
+
+  async function saveRate() {
+    const trimmed = rateInput.trim();
+    const ratePct = trimmed === '' ? null : Number(trimmed);
+    if (ratePct != null && (!Number.isFinite(ratePct) || ratePct < 0 || ratePct > 100)) {
+      toast.error('补贴比例需为 0–100');
+      return;
+    }
+    setSavingRate(true);
+    try {
+      await setMemberSubsidyRate(wallet, ratePct);
+      toast.success(ratePct == null ? '已恢复默认补贴比例' : `补贴比例已设为 ${ratePct}%`);
+      setData((prev) => (prev ? { ...prev, subsidyRatePct: ratePct } : prev));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSavingRate(false);
     }
   }
 
@@ -232,6 +259,40 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
           </div>
         )}
       </Section>
+
+      {/* Per-member subsidy rate (needs subsidies.rates permission) */}
+      {canEditRate && (
+        <Section title="补贴比例 Subsidy %">
+          <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
+            <div className="flex-1">
+              <p className="text-[11px] text-muted-foreground mb-1">
+                单独设置该会员补贴比例（留空 = 默认 10%）。当前：
+                {data.subsidyRatePct == null ? ' 默认 10%' : ` ${data.subsidyRatePct}%`}
+              </p>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.5"
+                  value={rateInput}
+                  onChange={(e) => setRateInput(e.target.value)}
+                  placeholder="默认 10"
+                  className="h-9 w-28"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={saveRate}
+              disabled={savingRate || rateInput.trim() === (data.subsidyRatePct == null ? '' : String(data.subsidyRatePct))}
+            >
+              {savingRate ? '保存中…' : '保存'}
+            </Button>
+          </div>
+        </Section>
+      )}
 
       <Separator />
 

@@ -19,6 +19,7 @@ import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { HttpError, shortWallet } from '../_shared/wallet.ts';
 import {
   getPartnerProgramSettings,
+  setMemberSubsidyRatePct,
   signSubsidyReceiptDownloads,
   updatePartnerProgramSettings,
 } from '../_shared/partnerSubsidySettings.ts';
@@ -85,7 +86,7 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
   let acctQ = sb
     .from('partner_accounts')
     .select(
-      'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, joined_at, created_at',
+      'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, joined_at, created_at',
     )
     .order('created_at', { ascending: false })
     .limit(500);
@@ -124,6 +125,7 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
         ud3Balance: Number(a?.sd3_balance ?? 0),
         pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
         marketLeaderStatus: a?.market_leader_status ?? 'none',
+        subsidyRatePct: a?.subsidy_rate_pct == null ? null : Number(a.subsidy_rate_pct),
         joinedAt: a?.joined_at ?? null,
         createdAt: a?.created_at ?? ref?.referredAt ?? null,
         sponsorWallet: ref?.sponsor ?? null,
@@ -332,6 +334,7 @@ async function getMemberBundle(sb: Sb, wallet: string) {
     },
     marketLeaderStatus: node.marketLeaderStatus,
     isPartner: node.isPartner,
+    subsidyRatePct: account?.subsidy_rate_pct == null ? null : Number(account.subsidy_rate_pct),
     stakeSummary: {
       count: stakes.length,
       usdtPrincipal: sumKinds(USDT_STAKE_KINDS),
@@ -2002,6 +2005,28 @@ Deno.serve(async (req) => {
         admin,
       );
       return jsonResponse({ ok: true, pendingApproval: approval }, 202);
+    }
+
+    // Per-member subsidy-rate override (会员管理 / 合伙人管理). Separate `subsidies.rates`
+    // permission; NOT payout-authorizing at set time (only future subsidy applications
+    // use it, which have their own quota + maker-checker), so applied directly + audited.
+    const rateMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})\/subsidy-rate$/);
+    if (req.method === 'POST' && rateMatch) {
+      if (!adminHasPermission(admin, 'subsidies.rates')) {
+        throw new HttpError(403, 'Missing subsidies.rates permission');
+      }
+      const body = await readJson<{ ratePct?: number | null }>(req);
+      const ratePct = body.ratePct == null ? null : Number(body.ratePct);
+      const result = await setMemberSubsidyRatePct(sb, rateMatch[1], ratePct);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'member_subsidy_rate_set',
+        entityType: 'partner_accounts',
+        entityId: rateMatch[1],
+        newValue: { ratePct },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, ...result });
     }
 
     const memberMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})$/);

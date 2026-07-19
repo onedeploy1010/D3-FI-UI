@@ -190,6 +190,8 @@ export type MemberDetail = {
   profile: MemberProfile;
   marketLeaderStatus: string;
   isPartner: boolean;
+  /** Per-member subsidy % override; null = use global default (10%). */
+  subsidyRatePct: number | null;
   stakeSummary: MemberStakeSummary;
   balances: MemberBalances;
   referral: MemberReferralSummary;
@@ -213,6 +215,17 @@ export function setMemberLeader(wallet: string, isLeader: boolean, reason: strin
     {
       method: 'POST',
       body: JSON.stringify({ isLeader, reason }),
+    },
+  );
+}
+
+/** Set/clear a member's subsidy % override (null = fall back to global default). Needs `subsidies.rates`. */
+export function setMemberSubsidyRate(wallet: string, ratePct: number | null) {
+  return adminFetch<{ ok?: boolean; subsidyRatePct?: number | null }>(
+    `/members/${wallet}/subsidy-rate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ ratePct }),
     },
   );
 }

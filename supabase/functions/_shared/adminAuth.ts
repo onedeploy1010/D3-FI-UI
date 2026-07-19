@@ -30,6 +30,7 @@ export const PERMISSION_CATALOG: readonly PermissionDef[] = [
   { key: 'partners.read', label: '查看合伙人', group: '推荐' },
   { key: 'subsidies.read', label: '查看补贴', group: '补贴' },
   { key: 'subsidies.write', label: '管理补贴', group: '补贴' },
+  { key: 'subsidies.rates', label: '修改补贴比例', group: '补贴' },
   { key: 'security.read', label: '查看安全', group: '安全' },
   { key: 'security.write', label: '管理安全', group: '安全' },
   { key: 'treasury.read', label: '查看金库', group: '金库' },
