@@ -380,6 +380,8 @@
   "heartbeat.totalOrders": "ออร์เดอร์",
   "heartbeat.raised": "ระดมทุนได้",
   "heartbeat.streamHint": "อัปเดตสด",
+  "heartbeat.priceRising": "ราคาเพิ่มขึ้น",
+  "heartbeat.priceRisingHint": "สูงขึ้นทุกรอบ",
   "stake.paySuccessTitle": "สเตกสำเร็จ",
   "stake.paySuccessBody": "ตรวจสอบที่หน้า「คำสั่งซื้อ」หากยังไม่แสดง การยืนยันบนเชนใช้เวลา 1–5 นาที โปรดรีเฟรชภายหลัง"
 }

@@ -149,6 +149,10 @@ export default function Portal() {
           </GlassCard>
         </motion.div>
 
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+          <PrivateSaleHeartbeat lang={lang === 'zh' ? 'zh-CN' : 'en'} isDark={isDark} />
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -157,10 +161,6 @@ export default function Portal() {
           <IllustrationCard isDark={isDark} caption={t.diagramCaption} className="min-h-[240px] sm:min-h-[280px] md:aspect-[4/3]">
             <PortalOrbitalDiagram lang={lang} isDark={isDark} />
           </IllustrationCard>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-          <PrivateSaleHeartbeat lang={lang === 'zh' ? 'zh-CN' : 'en'} isDark={isDark} />
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

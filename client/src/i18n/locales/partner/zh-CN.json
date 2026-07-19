@@ -402,6 +402,8 @@
   "heartbeat.totalOrders": "总订单",
   "heartbeat.raised": "已募集",
   "heartbeat.streamHint": "实时更新中",
+  "heartbeat.priceRising": "价格递增",
+  "heartbeat.priceRisingHint": "后续轮次逐轮上涨",
   "stake.paySuccessTitle": "质押成功",
   "stake.paySuccessBody": "请到「订单」页面查看。若未显示，链上验证约需 1–5 分钟，请稍后刷新页面。"
 }

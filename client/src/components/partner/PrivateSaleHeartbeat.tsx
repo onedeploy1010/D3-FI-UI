@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import NumberFlow from '@number-flow/react';
-import { Activity, Radio, ChevronRight } from 'lucide-react';
+import { Activity, Radio, ChevronRight, TrendingUp } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { getPrivateSaleProgress, type PrivateSaleProgress } from '@/lib/unionApi';
@@ -86,6 +86,26 @@ function EcgTrace({ pulseKey, reduce }: { pulseKey: number; reduce: boolean | nu
         animate={{ scale: [0.9, 1.5, 1], opacity: [0.8, 1, 0.85] }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
       />
+    </div>
+  );
+}
+
+/**
+ * Four bars stepping upward, pulsing on the same 1.15s heartbeat tempo — a
+ * “price rises each round” indicator that beats in time with the index.
+ */
+function RisingBars({ reduce }: { reduce: boolean | null }) {
+  return (
+    <div className="flex items-end gap-[3px] h-6" aria-hidden>
+      {[0, 1, 2, 3].map((i) => (
+        <motion.span
+          key={i}
+          className="w-[3px] rounded-full"
+          style={{ background: ROUND_ACCENTS[i], height: 7 + i * 4, transformOrigin: 'bottom' }}
+          animate={reduce ? undefined : { scaleY: [0.55, 1, 0.55] }}
+          transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut', delay: i * 0.12 }}
+        />
+      ))}
     </div>
   );
 }
@@ -254,10 +274,11 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
   const [pulseKey, setPulseKey] = useState(0);
   const [explorerOpen, setExplorerOpen] = useState(false);
 
-  // Round + price grounded in real progress; fall back to the local ladder.
+  // Price + supply are fixed by the sale design (round 1 = 5U, 800万 D3 per round);
+  // only the sold + raised figures come from real progress data.
   const roundInfo = PRESALE_ROUNDS[round - 1] ?? PRESALE_ROUNDS[0];
-  const price = progress?.roundPriceUsdt ?? roundInfo.priceUsdt;
-  const target = progress?.roundTargetD3 ?? roundInfo.d3;
+  const price = roundInfo.priceUsdt;
+  const target = roundInfo.d3;
   const baseSoldD3 = progress?.roundSoldD3 ?? Math.round(target * 0.38);
   const baseRaisedUsdt = progress?.raisedUsdtTotal ?? Math.round(baseSoldD3 * price);
 
@@ -321,6 +342,11 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
       <button
         type="button"
         onClick={() => setExplorerOpen(true)}
+        style={{
+          boxShadow: isDark
+            ? '0 0 0 1.5px rgba(224,86,143,0.42), 0 1px 0 rgba(255,255,255,0.07) inset, 0 18px 38px -12px rgba(0,0,0,0.62)'
+            : '0 0 0 1.5px rgba(224,86,143,0.45), 0 1px 0 rgba(255,255,255,0.92) inset, 0 20px 40px -14px rgba(138,43,87,0.34)',
+        }}
         className={`partner-elevated-card w-full p-4 text-left ios-glass-pressable ${glassCardClass('highlight', '')}`}
       >
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
@@ -361,32 +387,38 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
           <EcgTrace pulseKey={pulseKey} reduce={reduce} />
         </div>
 
-        {/* Round price ladder */}
-        <div className="relative mt-1 grid grid-cols-4 gap-1.5">
-          {PRESALE_ROUNDS.map((r, i) => {
-            const accent = ROUND_ACCENTS[i] ?? '#E0568F';
-            const active = r.round === round;
-            return (
-              <div
-                key={r.round}
-                className={`rounded-lg px-1 py-1.5 text-center border ${
-                  active
-                    ? 'border-[#E0568F]/50 bg-[#E0568F]/10'
-                    : isDark
-                      ? 'border-white/[0.06] bg-white/[0.03]'
-                      : 'border-[#160510]/[0.06] bg-[#160510]/[0.02]'
-                }`}
-              >
-                <div className={`text-[9px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
-                  {p('privateSale.roundLabel', { n: r.round })}
-                </div>
-                <div className="text-[13px] font-extrabold leading-tight" style={{ color: accent }}>
-                  {r.priceUsdt}
-                  <span className="text-[9px] opacity-70">U</span>
-                </div>
+        {/* Round 1 supply + price (prominent); later rounds are a dimmed "prices rise"
+            indicator that beats on the same tempo as the heartbeat index. */}
+        <div
+          className={`relative mt-1 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 border-[1.5px] ${
+            isDark ? 'border-[#E0568F]/30 bg-[#E0568F]/[0.07]' : 'border-[#E0568F]/35 bg-[#E0568F]/[0.06]'
+          }`}
+        >
+          <div className="min-w-0">
+            <div className={`text-[10px] font-semibold ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
+              {p('privateSale.roundLabel', { n: 1 })} · {PRESALE_ROUNDS[0].d3.toLocaleString()} D3
+            </div>
+            <div className="mt-0.5 flex items-baseline gap-0.5 leading-none">
+              <span className="text-2xl font-black text-[#E0568F]">{PRESALE_ROUNDS[0].priceUsdt}</span>
+              <span className="text-sm font-bold text-[#E0568F] opacity-70">U</span>
+            </div>
+          </div>
+          <motion.div
+            className="flex items-center gap-2 opacity-60"
+            animate={reduce ? undefined : { scale: [1, 1.07, 1, 1.04, 1] }}
+            transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut', times: [0, 0.16, 0.32, 0.46, 1] }}
+          >
+            <RisingBars reduce={reduce} />
+            <div className="text-right leading-tight">
+              <div className="inline-flex items-center gap-0.5 text-[11px] font-bold text-[#E0568F]">
+                <TrendingUp size={12} strokeWidth={2.5} />
+                {p('heartbeat.priceRising')}
               </div>
-            );
-          })}
+              <div className={`text-[9px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                {p('heartbeat.priceRisingHint')}
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Slowly-filling progress bar */}
