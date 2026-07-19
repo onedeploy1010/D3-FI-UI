@@ -112,3 +112,53 @@ export async function fetchPartnerProfile(wallet: string): Promise<PartnerProfil
   if (!res.ok) throw new Error((json as { error?: string }).error ?? `profile failed (${res.status})`);
   return json;
 }
+
+// ── Partner subsidy (union, SIWE-authed) ─────────────────────────────────────
+async function unionAuthed<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = getSessionToken();
+  const res = await fetch(`${BASE}${path}`, {
+    ...opts,
+    headers: {
+      apikey: APIKEY,
+      Authorization: `Bearer ${APIKEY}`,
+      'Content-Type': 'application/json',
+      ...(token ? { 'X-Session-Token': token } : {}),
+      ...(opts?.headers ?? {}),
+    },
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((json as { error?: string }).error ?? `union ${path} (${res.status})`);
+  return json as T;
+}
+
+export type SubsidyKind = 'partner_subsidy' | 'market_subsidy';
+export type SubsidyQuota = {
+  ratePct: number;
+  basePerformanceUsd: number;
+  cap: number;
+  reserved: number;
+  remaining: number;
+};
+export type SubsidyTicket = {
+  id: string;
+  kind: string;
+  amount_usd: number;
+  purpose?: string | null;
+  status: string;
+  application_type?: string | null;
+  created_at?: string;
+  applied_at?: string;
+};
+
+export const partnerApi = {
+  subsidyQuota: (kind: SubsidyKind) =>
+    unionAuthed<{ ok: boolean; quota: SubsidyQuota }>(`/partner/subsidy-quota?kind=${kind}`),
+  subsidyTickets: () => unionAuthed<{ ok: boolean; tickets: SubsidyTicket[] }>('/partner/subsidy-tickets'),
+  createSubsidy: (body: {
+    kind: SubsidyKind | 'market_leader';
+    amountUsd: number;
+    purpose?: string;
+    applicationType?: 'reserve' | 'reimbursement';
+    receiptPaths?: string[];
+  }) => unionAuthed<{ ok: boolean; ticket: SubsidyTicket }>('/partner/subsidy-tickets', { method: 'POST', body: JSON.stringify(body) }),
+};

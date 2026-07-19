@@ -3,6 +3,7 @@ import { TrendingUp, HandCoins, FileText, Users, ClipboardCheck, ChevronRight } 
 import { MobileShell } from '@/components/MobileShell';
 import { AddressDisplay } from '@/components/AddressDisplay';
 import { PartnerPerformance } from '@/pages/tabs/PartnerPerformance';
+import { PartnerSubsidy } from '@/pages/tabs/PartnerSubsidy';
 import { fetchPartnerProfile, type PartnerProfile } from '@/lib/siwe';
 import { shortAddr } from '@/lib/supabase';
 
@@ -10,7 +11,7 @@ type Sub = 'performance' | 'subsidy' | 'templates' | 'committee' | 'events';
 
 const SECTIONS: { id: Sub; icon: typeof TrendingUp; title: string; desc: string; soon?: boolean }[] = [
   { id: 'performance', icon: TrendingUp, title: '我的业绩', desc: '伞下入金 · 团队业绩 · 反向金 UD3' },
-  { id: 'subsidy', icon: HandCoins, title: '补贴申请', desc: '合伙人补贴 / 市场补贴申请与进度', soon: true },
+  { id: 'subsidy', icon: HandCoins, title: '补贴申请', desc: '合伙人补贴 / 市场补贴申请与进度' },
   { id: 'templates', icon: FileText, title: '申请事项模版', desc: '常用申请事项的标准模版', soon: true },
   { id: 'committee', icon: Users, title: '任命委员会', desc: '发起 / 参与委员会任命', soon: true },
   { id: 'events', icon: ClipboardCheck, title: '事件多签批准', desc: '合伙人事务的多方签名批准', soon: true },
@@ -73,8 +74,9 @@ export function PartnerHome({ address, onLogout }: { address: string; onLogout: 
       )}
 
       {sub === 'performance' && <PartnerPerformance profile={profile} loading={loading} />}
+      {sub === 'subsidy' && <PartnerSubsidy />}
 
-      {sub && sub !== 'performance' && (
+      {sub && sub !== 'performance' && sub !== 'subsidy' && (
         <div className="brand-card rounded-2xl p-8 text-center">
           <div className="text-[14px] font-bold text-[#160510] mb-1">{current?.title}</div>
           <div className="text-[12px] text-[#8A2B57]/60">该功能即将开放</div>
