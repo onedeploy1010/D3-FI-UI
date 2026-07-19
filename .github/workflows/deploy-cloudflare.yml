@@ -33,6 +33,9 @@ jobs:
           VITE_USDT_IS_FAUCET: 'true'
           VITE_REFERRAL_REGISTRY_ADDRESS: '0x17da7b78448D04cD6E72Bf819Abb9a0C10553fED'
           VITE_DEMO_WALLET_ADDRESS: '0x1234567890abcdef1234567890abcdef12345678'
+          # Dedicated BSC RPC — the default public node rate-limits the rapid
+          # balance/gas reads a stake fires, surfacing as "Failed to fetch".
+          VITE_BSC_RPC_URL: 'https://bsc-rpc.publicnode.com'
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
