@@ -74,16 +74,16 @@ export type Ud3VLevel = Ud3SLevel;
 /**
  * Cumulative share of the 40% network pool by S id (same id as 档位).
  * S1 20% · S2 40% · S3 55% · S4 70% · S5 85% · S6 100%.
- * `metric` / `minPerfUsdt` kept for admin display; qualification uses 档位 brackets
- * after clearing the S1 entry floor (1000 USDT total).
+ * Qualification uses the same brackets but on 【小区业绩 small-area】 (去大区留小区),
+ * NOT total — after clearing the S1 entry floor. 引路人 档位/奖励比例 stays on 总业绩.
  */
 export const UD3_S_LEVELS: Ud3SLevel[] = [
-  { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 1_000 },
-  { id: 2, label: 'S2', sharePct: 40, metric: 'total', minPerfUsdt: 100_000 },
-  { id: 3, label: 'S3', sharePct: 55, metric: 'total', minPerfUsdt: 200_000 },
-  { id: 4, label: 'S4', sharePct: 70, metric: 'total', minPerfUsdt: 300_000 },
-  { id: 5, label: 'S5', sharePct: 85, metric: 'total', minPerfUsdt: 500_000 },
-  { id: 6, label: 'S6', sharePct: 100, metric: 'total', minPerfUsdt: 800_000 },
+  { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 100 },
+  { id: 2, label: 'S2', sharePct: 40, metric: 'small', minPerfUsdt: 100_000 },
+  { id: 3, label: 'S3', sharePct: 55, metric: 'small', minPerfUsdt: 200_000 },
+  { id: 4, label: 'S4', sharePct: 70, metric: 'small', minPerfUsdt: 300_000 },
+  { id: 5, label: 'S5', sharePct: 85, metric: 'small', minPerfUsdt: 500_000 },
+  { id: 6, label: 'S6', sharePct: 100, metric: 'small', minPerfUsdt: 800_000 },
 ];
 
 /** @deprecated Use UD3_S_LEVELS */
@@ -97,15 +97,17 @@ export type Ud3PerfSnapshot = {
 };
 
 /**
- * Gap level = same S1–S6 as 档位 (总业绩区间).
- * Demo 7600 → S1 → 20% of network pool. Below 1000 total → no level.
+ * 网体 S-级别 (HYBRID 达标):
+ *   • S1 = 总业绩 ≥ 100U（入门，看总业绩）。
+ *   • S2–S6 = 小区业绩 达 100k/200k/300k/500k/800k（看小区业绩）。
+ * 总业绩 < 100 → 无级别。引路人档位/奖励比例另按总业绩(getUd3Tier)。
  */
 export function resolveUd3SLevel(perf: Ud3PerfSnapshot): Ud3SLevel | null {
   const total = perf.totalPerfUsdt;
   if (!Number.isFinite(total) || total < UD3_S_LEVELS[0].minPerfUsdt) return null;
-  const tier = getUd3Tier(total);
-  if (!tier) return null;
-  return UD3_S_LEVELS[tier.id - 1] ?? null;
+  const small = Number.isFinite(perf.smallAreaPerfUsdt) ? perf.smallAreaPerfUsdt : 0;
+  const bySmall = getUd3Tier(small);
+  return bySmall ? (UD3_S_LEVELS[bySmall.id - 1] ?? null) : UD3_S_LEVELS[0];
 }
 
 /** @deprecated Use resolveUd3SLevel */
@@ -268,17 +270,20 @@ export function settleUd3DepositEvent(input: {
   depositUsdt: number;
   referrerWallet: string;
   referrerTotalPerfUsdt: number;
-  /** Override 引路人 gap floor; default = resolve from referrerTotalPerfUsdt. */
+  /** 引路人自身的小区业绩 — 网体 S-级别（网体差额下限）按小区达标。 */
+  referrerSmallAreaPerfUsdt?: number;
+  /** Override 引路人 gap floor; default = resolve from referrer 小区业绩 S-level. */
   referrerNetworkSharePct?: number;
   /** Upline ABOVE referrer, bottom→top. */
   networkChainAboveReferrer: Ud3UplineNode[];
 }) {
+  // 引路人受贿金（直推 60%）仍按总业绩定档；网体差额下限按小区业绩定 S-级别。
   const gen = generateUd3FromDeposit(input.depositUsdt, input.referrerTotalPerfUsdt);
   const floorSharePct =
     input.referrerNetworkSharePct ??
     (resolveUd3SLevel({
       totalPerfUsdt: input.referrerTotalPerfUsdt,
-      smallAreaPerfUsdt: 0,
+      smallAreaPerfUsdt: input.referrerSmallAreaPerfUsdt ?? 0,
     })?.sharePct ?? 0);
   const network = allocateNetworkDifferential(
     gen.networkPoolUd3,

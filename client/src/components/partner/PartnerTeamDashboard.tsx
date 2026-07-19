@@ -6,8 +6,8 @@ import { type PartnerState } from '@/components/partner/partnerData';
 import { type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import { resolvePartnerUd3Metrics, sumUd3Transferred } from '@/components/partner/partnerUd3View';
 import {
-  getUd3Tier,
   resolveUd3SLevel,
+  UD3_TIERS,
 } from '@/components/partner/ud3Rules';
 import { PartnerDualAnimatedBar, PartnerLevelBadge } from '@/components/partner/partnerUiKit';
 import type { PartnerTeamStats } from '@/lib/d3fiTypes';
@@ -49,12 +49,17 @@ export function PartnerTeamDashboard({
     state.dailyNewPerformanceUsd ?? 0,
   );
 
-  /** S1–S6 档位 = 级别：作引路人时定受贿金比例；作上线时再按层级取级差。 */
-  const level = getUd3Tier(totalPerf);
+  /**
+   * 统一等级 S1–S6：S1=总业绩≥100；S2-S6=小区业绩。同一等级既定引路人受贿金比例(ratePct)
+   * 又定网体差额。level 取该统一等级对应的档位(含 ratePct 显示用)。
+   */
   const sLevel = resolveUd3SLevel({
     totalPerfUsdt: totalPerf,
     smallAreaPerfUsdt: areas.smallAreaUsd,
   });
+  const level = sLevel ? (UD3_TIERS[sLevel.id - 1] ?? null) : null;
+  // S1 按总业绩考核 → 总业绩在上并强调；S2-S6 按小区业绩 → 小区在上并强调。
+  const smallOnTop = Boolean(sLevel && sLevel.id >= 2);
 
   const lifetimeUd3 = metrics.lifetimeUd3;
   const transferredUd3 = sumUd3Transferred(state);
@@ -83,42 +88,48 @@ export function PartnerTeamDashboard({
       </div>
 
       <div className="relative px-4 py-3.5 space-y-2.5">
-        {/* S1–S2 focus: 总业绩 */}
-        <div className="animate-tile-rise" style={{ ['--rise-delay']: '0ms' } as CSSProperties}>
-          <PartnerDualAnimatedBar
-            title={p('team.totalPerf')}
-            totalLabel={p('team.totalShort')}
-            totalValue={totalPerf}
-            totalDisplay={`$${totalPerf.toLocaleString()}`}
-            newLabel={p('team.todayNew')}
-            newValue={totalNew}
-            newDisplay={`$${totalNew.toLocaleString()}`}
-            isDark={isDark}
-            totalAccent="#8A2B57"
-            newAccent="#c084fc"
-            featured={Boolean(sLevel && sLevel.id <= 2)}
-            featuredHint={sLevel && sLevel.id <= 2 ? p('ud3.assessBadge') : undefined}
-            badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
-          />
-        </div>
-        {/* S3–S6 focus: 小区业绩（不展示大区） */}
-        <div className="animate-tile-rise" style={{ ['--rise-delay']: '45ms' } as CSSProperties}>
-          <PartnerDualAnimatedBar
-            title={p('team.smallArea')}
-            totalLabel={p('team.totalShort')}
-            totalValue={areas.smallAreaUsd}
-            totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
-            newLabel={p('team.todayNew')}
-            newValue={areas.smallAreaNewUsd}
-            newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
-            isDark={isDark}
-            totalAccent="#E0568F"
-            newAccent="#f472b6"
-            featured={Boolean(!sLevel || sLevel.id >= 3)}
-            featuredHint={!sLevel || sLevel.id >= 3 ? p('ud3.assessBadge') : undefined}
-            badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
-          />
-        </div>
+        {/* 考核指标在上并强调：S1 看总业绩；S2-S6 看小区业绩。顺序随等级调换。 */}
+        {(() => {
+          const totalBar = (
+            <div key="total" className="animate-tile-rise" style={{ ['--rise-delay']: '0ms' } as CSSProperties}>
+              <PartnerDualAnimatedBar
+                title={p('team.totalPerf')}
+                totalLabel={p('team.totalShort')}
+                totalValue={totalPerf}
+                totalDisplay={`$${totalPerf.toLocaleString()}`}
+                newLabel={p('team.todayNew')}
+                newValue={totalNew}
+                newDisplay={`$${totalNew.toLocaleString()}`}
+                isDark={isDark}
+                totalAccent="#8A2B57"
+                newAccent="#c084fc"
+                featured={!smallOnTop}
+                featuredHint={!smallOnTop ? p('ud3.assessBadge') : undefined}
+                badge={totalNew > 0 ? p('team.unsettledBadge') : undefined}
+              />
+            </div>
+          );
+          const smallBar = (
+            <div key="small" className="animate-tile-rise" style={{ ['--rise-delay']: '45ms' } as CSSProperties}>
+              <PartnerDualAnimatedBar
+                title={p('team.smallArea')}
+                totalLabel={p('team.totalShort')}
+                totalValue={areas.smallAreaUsd}
+                totalDisplay={`$${areas.smallAreaUsd.toLocaleString()}`}
+                newLabel={p('team.todayNew')}
+                newValue={areas.smallAreaNewUsd}
+                newDisplay={`$${areas.smallAreaNewUsd.toLocaleString()}`}
+                isDark={isDark}
+                totalAccent="#E0568F"
+                newAccent="#f472b6"
+                featured={smallOnTop}
+                featuredHint={smallOnTop ? p('ud3.assessBadge') : undefined}
+                badge={areas.smallAreaNewUsd > 0 ? p('team.unsettledBadge') : undefined}
+              />
+            </div>
+          );
+          return smallOnTop ? [smallBar, totalBar] : [totalBar, smallBar];
+        })()}
         <div className="animate-tile-rise" style={{ ['--rise-delay']: '90ms' } as CSSProperties}>
           <PartnerDualAnimatedBar
             title={p('team.ud3Rewards')}

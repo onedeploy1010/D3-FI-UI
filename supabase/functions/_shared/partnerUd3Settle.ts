@@ -27,7 +27,7 @@
  */
 import Decimal from 'npm:decimal.js@10';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { getUd3Tier, resolveUd3SLevel } from './partnerUd3Rules.ts';
+import { resolveUd3SLevel, UD3_TIERS } from './partnerUd3Rules.ts';
 import {
   calculateUd3TierDifferenceRewards,
   ud3TierRewardIdempotencyKey,
@@ -38,7 +38,7 @@ import {
   tierRank,
   UD3_ALGO_VERSION_V3,
 } from './ud3RewardConfig.ts';
-import { sumReferralTreePerformance } from './partnerPerformance.ts';
+import { sumReferralTreePerformance, fetchPartnerAreaStats } from './partnerPerformance.ts';
 import { toSgtDateString } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
@@ -60,18 +60,70 @@ function parseSLevelId(label?: string | null): number | null {
   return n >= 1 && n <= 6 ? n : null;
 }
 
+// Recompute-only fast path. When ON, the upline walk reads the MATERIALIZED
+// team_perf_usdt / small_area_perf_usdt off partner_accounts instead of re-walking
+// the subtree per ancestor. Safe ONLY for the reset+resettle engine, which rebuilds
+// from FINAL standing (performance is not reset), so cached == fresh there. Live
+// settlement keeps flag OFF and always computes fresh. Falls back to fresh compute
+// when a row has no cached value.
+let ud3UseCachedLevels = false;
+export function setUd3UseCachedLevels(on: boolean): void {
+  ud3UseCachedLevels = on;
+}
+
+/** Resolve {teamPerf(总), smallArea(小区)} for a wallet — cached fast path or fresh. */
+async function loadTeamAndSmallArea(
+  sb: Sb,
+  wallet: string,
+): Promise<{ teamPerf: number; smallArea: number }> {
+  if (ud3UseCachedLevels) {
+    const { data } = await sb
+      .from('partner_accounts')
+      .select('team_perf_usdt, small_area_perf_usdt')
+      .ilike('wallet_address', wallet)
+      .maybeSingle();
+    const t = (data as { team_perf_usdt?: number | null } | null)?.team_perf_usdt;
+    const s = (data as { small_area_perf_usdt?: number | null } | null)?.small_area_perf_usdt;
+    if (t != null && s != null) return { teamPerf: Number(t), smallArea: Number(s) };
+  }
+  const areas = await fetchPartnerAreaStats(sb, wallet);
+  return {
+    teamPerf: Math.round((areas.smallAreaUsd + areas.largeAreaUsd) * 100) / 100,
+    smallArea: areas.smallAreaUsd,
+  };
+}
+
+/** 总业绩 only (引路人档位). Cached fast path under recompute; else fresh downline sum. */
+async function loadTeamPerf(sb: Sb, wallet: string): Promise<number> {
+  if (ud3UseCachedLevels) {
+    const { data } = await sb
+      .from('partner_accounts')
+      .select('team_perf_usdt')
+      .ilike('wallet_address', wallet)
+      .maybeSingle();
+    const t = (data as { team_perf_usdt?: number | null } | null)?.team_perf_usdt;
+    if (t != null) return Number(t);
+  }
+  return sumReferralTreePerformance(sb, wallet);
+}
+
 async function cacheAccountLevels(
   sb: Sb,
   wallet: string,
   teamPerfUsdt: number,
+  smallAreaPerfUsdt: number,
 ): Promise<void> {
-  const tier = getUd3Tier(teamPerfUsdt);
-  const level = resolveUd3SLevel({ totalPerfUsdt: teamPerfUsdt, smallAreaPerfUsdt: 0 });
+  // 统一等级：引路人受贿金系数 与 网体差额 共用同一 S1-S6 等级。
+  // S1=总业绩≥100；S2-S6=小区业绩。ud3_tier_id 与 ud3_v_level 记同一等级。
+  const level = resolveUd3SLevel({ totalPerfUsdt: teamPerfUsdt, smallAreaPerfUsdt });
   await sb.from('partner_accounts').upsert(
     {
       wallet_address: wallet,
-      ud3_tier_id: tier?.id ?? null,
+      ud3_tier_id: level?.id ?? null,
       ud3_v_level: level?.id ?? null,
+      // 物化原始业绩：供展示/风控/审计快速读取（结算仍按需实时重算，不读此缓存）。
+      team_perf_usdt: teamPerfUsdt,
+      small_area_perf_usdt: smallAreaPerfUsdt,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'wallet_address' },
@@ -117,10 +169,15 @@ async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud
     if (seen.has(key)) break;
     seen.add(key);
 
-    const teamPerf = await sumReferralTreePerformance(sb, sponsor);
-    const tier = getUd3Tier(teamPerf);
-    const tierCode = tier?.label ?? 'S0';
-    const rank = tier ? tierRank(tierCode) : 0;
+    // 总业绩 = 所有直推分支合计 = 小区 + 大区（等价于 sumReferralTreePerformance），
+    // 由分区结果一次推出，省去对同一子树的第二次全量遍历。recompute 时读物化列。
+    const { teamPerf, smallArea: networkPerf } = await loadTeamAndSmallArea(sb, sponsor);
+    // 网体 S-级别（决定该祖先可承接的 S1..S6 网体差额槽）按【小区业绩】达标，含 1000U
+    // 入门线。必须用 resolveUd3SLevel：getUd3Tier 无入门线，会把小区<1000 的上级误判成
+    // S1(rank 1) 并发放 S1 网体差额——那是超额分配。引路人 档位/奖励比例仍按总业绩。
+    const sLevel = resolveUd3SLevel({ totalPerfUsdt: teamPerf, smallAreaPerfUsdt: networkPerf });
+    const tierCode = sLevel?.label ?? 'S0';
+    const rank = sLevel ? tierRank(tierCode) : 0;
     const eligible = await isRewardEligibleAccount(sb, sponsor);
 
     chain.push({
@@ -130,7 +187,7 @@ async function fetchUplineChainAbove(sb: Sb, referrerWallet: string): Promise<Ud
       tierRank: rank,
       isRewardEligible: eligible,
     });
-    await cacheAccountLevels(sb, sponsor, teamPerf).catch(() => {});
+    await cacheAccountLevels(sb, sponsor, teamPerf, networkPerf).catch(() => {});
 
     current = sponsor;
   }
@@ -161,7 +218,16 @@ export async function allocateUd3ForCreditedIntent(
     .maybeSingle();
   if (existing) return { ok: true, skipped: true, eventId: existing.id as string };
 
-  await cacheAccountLevels(sb, input.referrerWallet, input.referrerTotalPerfUsdt).catch(() => {});
+  const referrerArea = await loadTeamAndSmallArea(sb, input.referrerWallet).catch(() => ({
+    teamPerf: input.referrerTotalPerfUsdt,
+    smallArea: 0,
+  }));
+  await cacheAccountLevels(
+    sb,
+    input.referrerWallet,
+    input.referrerTotalPerfUsdt,
+    referrerArea.smallArea,
+  ).catch(() => {});
 
   const networkAncestors = await fetchUplineChainAbove(sb, input.referrerWallet);
 
@@ -170,8 +236,13 @@ export async function allocateUd3ForCreditedIntent(
   const version = config.version;
   const algoVersion = config.algorithmVersion ?? UD3_ALGO_VERSION_V3;
 
-  const guideTier = getUd3Tier(input.referrerTotalPerfUsdt);
-  const guideTierCode = guideTier?.label ?? null;
+  // 引路人受贿金档位 = 统一等级（S1=总业绩≥100；S2-S6=小区业绩），与网体同一标准。
+  const guideLevel = resolveUd3SLevel({
+    totalPerfUsdt: input.referrerTotalPerfUsdt,
+    smallAreaPerfUsdt: referrerArea.smallArea,
+  });
+  const guideTierCode = guideLevel?.label ?? null;
+  const guideRatePct = guideLevel ? (UD3_TIERS[guideLevel.id - 1]?.ratePct ?? 0) : 0;
 
   const result = calculateUd3TierDifferenceRewards({
     orderId: input.intentId,
@@ -222,8 +293,8 @@ export async function allocateUd3ForCreditedIntent(
       referrer_wallet: input.referrerWallet,
       deposit_usdt: f6(new Decimal(input.depositUsdt)),
       referrer_total_perf_usdt: input.referrerTotalPerfUsdt,
-      tier_id: guideTier?.id ?? null,
-      tier_rate_pct: guideTier?.ratePct ?? 0,
+      tier_id: guideLevel?.id ?? null,
+      tier_rate_pct: guideRatePct,
       generated_ud3: f6(generatedUd3),
       direct_ud3: f6(guideAmount),
       network_pool_ud3: f6(result.networkTotalCalculated),
@@ -276,7 +347,7 @@ export async function allocateUd3ForCreditedIntent(
     reward_tier_rank: null,
     tier_coefficient: f6(result.guideReward.coefficient),
     guide_level_rate: f6(result.guideReward.coefficient),
-    v_level: guideTier?.id ?? null,
+    v_level: guideLevel?.id ?? null,
     v_share_pct: null,
     gap_pct: null,
     ud3_amount: f6(guideAmount),
@@ -515,7 +586,7 @@ export async function tryAllocateUd3ForCreditedIntent(
     return { ok: true, skipped: true, reason: 'no_referrer' };
   }
 
-  const referrerTotalPerfUsdt = await sumReferralTreePerformance(sb, referrerWallet);
+  const referrerTotalPerfUsdt = await loadTeamPerf(sb, referrerWallet);
 
   return allocateUd3ForCreditedIntent(sb, {
     intentId,

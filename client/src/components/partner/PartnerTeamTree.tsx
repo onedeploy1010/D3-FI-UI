@@ -3,8 +3,8 @@ import { ArrowUp, ChevronDown, Search } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerUd3TransferModal } from '@/components/partner/PartnerUd3TransferModal';
-import { getUd3Tier } from '@/components/partner/ud3Rules';
-import { partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { resolveUd3SLevel, UD3_TIERS } from '@/components/partner/ud3Rules';
+import { computePartnerAreaStats, partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
   loadTeamAliases,
@@ -281,12 +281,34 @@ export function PartnerTeamTree({
 
   const listNodes = q.trim() ? searchHits : children;
 
+  // 大区 = 当前直推层里「个人质押 + 伞下业绩」最大的一条线；其余直推都算小区。
+  // 仅在非搜索且 ≥2 条直推时标识（此时大/小区之分才有意义）。并列最大取第一条。
+  const bigAreaId = (() => {
+    if (q.trim() || children.length < 2) return null;
+    let bestId: string | null = null;
+    let bestVal = -Infinity;
+    for (const c of children) {
+      const lineVal = (c.personalUsd || 0) + (c.teamUsd || 0);
+      if (lineVal > bestVal) {
+        bestVal = lineVal;
+        bestId = c.id;
+      }
+    }
+    return bestId;
+  })();
+
   function TreeNodeCard({ node, index }: { node: PartnerTeamNode; index: number }) {
+    const isBigArea = node.id === bigAreaId;
     const hasChildren = node.childrenIds.length > 0;
     const nodeDepth = partnerTeamDepth(displayNodes, node.id);
     const alias = getTeamAlias(aliases, node.address);
     const canEditRemark = Boolean(wallet) && node.id !== 'me' && !node.isGuideMock;
-    const nodeLevel = getUd3Tier(node.teamUsd);
+    // 统一等级：S1=总业绩(伞下)≥100；S2-S6=该节点小区业绩。同一等级定受贿金比例。
+    const nodeSLevel = resolveUd3SLevel({
+      totalPerfUsdt: node.teamUsd,
+      smallAreaPerfUsdt: computePartnerAreaStats(displayNodes, node.id).smallAreaUsd,
+    });
+    const nodeLevel = nodeSLevel ? (UD3_TIERS[nodeSLevel.id - 1] ?? null) : null;
     const showTransferBtn =
       node.id !== 'me' &&
       ((canTransfer && !node.isGuideMock) ||
@@ -301,6 +323,7 @@ export function PartnerTeamTree({
         className={cn(
           `partner-elevated-card animate-tile-rise p-4 space-y-3 ${glassCardClass('default', '')}`,
           node.isGuideMock && 'border border-dashed border-[#E0568F]/35',
+          isBigArea && 'ring-2 ring-amber-400/70 border border-amber-400/50 shadow-[0_0_0_1px_rgba(251,191,36,0.30)]',
           highlightId === node.id && 'ring-2 ring-[#E0568F]/55 shadow-[0_0_0_1px_rgba(224,86,143,0.35)]',
         )}
       >
@@ -321,6 +344,11 @@ export function PartnerTeamTree({
           >
             {node.isDirect ? p('tree.direct') : layerDepthLabel(nodeDepth, p)}
           </span>
+          {isBigArea && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 bg-amber-400/15 border border-amber-400/45">
+              {p('tree.bigAreaBadge')}
+            </span>
+          )}
           <PartnerTeamNodeRemarkChip
             alias={alias}
             isDark={isDark}
@@ -437,7 +465,11 @@ export function PartnerTeamTree({
           isDark={isDark}
           toAddress={transferTarget.address}
           levelLabel={(() => {
-            const t = getUd3Tier(transferTarget.teamUsd);
+            const s = resolveUd3SLevel({
+              totalPerfUsdt: transferTarget.teamUsd,
+              smallAreaPerfUsdt: computePartnerAreaStats(nodes, transferTarget.id).smallAreaUsd,
+            });
+            const t = s ? UD3_TIERS[s.id - 1] : null;
             return t ? `${t.label} · ${t.ratePct}%` : p('ud3.tierNone');
           })()}
           layerLabel={

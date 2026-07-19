@@ -133,6 +133,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...(await runSecurityScan(sb)) });
     }
 
+    if (req.method === 'POST' && path === '/internal/ud3-resettle') {
+      // UD3 reset + re-settle. Default mode is dryrun (read-only) so an accidental
+      // call NEVER writes; apply is additionally hard-gated inside the engine
+      // (confirm token + ALLOW_UD3_RECOMPUTE env).
+      requireCronSecret(req);
+      const body = await readJson<{ mode?: 'dryrun' | 'apply'; confirm?: string; limit?: number; resume?: boolean }>(req).catch(
+        () => ({} as { mode?: 'dryrun' | 'apply'; confirm?: string; limit?: number; resume?: boolean }),
+      );
+      const { resetAndResettleUd3 } = await import('../_shared/ud3Recompute.ts');
+      const summary = await resetAndResettleUd3(sb, {
+        mode: body.mode === 'apply' ? 'apply' : 'dryrun',
+        confirm: body.confirm,
+        limit: body.limit,
+        resume: body.resume === true,
+      });
+      return jsonResponse({ ok: true, ...summary });
+    }
+
     if (req.method === 'POST' && path === '/internal/partner-demo-tick') {
       requireCronSecret(req);
       const { runDemoPartnerDailyTick } = await import('../_shared/demoPartnerDailyTick.ts');

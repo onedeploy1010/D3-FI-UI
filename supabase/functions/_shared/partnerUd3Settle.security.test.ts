@@ -1,4 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+// Per-test override of a wallet's 小区业绩 (small-area). Empty → fall back to PERF.
+// Only read inside the async mock below, which runs at test time (PERF is init'd).
+const areaSmallOverride: Record<string, number> = {};
 
 /**
  * UD3 V3 reward settlement (tier-coefficient × cumulative-difference) — fund-safety
@@ -23,10 +27,22 @@ import { describe, it, expect, vi } from 'vitest';
  */
 
 vi.mock('./partnerPerformance.ts', () => ({
-  // Per-wallet team performance → resolves each upline to its own 档位 S1..S6.
+  // Per-wallet team performance → 引路人 档位 (guide reward rate) still on total.
   sumReferralTreePerformance: async (_sb: unknown, wallet: string) =>
     PERF[String(wallet).toLowerCase()] ?? 0,
+  // 网体 S-级别 now qualifies on 小区业绩 (small-area); this scenario mirrors the
+  // total bands into small-area so each upline keeps its S1..S6 rank. A test may
+  // override a single wallet's small-area (e.g. below the 1000U floor).
+  fetchPartnerAreaStats: async (_sb: unknown, wallet: string) => {
+    const w = String(wallet).toLowerCase();
+    const small = w in areaSmallOverride ? areaSmallOverride[w] : (PERF[w] ?? 0);
+    return { smallAreaUsd: small, smallAreaNewUsd: 0, largeAreaUsd: 0, largeAreaNewUsd: 0 };
+  },
 }));
+
+afterEach(() => {
+  for (const k of Object.keys(areaSmallOverride)) delete areaSmallOverride[k];
+});
 
 import { allocateUd3ForCreditedIntent } from './partnerUd3Settle.ts';
 import { UD3_ALGO_VERSION_V3, UD3_REWARD_CONFIG_LATEST } from './ud3RewardConfig.ts';
@@ -251,6 +267,31 @@ describe('allocateUd3ForCreditedIntent — V3 tier-difference reward settlement'
     expect(wallets).toContain(REFERRER.toLowerCase());
     expect(wallets).toContain(UP[0].toLowerCase());
     expect(wallets).toContain(UP[2].toLowerCase());
+  });
+
+  it('FLOOR: 总业绩 < 100 的上级不算 S1 — 其网体差额级联给下一合格上级,自己一分不得', async () => {
+    // 网体 S1 按【总业绩 ≥ 100U】达标。UP1 总业绩 = 50 (< 100) → S0/rank 0,不合格。
+    // S1 槽应落到下一个 rank≥1 的祖先(UP2),UP1 收不到任何网体差额。
+    // (mock 里 largeArea=0,故 teamPerf=总业绩=smallAreaOverride。)
+    areaSmallOverride[UP[0].toLowerCase()] = 50;
+    const { sb, inserts, rpcCalls } = makeSb();
+    const res = await allocateUd3ForCreditedIntent(sb, INPUT);
+    expect(res.ok).toBe(true);
+
+    // UP1 从未被入账。
+    const credits = rpcCalls.filter((c) => c.name === 'credit_pending_ud3');
+    const wallets = credits.map((c) => String(c.args.p_wallet).toLowerCase());
+    expect(wallets).not.toContain(UP[0].toLowerCase());
+
+    // S1 槽(rank 1)改由最近的 rank≥1 祖先 UP2 承接;六槽仍全部 CALCULATED(UP2 吃 S1+S2)。
+    const network = ledgerRows(inserts).filter((r) => r.reward_type === 'NETWORK_DIFFERENCE_REWARD');
+    expect(network).toHaveLength(6);
+    const s1 = network.find((r) => r.reward_tier_code === 'S1')!;
+    expect(s1.recipient_wallet).toBe(UP[1]);
+    const s2 = network.find((r) => r.reward_tier_code === 'S2')!;
+    expect(s2.recipient_wallet).toBe(UP[1]);
+    // No BURN — every slot still found a qualified ancestor.
+    expect(ledgerRows(inserts).find((r) => r.reward_type === 'BURN')).toBeUndefined();
   });
 
   it('idempotency: a 23505 on a tier-slot insert skips that receiver (no double credit)', async () => {

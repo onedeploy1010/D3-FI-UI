@@ -105,6 +105,7 @@ export function creditRowsForDeposits(
       depositUsdt: dep.amountUsdt,
       referrerWallet: referrer.address,
       referrerTotalPerfUsdt: referrer.teamUsd,
+      referrerSmallAreaPerfUsdt: computePartnerAreaStats(nodes, referrerId).smallAreaUsd,
       networkChainAboveReferrer: networkChainAboveReferrerToMe(nodes, referrerId),
     });
 

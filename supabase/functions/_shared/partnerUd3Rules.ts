@@ -74,16 +74,16 @@ export type Ud3VLevel = Ud3SLevel;
 /**
  * Cumulative share of the 40% network pool by S id (same id as 档位).
  * S1 20% · S2 40% · S3 55% · S4 70% · S5 85% · S6 100%.
- * `metric` / `minPerfUsdt` kept for admin display; qualification uses 档位 brackets
- * after clearing the S1 entry floor (1000 USDT total).
+ * 达标 metric is HYBRID: S1 by 【总业绩 ≥ 100U】 (entry); S2–S6 by 【小区业绩 small-area】
+ * (去大区留小区) at 100k/200k/300k/500k/800k. 引路人 档位/奖励比例 stays on 总业绩.
  */
 export const UD3_S_LEVELS: Ud3SLevel[] = [
-  { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 1_000 },
-  { id: 2, label: 'S2', sharePct: 40, metric: 'total', minPerfUsdt: 100_000 },
-  { id: 3, label: 'S3', sharePct: 55, metric: 'total', minPerfUsdt: 200_000 },
-  { id: 4, label: 'S4', sharePct: 70, metric: 'total', minPerfUsdt: 300_000 },
-  { id: 5, label: 'S5', sharePct: 85, metric: 'total', minPerfUsdt: 500_000 },
-  { id: 6, label: 'S6', sharePct: 100, metric: 'total', minPerfUsdt: 800_000 },
+  { id: 1, label: 'S1', sharePct: 20, metric: 'total', minPerfUsdt: 100 },
+  { id: 2, label: 'S2', sharePct: 40, metric: 'small', minPerfUsdt: 100_000 },
+  { id: 3, label: 'S3', sharePct: 55, metric: 'small', minPerfUsdt: 200_000 },
+  { id: 4, label: 'S4', sharePct: 70, metric: 'small', minPerfUsdt: 300_000 },
+  { id: 5, label: 'S5', sharePct: 85, metric: 'small', minPerfUsdt: 500_000 },
+  { id: 6, label: 'S6', sharePct: 100, metric: 'small', minPerfUsdt: 800_000 },
 ];
 
 /** @deprecated Use UD3_S_LEVELS */
@@ -97,15 +97,19 @@ export type Ud3PerfSnapshot = {
 };
 
 /**
- * Gap level = same S1–S6 as 档位 (总业绩区间).
- * Demo 7600 → S1 → 20% of network pool. Below 1000 total → no level.
+ * 网体 S-级别 (HYBRID 达标):
+ *   • S1 = 总业绩 ≥ 100U（入门，看总业绩）。
+ *   • S2–S6 = 小区业绩 达到 100k/200k/300k/500k/800k（看小区业绩）。
+ * 未达 S1 入门线（总业绩 < 100）→ 无级别。引路人档位/奖励比例另按总业绩(getUd3Tier)。
  */
 export function resolveUd3SLevel(perf: Ud3PerfSnapshot): Ud3SLevel | null {
   const total = perf.totalPerfUsdt;
+  // S1 入门线：总业绩 < 100 → 连 S1 都不达标。
   if (!Number.isFinite(total) || total < UD3_S_LEVELS[0].minPerfUsdt) return null;
-  const tier = getUd3Tier(total);
-  if (!tier) return null;
-  return UD3_S_LEVELS[tier.id - 1] ?? null;
+  // 已保证 S1；S2–S6 由小区业绩的区间抬升（小区 ≤ 100k 仍为 S1）。
+  const small = Number.isFinite(perf.smallAreaPerfUsdt) ? perf.smallAreaPerfUsdt : 0;
+  const bySmall = getUd3Tier(small);
+  return bySmall ? (UD3_S_LEVELS[bySmall.id - 1] ?? null) : UD3_S_LEVELS[0];
 }
 
 /** @deprecated Use resolveUd3SLevel */

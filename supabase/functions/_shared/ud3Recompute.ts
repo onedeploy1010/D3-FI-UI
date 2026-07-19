@@ -24,15 +24,15 @@
  */
 import Decimal from 'npm:decimal.js@10';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { getUd3Tier } from './partnerUd3Rules.ts';
+import { resolveUd3SLevel } from './partnerUd3Rules.ts';
 import {
   calculateUd3TierDifferenceRewards,
   type CalculateUd3TierDifferenceRewardsInput,
   type Ud3NetworkAncestor,
 } from './ud3Reward.ts';
 import { getUd3RewardConfig, tierRank, type Ud3RewardConfig } from './ud3RewardConfig.ts';
-import { sumReferralTreePerformance } from './partnerPerformance.ts';
-import { tryAllocateUd3ForCreditedIntent } from './partnerUd3Settle.ts';
+import { sumReferralTreePerformance, fetchPartnerAreaStats } from './partnerPerformance.ts';
+import { tryAllocateUd3ForCreditedIntent, setUd3UseCachedLevels } from './partnerUd3Settle.ts';
 
 type Sb = SupabaseClient;
 
@@ -110,6 +110,8 @@ export interface Ud3CalcLogSnapshot {
   depositUsdt: number;
   referrerWallet: string;
   referrerTotalPerfUsdt: number;
+  /** 引路人自身小区业绩 — 统一等级 S2-S6 按小区达标所需。 */
+  referrerSmallAreaPerfUsdt?: number;
   networkChain?: Ud3SnapshotAncestor[];
   guideTierCode?: string | null;
   intentId?: string;
@@ -126,8 +128,12 @@ export function buildUd3RecomputeInput(
   config: Ud3RewardConfig,
 ): CalculateUd3TierDifferenceRewardsInput {
   const referrerWallet = String(snapshot.referrerWallet ?? '').trim();
-  const guideTier = getUd3Tier(Number(snapshot.referrerTotalPerfUsdt ?? 0));
-  const guideTierCode = guideTier?.label ?? null;
+  // 引路人受贿金档位 = 统一等级（S1=总业绩≥100；S2-S6=小区业绩），与网体同一标准。
+  const guideLevel = resolveUd3SLevel({
+    totalPerfUsdt: Number(snapshot.referrerTotalPerfUsdt ?? 0),
+    smallAreaPerfUsdt: Number(snapshot.referrerSmallAreaPerfUsdt ?? 0),
+  });
+  const guideTierCode = guideLevel?.label ?? null;
 
   const chain = Array.isArray(snapshot.networkChain) ? snapshot.networkChain : [];
   const networkAncestors: Ud3NetworkAncestor[] = chain.map((node, i) => {
@@ -185,20 +191,33 @@ async function fetchUplineChainReadOnly(
     if (seen.has(key)) break;
     seen.add(key);
 
-    const teamPerf = await sumReferralTreePerformance(sb, sponsor);
-    const tier = getUd3Tier(teamPerf);
-    const tierCode = tier?.label ?? 'S0';
+    // MUST mirror the live settle path (fetchUplineChainAbove): 网体 S-级别 按【小区
+    // 业绩】达标(含 1000U 入门线),用 resolveUd3SLevel——不能用 getUd3Tier(无入门线)。
+    // Read the MATERIALIZED team/small-area off partner_accounts (recompute uses final
+    // standing, so cached == fresh) in one row read; fall back to a fresh walk if null.
     const { data: acct } = await sb
       .from('partner_accounts')
-      .select('is_partner')
+      .select('is_partner, team_perf_usdt, small_area_perf_usdt')
       .ilike('wallet_address', sponsor)
       .maybeSingle();
+    let teamPerf = (acct as { team_perf_usdt?: number | null } | null)?.team_perf_usdt ?? null;
+    let networkPerf = (acct as { small_area_perf_usdt?: number | null } | null)?.small_area_perf_usdt ?? null;
+    if (teamPerf == null || networkPerf == null) {
+      const areas = await fetchPartnerAreaStats(sb, sponsor);
+      networkPerf = areas.smallAreaUsd;
+      teamPerf = Math.round((areas.smallAreaUsd + areas.largeAreaUsd) * 100) / 100;
+    }
+    const sLevel = resolveUd3SLevel({
+      totalPerfUsdt: Number(teamPerf),
+      smallAreaPerfUsdt: Number(networkPerf),
+    });
+    const tierCode = sLevel?.label ?? 'S0';
     const isRewardEligible = (acct as { is_partner?: boolean } | null)?.is_partner === true;
 
     chain.push({
       wallet: sponsor,
       tierCode,
-      tierRank: tier ? tierRank(tierCode) : 0,
+      tierRank: sLevel ? tierRank(tierCode) : 0,
       isRewardEligible,
     });
     current = sponsor;
@@ -245,12 +264,31 @@ async function projectUd3ForIntent(
   const referrerWallet = (ref?.sponsor_wallet_address as string | undefined)?.trim();
   if (!referrerWallet) return zero;
 
-  const referrerTotalPerfUsdt = await sumReferralTreePerformance(sb, referrerWallet);
+  // 统一等级需要引路人的总业绩+小区业绩：读物化列(recompute=final standing),否则实时求和。
+  const { data: refAcct } = await sb
+    .from('partner_accounts')
+    .select('team_perf_usdt, small_area_perf_usdt')
+    .ilike('wallet_address', referrerWallet)
+    .maybeSingle();
+  const cachedRefTotal = (refAcct as { team_perf_usdt?: number | null } | null)?.team_perf_usdt;
+  const referrerTotalPerfUsdt = cachedRefTotal != null
+    ? Number(cachedRefTotal)
+    : await sumReferralTreePerformance(sb, referrerWallet);
+  const referrerSmallAreaPerfUsdt = Number(
+    (refAcct as { small_area_perf_usdt?: number | null } | null)?.small_area_perf_usdt ?? 0,
+  );
   const networkChain = await fetchUplineChainReadOnly(sb, referrerWallet);
 
   const result = calculateUd3TierDifferenceRewards(
     buildUd3RecomputeInput(
-      { depositUsdt, referrerWallet, referrerTotalPerfUsdt, networkChain, intentId: intent.id },
+      {
+        depositUsdt,
+        referrerWallet,
+        referrerTotalPerfUsdt,
+        referrerSmallAreaPerfUsdt,
+        networkChain,
+        intentId: intent.id,
+      },
       config,
     ),
   );
@@ -357,6 +395,13 @@ export interface ResetResettleOpts {
   mode: 'dryrun' | 'apply';
   confirm?: string;
   limit?: number;
+  /**
+   * apply-only: SKIP performReset and replay idempotently. Lets a run that hit the
+   * edge-function time limit be finished in additional passes without wiping the
+   * intents already re-settled (tryAllocate is idempotent on intent_id). The FIRST
+   * apply pass must be resume=false (does the reset); every follow-up is resume=true.
+   */
+  resume?: boolean;
 }
 
 /** Select all credited USDT stake intents, oldest first. */
@@ -399,8 +444,11 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
   // The surviving USDT deposits we will re-settle from.
   const intents = await selectCreditedUsdtIntents(sb, plan, limit);
 
-  // apply: wipe first, then replay.
-  if (mode === 'apply') {
+  // apply: wipe first, then replay. performReset keeps referrals + performance +
+  // the materialized team/small-area columns, so the replay reads cached levels
+  // (== final standing) and completes fast instead of re-walking every subtree.
+  // resume=true SKIPS the reset so a timed-out run can be finished idempotently.
+  if (mode === 'apply' && !opts.resume) {
     await performReset(sb, plan);
   }
 
@@ -408,6 +456,10 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
   let newUd3Paid = new Decimal(0);
   let newUnallocated = new Decimal(0);
 
+  // Cached-level fast path ON for this run only; reset in finally so a shared edge
+  // isolate never leaks it into a subsequent LIVE settlement.
+  setUd3UseCachedLevels(true);
+  try {
   for (const intent of intents) {
     if (mode === 'apply') {
       const res = await tryAllocateUd3ForCreditedIntent(sb, intent.id).catch((e) => ({
@@ -456,6 +508,9 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
         unallocated: proj.unallocated,
       });
     }
+  }
+  } finally {
+    setUd3UseCachedLevels(false);
   }
 
   const summary: ResetResettleSummary = {

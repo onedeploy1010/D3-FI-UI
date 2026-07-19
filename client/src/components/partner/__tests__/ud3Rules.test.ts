@@ -45,19 +45,20 @@ describe('UD3 tier S1–S6 (generation)', () => {
   });
 });
 
-describe('UD3 gap level = same ladder as 档位', () => {
-  it('demo-scale 7600 is S1 at 20% pool share', () => {
-    expect(resolveUd3SLevel({ totalPerfUsdt: 7_600, smallAreaPerfUsdt: 0 })?.label).toBe('S1');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 7_600, smallAreaPerfUsdt: 0 })?.sharePct).toBe(20);
+describe('UD3 网体 S-级别 (HYBRID: S1 按总业绩, S2-S6 按小区业绩)', () => {
+  it('S1 按总业绩达标：总业绩 ≥ 100U → S1 (20% share), < 100 → 无级别', () => {
+    expect(resolveUd3SLevel({ totalPerfUsdt: 99, smallAreaPerfUsdt: 0 })).toBeNull();
+    expect(resolveUd3SLevel({ totalPerfUsdt: 100, smallAreaPerfUsdt: 0 })?.label).toBe('S1');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 100, smallAreaPerfUsdt: 0 })?.sharePct).toBe(20);
+    // 总业绩很大但小区不足 100k → 仍只是 S1（0x60d0 场景）。
+    expect(resolveUd3SLevel({ totalPerfUsdt: 318_200, smallAreaPerfUsdt: 51_100 })?.label).toBe('S1');
   });
 
-  it('requires ≥1000 total; higher 档位 unlocks higher gap share', () => {
-    expect(resolveUd3SLevel({ totalPerfUsdt: 500, smallAreaPerfUsdt: 0 })).toBeNull();
-    expect(resolveUd3SLevel({ totalPerfUsdt: 2_000, smallAreaPerfUsdt: 0 })?.label).toBe('S1');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 150_000, smallAreaPerfUsdt: 0 })?.label).toBe('S2');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 150_000, smallAreaPerfUsdt: 0 })?.sharePct).toBe(40);
-    expect(resolveUd3SLevel({ totalPerfUsdt: 250_000, smallAreaPerfUsdt: 0 })?.label).toBe('S3');
-    expect(resolveUd3SLevel({ totalPerfUsdt: 900_000, smallAreaPerfUsdt: 0 })?.label).toBe('S6');
+  it('S2-S6 按小区业绩抬升（需先过 S1 总业绩入门线）', () => {
+    expect(resolveUd3SLevel({ totalPerfUsdt: 300_000, smallAreaPerfUsdt: 150_000 })?.label).toBe('S2');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 300_000, smallAreaPerfUsdt: 150_000 })?.sharePct).toBe(40);
+    expect(resolveUd3SLevel({ totalPerfUsdt: 500_000, smallAreaPerfUsdt: 250_000 })?.label).toBe('S3');
+    expect(resolveUd3SLevel({ totalPerfUsdt: 2_000_000, smallAreaPerfUsdt: 900_000 })?.label).toBe('S6');
   });
 });
 
@@ -165,7 +166,8 @@ describe('full settle event', () => {
     const event = settleUd3DepositEvent({
       depositUsdt: 1000,
       referrerWallet: 'ref',
-      referrerTotalPerfUsdt: 150_000, // S2 → 1100 UD3, floor 40%
+      referrerTotalPerfUsdt: 150_000, // total → 引路人档位 S2 → 1100 UD3
+      referrerSmallAreaPerfUsdt: 150_000, // 小区 → 网体 S2 → floor 40%
       networkChainAboveReferrer: [
         { wallet: 'u1', vSharePct: 40, vLabel: 'S2' },
         { wallet: 'u2', vSharePct: 100, vLabel: 'S6' },
@@ -186,6 +188,7 @@ describe('full settle event', () => {
       depositUsdt: 1000,
       referrerWallet: 'guide',
       referrerTotalPerfUsdt: 7_600, // S1
+      referrerSmallAreaPerfUsdt: 7_600, // 小区 → 网体 S1 → floor 20%
       networkChainAboveReferrer: [{ wallet: 'demo', vSharePct: 20, vLabel: 'S1' }],
     });
     expect(event.referrerNetworkSharePct).toBe(20);
