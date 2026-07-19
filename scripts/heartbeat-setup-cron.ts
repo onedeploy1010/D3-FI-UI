@@ -20,7 +20,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 config({ path: path.resolve(root, '.env') });
 
-const PROJECT_REF = 'gvyvdnegsxiykxffddwb';
+// Active project (matches root/.env SUPABASE_URL, the linked CLI project, and CI).
+// Override via SUPABASE_PROJECT_REF if the project ever changes.
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF ?? 'fbykfczfshcmfekdmrfp';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? `https://${PROJECT_REF}.supabase.co`;
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 const cronSecret = process.env.TREASURY_CRON_SECRET?.trim();
