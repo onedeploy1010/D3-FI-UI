@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerListFilters } from '@/components/partner/partnerUiKit';
-import { PartnerPrivateSaleIntro } from '@/components/partner/PartnerPrivateSaleIntro';
 import { PRESALE_ROUNDS } from '@/components/partner/presaleHeartbeat';
 import {
   formatD3Amount,
@@ -109,8 +107,6 @@ export function PartnerStakeTab({
     [crowdfundOrders],
   );
   const hasStake = stats.orderCount > 0;
-  /** Private-sale rounds intro shown on entering the page; close to see orders. */
-  const [showIntro, setShowIntro] = useState(true);
   const [historyOrder, setHistoryOrder] = useState<PartnerStakeOrder | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
   const [search, setSearch] = useState('');
@@ -170,14 +166,6 @@ export function PartnerStakeTab({
     { id: 'amount_asc', label: p('filters.sortAmountAsc') },
   ];
 
-  const intro = (
-    <AnimatePresence>
-      {showIntro && (
-        <PartnerPrivateSaleIntro lang={lang} isDark={isDark} onClose={() => setShowIntro(false)} />
-      )}
-    </AnimatePresence>
-  );
-
   if (referralLoading) {
     return <PartnerReferralLoading label={p('referral.checking')} isDark={isDark} className="min-h-[40vh]" />;
   }
@@ -193,7 +181,6 @@ export function PartnerStakeTab({
   if (!hasStake) {
     return (
       <>
-        {intro}
         <div className="space-y-4">
           <PrivateSalePriceBanner lang={lang} isDark={isDark} />
           <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
@@ -211,7 +198,6 @@ export function PartnerStakeTab({
 
   return (
     <>
-      {intro}
       <div className="space-y-3">
       <PrivateSalePriceBanner lang={lang} isDark={isDark} />
       <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
