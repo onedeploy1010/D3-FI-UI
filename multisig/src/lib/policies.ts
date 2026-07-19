@@ -24,41 +24,87 @@ export function policyJson(body: TurnkeyPolicyBody): string {
   return JSON.stringify(body, null, 2);
 }
 
-// The 3 root signers (root quorum, threshold 2) — from the treasury proposer policy.
-const ROOT_IDS = [
-  'eda9c451-aaef-4488-974c-c3e67baf8dbd',
-  '2825481a-5ae2-41a5-90f5-de855640c9a7',
-  'c8c18268-8418-4389-899e-db807a48c897',
-];
-const proposerConsensus = `approvers.filter(user, ${ROOT_IDS.map((id) => `user.id == '${id}'`).join(' || ')}).count() >= 2`;
-
-const USDT = '0x55d398326f99059fF775485246999027B3197955';
-
-// d3finance@hotmail.com — the org "Root user" (backend API user, id 5eba34d3). It is
-// NOT part of the root quorum (DA/Ye/DADA, threshold 2) and has NO standalone rights
-// (Turnkey denies it create-tag/wallet/policy → needs 2/3 root approval).
-//
-// The operator policy below grants an "operators" USER TAG single-approver rights, so
-// you manage who is an operator by adding/removing users from the tag — no policy edit.
-// STEP 1: create a user tag named "operators" and add d3finance (5eba34d3) — this is a
-//         governance change, so the 2/3 root quorum must approve it.
-// STEP 2: replace <OPERATORS_TAG_ID> below with the created tag's id.
-// Settlement token the operators may move. TEST env uses the faucet USDT below;
-// at mainnet launch switch to real BSC USDT 0x55d398326f99059fF775485246999027B3197955.
+// ── identities / constants ────────────────────────────────────────────────────
+// Backend API user (d3finance@hotmail.com / "Root user", id 5eba34d3). NOT in the root
+// quorum (DA/Ye/DADA, threshold 2); no standalone governance rights.
+const BACKEND_USER = '5eba34d3-7b27-4a41-8192-49d80438cb54';
+const TREASURY = '0x2802A588F575Cb040487Dc0bD9e45b58c62C3B0B';
+// Settlement token. TEST env = faucet USDT below; switch to real BSC USDT at launch.
 const SETTLEMENT_USDT = '0xE763F2dF7C8aDF28eAa34683245e3a6f82fC2512';
-// Fill after the root quorum creates the "operators" user tag (adds d3finance 5eba34d3).
+// The live hot-wallet from-allowlist is ~200 addresses (5 settlement + gas + flash-swap
+// + the pooled deposit addresses). Shown as a readable placeholder here; the exact list
+// is enumerated inline in the live Turnkey conditions.
+const MANAGED_HOT_WALLETS = 'eth.tx.from ∈ 受管热钱包(5 结算 + gas + 闪兑 + ~200 充值地址)';
+// Fill after the root quorum creates these user tags.
 const OPERATORS_TAG_ID = '<OPERATORS_TAG_ID>';
-// Fill after creating the "clearing" user tag. Put ONLY the dedicated clearing-signer
-// API user in it (isolated from operators) — a compromised clearing key can then only
-// ERC20-transfer USDT (recipient=treasury enforced by the backend).
 const CLEARING_TAG_ID = '<CLEARING_TAG_ID>';
 
 export const CURATED_POLICIES: PolicyItem[] = [
-  // ── operators tag: least-privilege day-to-day (Turnkey best practice) ──────────
+  // ══ 当前线上策略（active，从 Turnkey 抄录） ═══════════════════════════════════
+  {
+    id: 'backend-hot-wallet-sign-broad',
+    status: 'active',
+    descZh:
+      '⚠️ 安全隐患（建议删除或改 DENY）：允许后端对【任何非国库交易】签名——可调用任意合约、把热钱包资金原生转到任意地址。它把下面三条收紧策略全抵消了（ALLOW 叠加）。V-02 本意就是删掉它，但它还活着。',
+    body: {
+      policyName: 'd3-backend-hot-wallet-sign',
+      effect: 'EFFECT_ALLOW',
+      condition: `eth.tx.from != '${TREASURY}'`,
+      consensus: `approvers.filter(user, user.id == '${BACKEND_USER}').count() >= 1`,
+    },
+  },
+  {
+    id: 'backend-manage-wallets',
+    status: 'active',
+    descZh: '后端建结算/gas/闪兑钱包、派生充值地址；不签交易——安全。',
+    body: {
+      policyName: 'd3-backend-manage-wallets',
+      effect: 'EFFECT_ALLOW',
+      condition:
+        "activity.type == 'ACTIVITY_TYPE_CREATE_WALLET' || activity.type == 'ACTIVITY_TYPE_CREATE_WALLET_ACCOUNTS'",
+      consensus: `approvers.any(user, user.id == '${BACKEND_USER}')`,
+    },
+  },
+  {
+    id: 'backend-native-gas',
+    status: 'active',
+    descZh: 'V-02：后端只做 gas 补给——原生转账、无 calldata、≤0.05 BNB，发起方=受管热钱包。收紧、安全。',
+    body: {
+      policyName: 'd3-backend-native-gas',
+      effect: 'EFFECT_ALLOW',
+      condition: `eth.tx.chain_id == 56 && (${MANAGED_HOT_WALLETS}) && eth.tx.data == '0x' && eth.tx.value <= 50000000000000000`,
+      consensus: `approvers.any(user, user.id == '${BACKEND_USER}')`,
+    },
+  },
+  {
+    id: 'backend-usdt-transfer',
+    status: 'active',
+    descZh:
+      'V-02：后端只签 USDT transfer（chain 56、to=USDT、selector 0xa9059cbb、发起方=受管热钱包；国库不在名单）。收紧、安全。',
+    body: {
+      policyName: 'd3-backend-usdt-transfer',
+      effect: 'EFFECT_ALLOW',
+      condition: `eth.tx.chain_id == 56 && eth.tx.to == '${SETTLEMENT_USDT}' && eth.tx.data[0..10] == '0xa9059cbb' && (${MANAGED_HOT_WALLETS})`,
+      consensus: `approvers.any(user, user.id == '${BACKEND_USER}')`,
+    },
+  },
+  // ══ 建议修复（todo）：删掉上面那条 broad + 可选 DENY 兜底 ═══════════════════════
+  {
+    id: 'deny-backend-arbitrary-contract',
+    status: 'todo',
+    descZh:
+      '修复：主要动作是【删除 d3-backend-hot-wallet-sign(broad)】——删掉后隐式拒绝就够了，后端只剩「建钱包 + gas + USDT 转账」三条合法权限。这条 DENY 是双保险：明确禁止后端签「非 USDT-transfer 的合约调用」（DENY 压过 ALLOW）。注意 DENY 挡不住原生转账，所以 broad 那条必须删。',
+    body: {
+      policyName: 'd3-deny-backend-arbitrary-contract',
+      effect: 'EFFECT_DENY',
+      condition: `eth.tx.data != '0x' && eth.tx.data[0..10] != '0xa9059cbb'`,
+      consensus: `approvers.filter(user, user.id == '${BACKEND_USER}').count() >= 1`,
+    },
+  },
+  // ══ 提案（todo，需 2/3 根签名批准）：operators / clearing 标签 ══════════════════
   // Positive ALLOWLIST (not "!= treasury"): operators can only move the settlement
-  // token, so treasury + arbitrary-contract calls are out of reach. Manage who is an
-  // operator via tag membership — no policy edits. Raise count() to >= 2 for 2-person
-  // sign-off on larger flows.
+  // token; manage membership via tag, not policy edits. Raise count() to >= 2 for
+  // two-person sign-off on larger flows.
   {
     id: 'operator-usdt-transfer',
     status: 'todo',
@@ -112,48 +158,21 @@ export const CURATED_POLICIES: PolicyItem[] = [
       consensus: `approvers.filter(user, user.tags.contains('${CLEARING_TAG_ID}')).count() >= 1`,
     },
   },
-  {
-    id: 'backend-proposer-2of3',
-    status: 'todo',
-    descZh: '后端 API 用户可发起任意活动（建钱包 / 发交易 / 改额度…），但只有 3 个根签名人中 2 人批准后才真正执行。',
-    body: {
-      policyName: 'd3-backend-proposer-2of3',
-      effect: 'EFFECT_ALLOW',
-      condition: 'true',
-      consensus: proposerConsensus,
-    },
-  },
-  {
-    id: 'hot-wallet-usdt-only',
-    status: 'todo',
-    descZh: '热钱包只允许向 USDT 合约发交易，缩小热钱包一旦被盗的爆炸半径。',
-    body: {
-      policyName: 'd3-hot-wallet-usdt-only',
-      effect: 'EFFECT_ALLOW',
-      condition: `eth.tx.to == '${USDT}'`,
-      consensus: 'approvers.count() >= 1',
-    },
-  },
+  // ══ 删除 broad 前必须先补的白名单（否则合法合约调用会断） ═══════════════════════
+  // ⚠️ broad 那条目前也是【唯一】允许后端做合约调用的策略。删它之前，必须先给所有
+  //    合法的后端合约调用各加一条 tight ALLOW，否则会断：
+  //      • DailyStateAnchor 每日锚定（下面这条）
+  //      • ReferralRegistry adminRebind/setRoot（如后端 gas 钱包代付）
+  //    枚举完 + 加好白名单，再删 broad。
   {
     id: 'anchor-allow',
-    status: 'active',
-    descZh: '允许后端 gas 钱包调用 DailyStateAnchor 写入每日余额 Merkle 根（防篡改、可自证）。低风险、每天只写一次。',
+    status: 'todo',
+    descZh: '允许后端 gas 钱包调用 DailyStateAnchor 写每日余额 Merkle 根（防篡改、每天一次）。删 broad 前必须先加这条，否则锚定会断。填入 DailyStateAnchor 合约地址。',
     body: {
       policyName: 'd3-anchor-allow',
       effect: 'EFFECT_ALLOW',
       condition: "eth.tx.to == '<DAILY_STATE_ANCHOR_ADDRESS>'",
-      consensus: 'approvers.count() >= 1',
-    },
-  },
-  {
-    id: 'param-setter-deny',
-    status: 'todo',
-    descZh: '禁止后端热钱包调用 SystemParams 合约的 set* 方法——改规则（价格/倍数/费率）只能走多签。',
-    body: {
-      policyName: 'd3-param-setter-deny',
-      effect: 'EFFECT_DENY',
-      condition: "eth.tx.to == '<SYSTEM_PARAMS_ADDRESS>'",
-      consensus: 'true',
+      consensus: `approvers.any(user, user.id == '${BACKEND_USER}')`,
     },
   },
 ];
