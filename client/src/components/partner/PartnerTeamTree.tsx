@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ArrowUp, ChevronDown, Search } from 'lucide-react';
+import { ArrowUp, ChevronDown, Search, Pencil } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerUd3TransferModal } from '@/components/partner/PartnerUd3TransferModal';
@@ -87,7 +87,7 @@ function PartnerTeamNodeRemarkChip({
   };
 
   const chipClass =
-    '!py-1 !px-2.5 text-[10px] font-bold rounded-full w-fit max-w-[7.5rem] truncate touch-manipulation';
+    '!py-1 !px-2.5 text-[10px] font-bold rounded-full w-fit max-w-[9rem] inline-flex items-center gap-1 touch-manipulation';
 
   if (editing) {
     return (
@@ -121,18 +121,20 @@ function PartnerTeamNodeRemarkChip({
       type="button"
       disabled={!editable}
       onClick={() => editable && setEditing(true)}
+      aria-label={p('tree.remarkPlaceholder')}
       className={cn(
         chipClass,
         editable && 'ios-glass-pressable',
         alias
           ? 'partner-level-badge'
           : isDark
-            ? 'bg-white/[0.06] text-white/40 border border-dashed border-white/15'
-            : 'bg-[#160510]/[0.04] text-[#160510]/40 border border-dashed border-[#160510]/15',
+            ? 'bg-white/[0.06] text-white/45 border border-dashed border-white/20'
+            : 'bg-[#160510]/[0.04] text-[#160510]/45 border border-dashed border-[#160510]/20',
       )}
       style={alias ? { color: '#E0568F' } : undefined}
     >
-      {alias || p('tree.remarkEmpty')}
+      <span className="truncate">{alias || p('tree.remarkPlaceholder')}</span>
+      {editable && <Pencil size={10} className="shrink-0 opacity-70" aria-hidden />}
     </button>
   );
 }

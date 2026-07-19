@@ -55,8 +55,9 @@ export default function Portal() {
       desc: '资产管理 · 投票治理 · 贿赂市场 · 分红收益',
       bribeMarket: '贿赂市场',
       badgeLive: '已上线',
-      badgeOffline: '未上线',
+      badgeOffline: '即将上线',
       badgeDemo: 'Demo数据',
+      incompleteHint: '功能未完整，陆续完善中',
       cta: '进入应用',
     },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · USD3 / D3', badge: '节点站点', cta: '进入联盟' },
@@ -82,8 +83,9 @@ export default function Portal() {
       desc: 'Assets · Governance · Bribe Market · Dividends',
       bribeMarket: 'Bribe Market',
       badgeLive: 'Live',
-      badgeOffline: 'Not live',
+      badgeOffline: 'Coming soon',
       badgeDemo: 'Demo data',
+      incompleteHint: 'Features still being completed',
       cta: 'Enter App',
     },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · USD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
@@ -225,8 +227,11 @@ export default function Portal() {
                 </div>
                 <h3 className="site-card-title mb-1">{t.fi.title}</h3>
                 <p className={`text-xs mb-1 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t.fi.desc}</p>
-                <p className={`text-[10px] mb-4 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
-                  {t.fi.bribeMarket} · {t.fi.badgeOffline} · {t.fi.badgeDemo}
+                <p className={`text-[10px] mb-0.5 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
+                  {t.fi.bribeMarket} · {t.fi.badgeOffline}
+                </p>
+                <p className={`text-[9px] mb-4 leading-relaxed ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
+                  {t.fi.incompleteHint}
                 </p>
                 <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
                   {t.fi.cta} <ArrowRight size={12} />
