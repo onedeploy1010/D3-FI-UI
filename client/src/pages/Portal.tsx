@@ -10,6 +10,7 @@ import { SitePageHeader } from '@/components/layout/SitePageHeader';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassCard, GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
 import { WalletGate } from '@/components/wallet/WalletGate';
+import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat';
 import { useWallet } from '@/contexts/wallet-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { captureReferralFromUrl } from '@/lib/referral';
@@ -145,11 +146,6 @@ export default function Portal() {
                 {t.referralHint}
               </p>
             </div>
-
-            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/10">
-              <div className={`text-[10px] font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>{t.level}</div>
-              <div className="text-[10px] font-bold text-[#E0568F]">Diamond · Lv.5</div>
-            </div>
           </GlassCard>
         </motion.div>
 
@@ -161,6 +157,10 @@ export default function Portal() {
           <IllustrationCard isDark={isDark} caption={t.diagramCaption} className="min-h-[240px] sm:min-h-[280px] md:aspect-[4/3]">
             <PortalOrbitalDiagram lang={lang} isDark={isDark} />
           </IllustrationCard>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <PrivateSaleHeartbeat lang={lang === 'zh' ? 'zh-CN' : 'en'} isDark={isDark} />
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

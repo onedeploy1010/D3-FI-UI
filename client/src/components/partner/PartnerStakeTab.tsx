@@ -6,6 +6,7 @@ import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerListFilters } from '@/components/partner/partnerUiKit';
 import { PartnerPrivateSaleIntro } from '@/components/partner/PartnerPrivateSaleIntro';
+import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat';
 import {
   formatD3Amount,
   formatDailyYieldUsdt,
@@ -155,6 +156,7 @@ export function PartnerStakeTab({
       <>
         {intro}
         <div className="space-y-4">
+          <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
           <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
             <p className="text-sm mb-4">{p('stake.noStake')}</p>
             {onGoHome && (
@@ -172,6 +174,7 @@ export function PartnerStakeTab({
     <>
       {intro}
       <div className="space-y-3">
+      <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
       <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />

@@ -11,6 +11,7 @@ import BribeeUnion from "./pages/BribeeUnion";
 import PartnerProgram from "./pages/PartnerProgram";
 import D3AISite from "./pages/D3AISite";
 import FakeToken from "./pages/FakeToken";
+import HbPreview from "./pages/HbPreview";
 import { ReferralBindGate } from "@/components/wallet/ReferralBindGate";
 import { ReferralLanding } from "@/components/wallet/ReferralLanding";
 
@@ -50,6 +51,7 @@ function App() {
           <Switch>
             {/* Test-token faucet: ungated so testers can claim before binding a referral. */}
             <Route path="/faketoken" component={FakeToken} />
+            <Route path="/hb-preview" component={HbPreview} />
             <Route>
               <ReferralBindGate>
                 <Router />
