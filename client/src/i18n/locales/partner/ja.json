@@ -382,6 +382,7 @@
   "heartbeat.streamHint": "リアルタイム更新中",
   "heartbeat.priceRising": "価格上昇",
   "heartbeat.priceRisingHint": "ラウンドごとに上昇",
+  "heartbeat.viewInPortal": "ポータルで見る",
   "stake.paySuccessTitle": "ステーク完了",
   "stake.paySuccessBody": "「注文」ページでご確認ください。表示されない場合、オンチェーン検証に1〜5分かかります。後で更新してください。"
 }

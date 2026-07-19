@@ -404,6 +404,7 @@
   "heartbeat.streamHint": "Live stream",
   "heartbeat.priceRising": "Price rising",
   "heartbeat.priceRisingHint": "Higher each round",
+  "heartbeat.viewInPortal": "View in portal",
   "stake.paySuccessTitle": "Stake submitted",
   "stake.paySuccessBody": "Check the Orders page. If it is not shown yet, on-chain verification takes 1–5 minutes — please refresh later."
 }

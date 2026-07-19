@@ -382,6 +382,7 @@
   "heartbeat.streamHint": "อัปเดตสด",
   "heartbeat.priceRising": "ราคาเพิ่มขึ้น",
   "heartbeat.priceRisingHint": "สูงขึ้นทุกรอบ",
+  "heartbeat.viewInPortal": "ดูในพอร์ทัล",
   "stake.paySuccessTitle": "สเตกสำเร็จ",
   "stake.paySuccessBody": "ตรวจสอบที่หน้า「คำสั่งซื้อ」หากยังไม่แสดง การยืนยันบนเชนใช้เวลา 1–5 นาที โปรดรีเฟรชภายหลัง"
 }

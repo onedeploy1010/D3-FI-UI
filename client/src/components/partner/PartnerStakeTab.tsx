@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerListFilters } from '@/components/partner/partnerUiKit';
 import { PartnerPrivateSaleIntro } from '@/components/partner/PartnerPrivateSaleIntro';
-import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat';
+import { PRESALE_ROUNDS } from '@/components/partner/presaleHeartbeat';
 import {
   formatD3Amount,
   formatDailyYieldUsdt,
@@ -34,6 +35,44 @@ function stakeKindKey(kind: StakeOrderKind): string {
   if (kind === 'crowdfund') return 'stake.kind.crowdfund';
   if (kind === 'partner_join') return 'stake.kind.join';
   return 'stake.kind.sd3';
+}
+
+/**
+ * Compact one-line current-round price banner. The full 心跳指数 widget lives on
+ * the Portal; tapping this jumps there to view it.
+ */
+function PrivateSalePriceBanner({ lang, isDark }: { lang: AppLang; isDark: boolean }) {
+  const p = usePartnerTranslation(lang);
+  const [, navigate] = useLocation();
+  const r1 = PRESALE_ROUNDS[0];
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/portal')}
+      style={{
+        boxShadow: isDark
+          ? '0 0 0 1px rgba(224,86,143,0.35), 0 8px 22px -10px rgba(0,0,0,0.55)'
+          : '0 0 0 1px rgba(224,86,143,0.38), 0 10px 24px -12px rgba(138,43,87,0.28)',
+      }}
+      className={`partner-elevated-card w-full p-3 text-left ios-glass-pressable flex items-center justify-between gap-3 ${glassCardClass('highlight', '')}`}
+    >
+      <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+      <span className="flex items-center gap-2 min-w-0">
+        <Activity size={16} className="text-[#E0568F] shrink-0" strokeWidth={2.5} aria-hidden />
+        <span className={`text-[12px] font-bold truncate ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+          <span className="text-[#E0568F]">{p('privateSale.roundLabel', { n: 1 })}</span>
+          <span className="opacity-40"> · </span>
+          {r1.d3.toLocaleString()} D3
+          <span className="opacity-40"> · </span>
+          <span className="text-[#E0568F]">{r1.priceUsdt}U</span>
+        </span>
+      </span>
+      <span className="flex items-center gap-0.5 text-[11px] font-semibold text-[#E0568F] shrink-0">
+        {p('heartbeat.viewInPortal')}
+        <ChevronRight size={13} />
+      </span>
+    </button>
+  );
 }
 
 export function PartnerStakeTab({
@@ -156,7 +195,7 @@ export function PartnerStakeTab({
       <>
         {intro}
         <div className="space-y-4">
-          <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
+          <PrivateSalePriceBanner lang={lang} isDark={isDark} />
           <div className={`text-center py-12 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
             <p className="text-sm mb-4">{p('stake.noStake')}</p>
             {onGoHome && (
@@ -174,7 +213,7 @@ export function PartnerStakeTab({
     <>
       {intro}
       <div className="space-y-3">
-      <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
+      <PrivateSalePriceBanner lang={lang} isDark={isDark} />
       <div className={`partner-elevated-card p-4 ${glassCardClass('highlight', '')}`}>
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
