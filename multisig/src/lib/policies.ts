@@ -34,23 +34,29 @@ const proposerConsensus = `approvers.filter(user, ${ROOT_IDS.map((id) => `user.i
 
 const USDT = '0x55d398326f99059fF775485246999027B3197955';
 
-// d3finance@hotmail.com — the org "Root user" (backend API user), id below. It is
-// NOT part of the root quorum (DA/Ye/DADA, threshold 2). The operator policy below
-// grants this user single-approver rights so it can operate day-to-day.
-const D3FINANCE_USER_ID = '5eba34d3-7b27-4a41-8192-49d80438cb54';
+// d3finance@hotmail.com — the org "Root user" (backend API user, id 5eba34d3). It is
+// NOT part of the root quorum (DA/Ye/DADA, threshold 2) and has NO standalone rights
+// (Turnkey denies it create-tag/wallet/policy → needs 2/3 root approval).
+//
+// The operator policy below grants an "operators" USER TAG single-approver rights, so
+// you manage who is an operator by adding/removing users from the tag — no policy edit.
+// STEP 1: create a user tag named "operators" and add d3finance (5eba34d3) — this is a
+//         governance change, so the 2/3 root quorum must approve it.
+// STEP 2: replace <OPERATORS_TAG_ID> below with the created tag's id.
 const TREASURY = '0x2802A588F575Cb040487Dc0bD9e45b58c62C3B0B';
+const OPERATORS_TAG_ID = '<OPERATORS_TAG_ID>'; // fill after creating the "operators" tag
 
 export const CURATED_POLICIES: PolicyItem[] = [
   {
-    id: 'operator-d3finance',
+    id: 'operator-tag',
     status: 'todo',
     descZh:
-      'd3finance@hotmail.com（用户 5eba34d3）设为操作人：可单独批准「非国库」的日常运营活动（热钱包发交易、建钱包等）。国库（treasury）出款仍必须走 2/3 根签名人。若要授予完整权限，把 condition 改成 true。',
+      '操作人标签（operators）：凡属于该 user tag 的成员（含 d3finance@hotmail.com / 5eba34d3）可单独批准「非国库」的日常运营活动（热钱包发交易等）。国库（treasury）出款仍必须走 2/3 根签名人。以后加/减操作人只改标签成员，不用动策略。若要授予完整权限，把 condition 改成 true。',
     body: {
-      policyName: 'd3-operator-d3finance',
+      policyName: 'd3-operator-tag',
       effect: 'EFFECT_ALLOW',
       condition: `eth.tx.from != '${TREASURY}'`,
-      consensus: `approvers.filter(user, user.id == '${D3FINANCE_USER_ID}').count() >= 1`,
+      consensus: `approvers.filter(user, user.tags.contains('${OPERATORS_TAG_ID}')).count() >= 1`,
     },
   },
   {
