@@ -135,7 +135,7 @@ export async function latestBlockNumber(): Promise<bigint> {
 // ─── DB sync (Postgres index cache of the on-chain graph) ────────────────────
 
 const SYNC_CURSOR_KEY = 'referral_registry';
-const MAX_SCAN_RANGE = 4500n; // stay under BSC RPC getLogs range limits
+const MAX_SCAN_RANGE = 900n; // stay under BSC RPC getLogs range limits (thirdweb caps at 1000/call)
 
 /** Ensure a minimal profile row exists (referrals FK target). Returns canonical stored wallet. */
 async function ensureMinimalProfile(sb: Sb, addr: string): Promise<string> {

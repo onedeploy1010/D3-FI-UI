@@ -694,35 +694,43 @@ export async function findUsdtTransferToAddress(opts: {
 }): Promise<{ txHash: Hash; amount: bigint; confirmations: number } | null> {
   const client = getBscPublicClient();
   const latest = await client.getBlockNumber();
-  const lookback = BigInt(opts.lookbackBlocks ?? 5000);
-  const fromBlock = latest > lookback ? latest - lookback : 0n;
-
-  const logs = await client.getLogs({
-    address: BSC_USDT_CONTRACT as Address,
-    event: transferEvent,
-    args: { to: opts.depositAddress as Address },
-    fromBlock,
-    toBlock: latest,
-  });
-
-  if (logs.length === 0) return null;
-
-  const log = logs[logs.length - 1]!;
-  const amount = log.args.value as bigint;
-  if (amount < opts.minAmountWei) return null;
-
-  const receipt = await client.getTransactionReceipt({ hash: log.transactionHash });
-  if (!receipt || receipt.status !== 'success') return null;
-
-  const confirmations = Number(latest - receipt.blockNumber + 1n);
-  if (confirmations < BSC_MIN_CONFIRMATIONS) return null;
-
-  return { txHash: log.transactionHash, amount, confirmations };
+  const totalLookback = BigInt(opts.lookbackBlocks ?? 5000);
+  const startBlock = latest > totalLookback ? latest - totalLookback : 0n;
+  // Most BSC RPCs cap eth_getLogs at ~1000 blocks/call (thirdweb=1000, QuickNode=5,
+  // public=rate-limited). Scan NEWEST-first in safe chunks and stop at the first hit.
+  const CHUNK = 900n;
+  for (let hi = latest; hi >= startBlock;) {
+    const lo = hi > startBlock + CHUNK ? hi - CHUNK : startBlock;
+    const logs = await client.getLogs({
+      address: BSC_USDT_CONTRACT as Address,
+      event: transferEvent,
+      args: { to: opts.depositAddress as Address },
+      fromBlock: lo,
+      toBlock: hi,
+    });
+    if (logs.length > 0) {
+      const log = logs[logs.length - 1]!;
+      const amount = log.args.value as bigint;
+      if (amount < opts.minAmountWei) return null;
+      const receipt = await client.getTransactionReceipt({ hash: log.transactionHash });
+      if (!receipt || receipt.status !== 'success') return null;
+      const confirmations = Number(latest - receipt.blockNumber + 1n);
+      if (confirmations < BSC_MIN_CONFIRMATIONS) return null;
+      return { txHash: log.transactionHash, amount, confirmations };
+    }
+    if (lo <= startBlock) break;
+    hi = lo - 1n;
+  }
+  return null;
 }
 
 export function parseUsdtAmount(amount: number): bigint {
-  const scaled = Math.round(amount * 10 ** BSC_USDT_DECIMALS);
-  return BigInt(scaled);
+  // MUST be exact string-based scaling. `amount * 10**18` in float loses precision
+  // for large amounts (e.g. 35000 → 35000000000000002097152), making minWei exceed
+  // an exact on-chain transfer of the same nominal amount → deposit never credits.
+  if (!Number.isFinite(amount) || amount <= 0) return 0n;
+  // Trim any float noise to 18 dp, then parse the decimal STRING exactly.
+  return parseUnits(amount.toFixed(BSC_USDT_DECIMALS), BSC_USDT_DECIMALS);
 }
 
 export function formatUsdtAmount(wei: bigint): string {
