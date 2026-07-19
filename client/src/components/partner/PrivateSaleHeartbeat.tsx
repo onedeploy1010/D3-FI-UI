@@ -192,6 +192,7 @@ function OrdersExplorer({
   lang,
   hbIndex,
   raisedUsdt,
+  totalOrders,
 }: {
   open: boolean;
   onClose: () => void;
@@ -201,13 +202,15 @@ function OrdersExplorer({
   lang: AppLang;
   hbIndex: number;
   raisedUsdt: number;
+  /** True order count = real + simulated (the list itself is capped for display). */
+  totalOrders: number;
 }) {
   const p = usePartnerTranslation(lang);
   const timeAgo = useTimeAgo(p);
   const reduce = useReducedMotion();
 
   const stats = [
-    { label: p('heartbeat.totalOrders'), value: orders.length.toLocaleString() },
+    { label: p('heartbeat.totalOrders'), value: totalOrders.toLocaleString() },
     { label: p('heartbeat.raised'), value: `$${Math.round(raisedUsdt).toLocaleString()}` },
     { label: p('heartbeat.title'), value: String(hbIndex), accent: true },
   ];
@@ -483,6 +486,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
         lang={lang}
         hbIndex={hbIndex}
         raisedUsdt={raisedUsdt}
+        totalOrders={(data?.stats.realCount ?? 0) + (data?.stats.addedCount ?? 0)}
       />
     </>
   );
