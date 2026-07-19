@@ -43,19 +43,52 @@ const USDT = '0x55d398326f99059fF775485246999027B3197955';
 // STEP 1: create a user tag named "operators" and add d3finance (5eba34d3) — this is a
 //         governance change, so the 2/3 root quorum must approve it.
 // STEP 2: replace <OPERATORS_TAG_ID> below with the created tag's id.
-const TREASURY = '0x2802A588F575Cb040487Dc0bD9e45b58c62C3B0B';
-const OPERATORS_TAG_ID = '<OPERATORS_TAG_ID>'; // fill after creating the "operators" tag
+// Settlement token the operators may move. TEST env uses the faucet USDT below;
+// at mainnet launch switch to real BSC USDT 0x55d398326f99059fF775485246999027B3197955.
+const SETTLEMENT_USDT = '0xE763F2dF7C8aDF28eAa34683245e3a6f82fC2512';
+// Fill after the root quorum creates the "operators" user tag (adds d3finance 5eba34d3).
+const OPERATORS_TAG_ID = '<OPERATORS_TAG_ID>';
 
 export const CURATED_POLICIES: PolicyItem[] = [
+  // ── operators tag: least-privilege day-to-day (Turnkey best practice) ──────────
+  // Positive ALLOWLIST (not "!= treasury"): operators can only move the settlement
+  // token, so treasury + arbitrary-contract calls are out of reach. Manage who is an
+  // operator via tag membership — no policy edits. Raise count() to >= 2 for 2-person
+  // sign-off on larger flows.
   {
-    id: 'operator-tag',
+    id: 'operator-usdt-transfer',
     status: 'todo',
     descZh:
-      '操作人标签（operators）：凡属于该 user tag 的成员（含 d3finance@hotmail.com / 5eba34d3）可单独批准「非国库」的日常运营活动（热钱包发交易等）。国库（treasury）出款仍必须走 2/3 根签名人。以后加/减操作人只改标签成员，不用动策略。若要授予完整权限，把 condition 改成 true。',
+      '操作人（operators 标签，含 d3finance / 5eba34d3）可批准「只发给 USDT 合约」的热钱包转账。正向白名单——国库出款、调用任意合约都做不到。金额大可把 count() 改成 >= 2（两人共签）。',
     body: {
-      policyName: 'd3-operator-tag',
+      policyName: 'd3-operator-usdt-transfer',
       effect: 'EFFECT_ALLOW',
-      condition: `eth.tx.from != '${TREASURY}'`,
+      condition: `eth.tx.to == '${SETTLEMENT_USDT}'`,
+      consensus: `approvers.filter(user, user.tags.contains('${OPERATORS_TAG_ID}')).count() >= 1`,
+    },
+  },
+  {
+    id: 'operator-create-wallet',
+    status: 'todo',
+    descZh:
+      '（可选）操作人可创建钱包 / 子账户（建清算钱包等）。不含任何出款权限。不需要就别应用这条。',
+    body: {
+      policyName: 'd3-operator-create-wallet',
+      effect: 'EFFECT_ALLOW',
+      condition: "activity.kind == 'CREATE_WALLET' || activity.kind == 'CREATE_WALLET_ACCOUNTS'",
+      consensus: `approvers.filter(user, user.tags.contains('${OPERATORS_TAG_ID}')).count() >= 1`,
+    },
+  },
+  {
+    id: 'deny-operator-governance',
+    status: 'todo',
+    descZh:
+      '兜底 DENY：禁止 operators 碰治理（创建/改/删策略）。DENY 压过一切 ALLOW，防止操作人自我提权——治理只能走 2/3 根签名人。',
+    body: {
+      policyName: 'd3-deny-operator-governance',
+      effect: 'EFFECT_DENY',
+      condition:
+        "activity.kind == 'CREATE_POLICY' || activity.kind == 'UPDATE_POLICY' || activity.kind == 'DELETE_POLICY'",
       consensus: `approvers.filter(user, user.tags.contains('${OPERATORS_TAG_ID}')).count() >= 1`,
     },
   },
