@@ -80,10 +80,26 @@ export async function siweSignIn(
   return token;
 }
 
-/** Fetch the partner's union profile (needs a SIWE session). Used to verify is_partner. */
-export async function fetchPartnerProfile(wallet: string): Promise<{
-  partnerAccount?: { is_partner?: boolean } | null;
-} & Record<string, unknown>> {
+export type PartnerProfile = {
+  partnerAccount?: {
+    is_partner?: boolean;
+    ud3_balance?: number;
+    lifetime_ud3_earned?: number;
+    pending_d3_yield?: number;
+    joined_at?: string | null;
+  } | null;
+  partnerTeamStats?: {
+    personalPerformanceUsd?: number;
+    teamPerformanceUsd?: number;
+    dailyNewPerformanceUsd?: number;
+    smallAreaPerformanceUsd?: number;
+  } | null;
+  partnerDownlineWallets?: string[];
+  partnerStakePositions?: Array<{ principal_usdt?: number; staked_d3?: number; kind?: string }>;
+} & Record<string, unknown>;
+
+/** Fetch the partner's union profile (needs a SIWE session). Used to verify is_partner + 业绩. */
+export async function fetchPartnerProfile(wallet: string): Promise<PartnerProfile> {
   const token = getSessionToken();
   const res = await fetch(`${BASE}/profile/${encodeURIComponent(wallet)}`, {
     headers: {

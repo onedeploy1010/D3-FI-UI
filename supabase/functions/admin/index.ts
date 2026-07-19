@@ -1373,9 +1373,19 @@ async function listAdmins(sb: Sb) {
     .select('user_id, username, role, permissions, created_at')
     .order('created_at', { ascending: true });
   if (error) throw error;
+  // Emails live in auth.users (not admin_users) — resolve them via the admin API
+  // (service role). Best-effort: a failure just leaves email null.
+  const emailById = new Map<string, string>();
+  try {
+    const { data: authData } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    for (const u of authData?.users ?? []) emailById.set(u.id, (u.email as string) ?? '');
+  } catch {
+    /* email best-effort */
+  }
   const rows = (data ?? []).map((r) => ({
     userId: r.user_id as string,
     username: r.username as string,
+    email: emailById.get(r.user_id as string) ?? null,
     role: r.role as string,
     permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
     createdAt: (r.created_at as string) ?? null,

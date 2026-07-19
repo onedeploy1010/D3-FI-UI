@@ -119,6 +119,7 @@ export const api = {
 export type AdminRow = {
   userId: string;
   username: string;
+  email?: string | null;
   role: string;
   permissions: string[];
   createdAt?: string | null;

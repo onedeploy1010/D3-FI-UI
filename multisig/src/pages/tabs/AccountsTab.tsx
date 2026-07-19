@@ -62,7 +62,7 @@ export function AccountsTab() {
                 <UserRound size={18} />
               </span>
               <div className="min-w-0">
-                <div className="text-[14px] font-bold text-[#160510] truncate">{r.username}</div>
+                <div className="text-[14px] font-bold text-[#160510] truncate">{r.email || r.username}</div>
                 <div className="text-[10px] text-[#8A2B57]/60 flex items-center gap-1">
                   <ShieldCheck size={11} className="text-emerald-500" /> 超级合伙人
                 </div>
