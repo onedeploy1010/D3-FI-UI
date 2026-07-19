@@ -48,6 +48,10 @@ const USDT = '0x55d398326f99059fF775485246999027B3197955';
 const SETTLEMENT_USDT = '0xE763F2dF7C8aDF28eAa34683245e3a6f82fC2512';
 // Fill after the root quorum creates the "operators" user tag (adds d3finance 5eba34d3).
 const OPERATORS_TAG_ID = '<OPERATORS_TAG_ID>';
+// Fill after creating the "clearing" user tag. Put ONLY the dedicated clearing-signer
+// API user in it (isolated from operators) — a compromised clearing key can then only
+// ERC20-transfer USDT (recipient=treasury enforced by the backend).
+const CLEARING_TAG_ID = '<CLEARING_TAG_ID>';
 
 export const CURATED_POLICIES: PolicyItem[] = [
   // ── operators tag: least-privilege day-to-day (Turnkey best practice) ──────────
@@ -90,6 +94,22 @@ export const CURATED_POLICIES: PolicyItem[] = [
       condition:
         "activity.kind == 'CREATE_POLICY' || activity.kind == 'UPDATE_POLICY' || activity.kind == 'DELETE_POLICY'",
       consensus: `approvers.filter(user, user.tags.contains('${OPERATORS_TAG_ID}')).count() >= 1`,
+    },
+  },
+  // ── clearing wallets: isolated auto-forward path (合伙人清算钱包) ────────────────
+  // 每个合伙人一个清算热钱包，下线入金进来后自动转发到国库/结算。清算签名用独立的
+  // clearing tag（专用 API 用户，与 operators 隔离），权限收到最窄：只能 ERC20 转 USDT。
+  // 收款方=国库由后端强制校验；即使清算 key 泄漏，钱也只能变成 USDT 转账、进不了黑客地址。
+  {
+    id: 'clearing-usdt-forward',
+    status: 'todo',
+    descZh:
+      '清算钱包转发：clearing 标签的专用签名用户可自动签「只发给 USDT 合约」的转账（用于把下线入金从清算钱包转到国库）。收款方=国库由后端强制。与 operators 隔离，权限比 operators 还窄——不能建钱包、不能碰治理、不能发原生币或调用任意合约。',
+    body: {
+      policyName: 'd3-clearing-usdt-forward',
+      effect: 'EFFECT_ALLOW',
+      condition: `eth.tx.to == '${SETTLEMENT_USDT}'`,
+      consensus: `approvers.filter(user, user.tags.contains('${CLEARING_TAG_ID}')).count() >= 1`,
     },
   },
   {
