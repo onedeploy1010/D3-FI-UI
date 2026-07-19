@@ -364,5 +364,7 @@
   "home.autoPartnerHint": "{entry} USDT 以上のステークで自動的にパートナーになります",
   "home.becomePartnerTopUpHint": "{staked} USDT ステーク済み — 差額 {pay} USDT でパートナーに",
   "privateSale.skip": "スキップ",
-  "privateSale.next": "次のラウンド"
+  "privateSale.next": "次のラウンド",
+  "privateSale.progressLabel": "第{n}ラウンド進捗",
+  "privateSale.soldOfTarget": "販売済 {sold} / {target} D3"
 }

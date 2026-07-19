@@ -386,5 +386,7 @@
   "home.autoPartnerHint": "Stake ≥ {entry} USDT to become a partner automatically",
   "home.becomePartnerTopUpHint": "Staked {staked} USDT — top up {pay} USDT to become a partner",
   "privateSale.skip": "Skip",
-  "privateSale.next": "Next round"
+  "privateSale.next": "Next round",
+  "privateSale.progressLabel": "Round {n} progress",
+  "privateSale.soldOfTarget": "Sold {sold} / {target} D3"
 }

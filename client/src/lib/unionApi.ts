@@ -77,6 +77,28 @@ export async function unionPublicFetch<T>(path: string): Promise<T> {
   return body as T;
 }
 
+export type PrivateSaleProgress = {
+  currentRound: number;
+  roundPriceUsdt: number;
+  roundTargetD3: number;
+  roundSoldD3: number;
+  /** Real fill % of the current round (from confirmed 私募 deposits). */
+  realPct: number;
+  /** Admin display boost (additive). */
+  boostPct: number;
+  /** min(100, realPct + boostPct) — what the UI shows. */
+  displayPct: number;
+  totalSoldD3: number;
+  totalTargetD3: number;
+  raisedUsdtTotal: number;
+  rounds: { round: number; d3: number; priceUsdt: number }[];
+};
+
+/** Public: current private-sale round progress (real fill + admin boost). */
+export function getPrivateSaleProgress() {
+  return unionPublicFetch<PrivateSaleProgress>('/private-sale/progress');
+}
+
 export function ensureUnionProfile(
   wallet: string,
   opts?: { lang?: 'zh' | 'en'; privyUserId?: string; displayName?: string },

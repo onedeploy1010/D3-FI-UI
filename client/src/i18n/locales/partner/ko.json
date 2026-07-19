@@ -364,5 +364,7 @@
   "home.autoPartnerHint": "{entry} USDT 이상 스테이킹 시 자동으로 파트너가 됩니다",
   "home.becomePartnerTopUpHint": "{staked} USDT 스테이킹됨 — 차액 {pay} USDT로 파트너 되기",
   "privateSale.skip": "건너뛰기",
-  "privateSale.next": "다음 라운드"
+  "privateSale.next": "다음 라운드",
+  "privateSale.progressLabel": "{n}라운드 진행률",
+  "privateSale.soldOfTarget": "판매 {sold} / {target} D3"
 }

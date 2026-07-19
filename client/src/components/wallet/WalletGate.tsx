@@ -16,10 +16,10 @@ type WalletGateProps = {
 
 export function WalletGate({
   children,
-  titleZh = '连接 Privy 钱包',
-  titleEn = 'Connect with Privy',
-  descZh = '通过 Privy 登录并连接钱包（MetaMask、OKX、TokenPocket 等，支持 WalletConnect）。账户与 0x 地址绑定。',
-  descEn = 'Sign in with Privy and connect a wallet (MetaMask, OKX, TokenPocket via WalletConnect, etc.). Accounts bind to your 0x address.',
+  titleZh = '连接钱包',
+  titleEn = 'Connect Wallet',
+  descZh = '连接钱包（MetaMask、OKX、TokenPocket 等，支持 WalletConnect）。账户与 0x 地址绑定。',
+  descEn = 'Connect a wallet (MetaMask, OKX, TokenPocket via WalletConnect, etc.). Accounts bind to your 0x address.',
   lang = 'zh',
 }: WalletGateProps) {
   const { isConnected, isPrivyReady, privyInitFailed, isConnecting, connect, connectDemo, error } = useWallet();
@@ -41,8 +41,8 @@ export function WalletGate({
         {privyInitFailed && !error && (
           <p className="text-xs text-amber-600 mb-3 text-pretty">
             {t
-              ? 'Privy 未能加载。请在 Privy Dashboard → Settings → Domains 添加本站地址（如 https://你的站点.netlify.app 和 https://d3.fi），并关闭广告拦截。'
-              : 'Privy failed to load. Add this site to Allowed origins in Privy Dashboard and disable ad blockers.'}
+              ? '钱包加载失败。请刷新页面或关闭广告拦截后重试。'
+              : 'Wallet failed to load. Refresh the page or disable ad blockers and retry.'}
           </p>
         )}
         <GlassButton
@@ -53,19 +53,19 @@ export function WalletGate({
         >
           {!isPrivyReady && !privyInitFailed
             ? t
-              ? '正在加载 Privy…'
-              : 'Loading Privy…'
+              ? '正在加载…'
+              : 'Loading…'
             : isConnecting
               ? t
                 ? '连接中…'
                 : 'Connecting…'
               : privyInitFailed
                 ? t
-                  ? 'Privy 不可用'
-                  : 'Privy unavailable'
+                  ? '钱包不可用'
+                  : 'Wallet unavailable'
                 : t
-                  ? 'Privy 登录'
-                  : 'Sign in with Privy'}
+                  ? '连接钱包'
+                  : 'Connect Wallet'}
         </GlassButton>
 
         <div className="flex items-center gap-3 my-5">

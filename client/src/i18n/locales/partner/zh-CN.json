@@ -386,5 +386,7 @@
   "home.autoPartnerHint": "单笔质押 ≥ {entry} USDT 自动成为合伙人",
   "home.becomePartnerTopUpHint": "已质押 {staked} USDT，补差价 {pay} USDT 即成为合伙人",
   "privateSale.skip": "跳过",
-  "privateSale.next": "下一轮"
+  "privateSale.next": "下一轮",
+  "privateSale.progressLabel": "第{n}轮进度",
+  "privateSale.soldOfTarget": "已售 {sold} / {target} D3"
 }

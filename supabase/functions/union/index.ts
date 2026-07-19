@@ -722,7 +722,10 @@ Deno.serve(async (req) => {
     const sponsorReg = path.match(/^\/sponsor\/(0x[0-9a-fA-F]{40})\/registered$/);
     const publicGet =
       req.method === 'GET' &&
-      (path === '/health' || path === '/protocol' || Boolean(sponsorReg));
+      (path === '/health' ||
+        path === '/protocol' ||
+        path === '/private-sale/progress' ||
+        Boolean(sponsorReg));
     // Public SIWE auth handshake — apikey only, no wallet/session auth required.
     const authRoute =
       req.method === 'POST' && (path === '/auth/nonce' || path === '/auth/verify');
@@ -777,6 +780,61 @@ Deno.serve(async (req) => {
     // GET /protocol
     if (req.method === 'GET' && path === '/protocol') {
       return jsonResponse(await handleProtocol(sb));
+    }
+
+    // GET /private-sale/progress — public. Real current-round fill %, computed from
+    // confirmed 私募 (crowdfund_stake) deposits, with an admin display boost.
+    // Phase 2 will source `boostPct` and the round schedule from the param store.
+    if (req.method === 'GET' && path === '/private-sale/progress') {
+      const ROUNDS = [
+        { round: 1, d3: 5_000_000, priceUsdt: 5 },
+        { round: 2, d3: 5_000_000, priceUsdt: 6 },
+        { round: 3, d3: 5_000_000, priceUsdt: 7 },
+        { round: 4, d3: 5_000_000, priceUsdt: 8 },
+      ];
+      const { data: intents } = await sb
+        .from('stake_intents')
+        .select('amount_usdt')
+        .eq('intent_type', 'crowdfund_stake')
+        .in('status', ['credited', 'sweep_pending', 'completed']);
+      let raised = (intents ?? []).reduce((s, r) => s + Number(r.amount_usdt ?? 0), 0);
+      const raisedUsdtTotal = raised;
+      // Walk rounds: each fully sells at d3*price USDT. First unfilled round is active.
+      let active = ROUNDS[0];
+      let roundFrac = 0;
+      let totalSoldD3 = 0;
+      for (const r of ROUNDS) {
+        const cost = r.d3 * r.priceUsdt;
+        if (raised >= cost) {
+          raised -= cost;
+          totalSoldD3 += r.d3;
+          active = r;
+          roundFrac = 1;
+          continue;
+        }
+        active = r;
+        roundFrac = cost > 0 ? raised / cost : 0;
+        totalSoldD3 += r.d3 * roundFrac;
+        raised = 0;
+        break;
+      }
+      // Admin display boost (additive, capped at 100). Phase 2: from param store.
+      const boostPct = 0;
+      const realPct = Math.round(roundFrac * 1000) / 10;
+      const displayPct = Math.min(100, Math.round((realPct + boostPct) * 10) / 10);
+      return jsonResponse({
+        currentRound: active.round,
+        roundPriceUsdt: active.priceUsdt,
+        roundTargetD3: active.d3,
+        roundSoldD3: Math.round(active.d3 * (displayPct / 100)),
+        realPct,
+        boostPct,
+        displayPct,
+        totalSoldD3: Math.round(totalSoldD3),
+        totalTargetD3: ROUNDS.reduce((s, r) => s + r.d3, 0),
+        raisedUsdtTotal,
+        rounds: ROUNDS,
+      });
     }
 
     if (req.method === 'GET' && sponsorReg) {

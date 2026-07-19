@@ -364,5 +364,7 @@
   "home.autoPartnerHint": "สเตค ≥ {entry} USDT เพื่อเป็นพาร์ทเนอร์อัตโนมัติ",
   "home.becomePartnerTopUpHint": "สเตคแล้ว {staked} USDT — เติมส่วนต่าง {pay} USDT เพื่อเป็นพาร์ทเนอร์",
   "privateSale.skip": "ข้าม",
-  "privateSale.next": "รอบถัดไป"
+  "privateSale.next": "รอบถัดไป",
+  "privateSale.progressLabel": "ความคืบหน้ารอบ {n}",
+  "privateSale.soldOfTarget": "ขายแล้ว {sold} / {target} D3"
 }
