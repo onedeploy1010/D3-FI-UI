@@ -360,5 +360,7 @@
   "privateSale.unitPrice": "ราคา D3",
   "privateSale.viewOrders": "ดูออเดอร์ของฉัน",
   "stake.salePrice": "ราคาขาย",
-  "stake.stakedD3Label": "D3 ที่สเตก"
+  "stake.stakedD3Label": "D3 ที่สเตก",
+  "home.autoPartnerHint": "สเตค ≥ {entry} USDT เพื่อเป็นพาร์ทเนอร์อัตโนมัติ",
+  "home.becomePartnerTopUpHint": "สเตคแล้ว {staked} USDT — เติมส่วนต่าง {pay} USDT เพื่อเป็นพาร์ทเนอร์"
 }

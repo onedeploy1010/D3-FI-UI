@@ -70,18 +70,30 @@ export function PartnerHomeTab({
 
   const availableUd3 = getUd3Available(state);
   const numAmount = Number(amount);
+  // USDT-paid stakes count toward the 5000 USDT partner entry; UD3-paid stakes do not.
+  const usdtStakedTotal = state.stakeOrders
+    .filter((o) => o.kind === 'crowdfund' || o.kind === 'partner_join')
+    .reduce((s, o) => s + (Number(o.principalUsdt) || 0), 0);
+  // 补差价: what's left to reach the 5000 entry (full entry if nothing staked yet).
+  const partnerShortfall = Math.max(0, PARTNER_ENTRY_USDT - usdtStakedTotal);
+  const partnerJoinAmount = partnerShortfall > 0 ? partnerShortfall : PARTNER_ENTRY_USDT;
   const isRegularMode = !state.isPartner && !becomePartner && !useUd3;
-  const withPartnerJoin = !state.isPartner && becomePartner && !useUd3;
-  const stakeAmount = withPartnerJoin ? PARTNER_ENTRY_USDT : numAmount;
+  // Two ways to become a partner: explicitly click 成为合伙人 (pays the 补差价), or
+  // stake ≥ 5000 in one order (auto-qualifies — the stake itself is the entry).
+  const explicitJoin = !state.isPartner && becomePartner && !useUd3;
+  const autoPartner =
+    !state.isPartner && !useUd3 && Number.isFinite(numAmount) && numAmount >= PARTNER_ENTRY_USDT;
+  const withPartnerJoin = explicitJoin || autoPartner;
+  const stakeAmount = explicitJoin ? partnerJoinAmount : numAmount;
   const exitMultiplier = useUd3 ? STAKE_EXIT_MULTIPLIER_SD3 : STAKE_EXIT_MULTIPLIER_DEFAULT;
 
   const isValidAmount = useMemo(() => {
-    if (withPartnerJoin) return true;
+    if (explicitJoin) return true;
     if (!Number.isFinite(numAmount)) return false;
     if (useUd3) return isValidUd3StakeAmount(numAmount, availableUd3);
     if (isRegularMode) return isValidRegularStakeAmount(numAmount);
     return numAmount >= minCrowdfundUsdt;
-  }, [numAmount, isRegularMode, minCrowdfundUsdt, withPartnerJoin, useUd3, availableUd3]);
+  }, [numAmount, isRegularMode, minCrowdfundUsdt, explicitJoin, useUd3, availableUd3]);
 
   const quickIncrements = [100, 500, 1000, 5000];
   const dailyYieldUsdt = isValidAmount ? calcDailyUsdtYield(stakeAmount) : 0;
@@ -95,7 +107,7 @@ export function PartnerHomeTab({
   };
 
   const addAmount = (delta: number) => {
-    if (withPartnerJoin) return;
+    if (explicitJoin) return;
     const base = Number.isFinite(numAmount) ? numAmount : 0;
     let next = base + delta;
     if (useUd3) {
@@ -115,7 +127,8 @@ export function PartnerHomeTab({
     setBecomePartner(checked);
     if (checked) {
       setUseUd3(false);
-      setAmount(String(PARTNER_ENTRY_USDT));
+      // Pay only the 补差价 to reach the 5000 entry (full entry if nothing staked yet).
+      setAmount(String(partnerJoinAmount));
     } else {
       // Non-partner (regular) stake defaults to the 100 USDT minimum; user can edit.
       setAmount(String(REGULAR_STAKE_MIN_USDT));
@@ -245,10 +258,10 @@ export function PartnerHomeTab({
               min={useUd3 ? UD3_STAKE_MIN : isRegularMode ? REGULAR_STAKE_MIN_USDT : minCrowdfundUsdt}
               step={useUd3 || isRegularMode ? REGULAR_STAKE_STEP_USDT : 'any'}
               max={useUd3 ? availableUd3 : undefined}
-              value={withPartnerJoin ? String(PARTNER_ENTRY_USDT) : amount}
-              readOnly={withPartnerJoin}
+              value={explicitJoin ? String(partnerJoinAmount) : amount}
+              readOnly={explicitJoin}
               onChange={(e) => {
-                if (withPartnerJoin) return;
+                if (explicitJoin) return;
                 setAmount(e.target.value);
               }}
               placeholder={
@@ -260,11 +273,11 @@ export function PartnerHomeTab({
               }
               className={`w-full partner-depth-inset px-4 py-4 text-3xl font-bold text-center rounded-2xl outline-none tracking-tight ${
                 isDark ? 'text-white bg-transparent' : 'text-[#160510]'
-              } ${withPartnerJoin ? 'opacity-80 cursor-not-allowed' : ''}`}
+              } ${explicitJoin ? 'opacity-80 cursor-not-allowed' : ''}`}
             />
           </div>
 
-          {!withPartnerJoin && (
+          {!explicitJoin && (
           <div className="flex flex-wrap justify-center gap-2 mb-5">
             {quickIncrements.map((v, i) => (
               <motion.button
@@ -282,7 +295,14 @@ export function PartnerHomeTab({
             ))}
           </div>
           )}
-          {withPartnerJoin && <div className="mb-5" />}
+          {explicitJoin && <div className="mb-5" />}
+
+          {/* ≥5000 单笔质押自动成为合伙人 */}
+          {isRegularMode && autoPartner && (
+            <p className="text-[11px] text-center mb-4 font-semibold text-[#E0568F]">
+              {p('home.autoPartnerHint', { entry: PARTNER_ENTRY_USDT.toLocaleString() })}
+            </p>
+          )}
 
           {!state.isPartner && !useUd3 && (
             <label
@@ -299,7 +319,13 @@ export function PartnerHomeTab({
               <span className="text-[11px] leading-relaxed text-left">
                 <span className="font-semibold">{p('home.becomePartnerCheckbox')}</span>
                 <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-                  {p('home.becomePartnerCheckboxHint', { fee: PARTNER_ENTRY_USDT.toLocaleString() })}
+                  {partnerShortfall > 0 && partnerShortfall < PARTNER_ENTRY_USDT
+                    ? p('home.becomePartnerTopUpHint', {
+                        pay: partnerJoinAmount.toLocaleString(),
+                        staked: usdtStakedTotal.toLocaleString(),
+                        entry: PARTNER_ENTRY_USDT.toLocaleString(),
+                      })
+                    : p('home.becomePartnerCheckboxHint', { fee: PARTNER_ENTRY_USDT.toLocaleString() })}
                 </span>
               </span>
             </label>

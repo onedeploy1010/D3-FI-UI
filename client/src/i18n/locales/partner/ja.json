@@ -360,5 +360,7 @@
   "privateSale.unitPrice": "D3 単価",
   "privateSale.viewOrders": "私募注文を見る",
   "stake.salePrice": "私募価",
-  "stake.stakedD3Label": "ステーク D3"
+  "stake.stakedD3Label": "ステーク D3",
+  "home.autoPartnerHint": "{entry} USDT 以上のステークで自動的にパートナーになります",
+  "home.becomePartnerTopUpHint": "{staked} USDT ステーク済み — 差額 {pay} USDT でパートナーに"
 }

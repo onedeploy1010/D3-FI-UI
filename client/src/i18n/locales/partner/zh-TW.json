@@ -380,5 +380,7 @@
   "privateSale.unitPrice": "D3 單價",
   "privateSale.viewOrders": "查看我的私募訂單",
   "stake.salePrice": "私募價",
-  "stake.stakedD3Label": "質押 D3"
+  "stake.stakedD3Label": "質押 D3",
+  "home.autoPartnerHint": "單筆質押 ≥ {entry} USDT 自動成為合夥人",
+  "home.becomePartnerTopUpHint": "已質押 {staked} USDT，補差價 {pay} USDT 即成為合夥人"
 }

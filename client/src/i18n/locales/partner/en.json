@@ -382,5 +382,7 @@
   "privateSale.unitPrice": "D3 price",
   "privateSale.viewOrders": "View my orders",
   "stake.salePrice": "Sale price",
-  "stake.stakedD3Label": "Staked D3"
+  "stake.stakedD3Label": "Staked D3",
+  "home.autoPartnerHint": "Stake ≥ {entry} USDT to become a partner automatically",
+  "home.becomePartnerTopUpHint": "Staked {staked} USDT — top up {pay} USDT to become a partner"
 }

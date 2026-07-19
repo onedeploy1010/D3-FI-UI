@@ -360,5 +360,7 @@
   "privateSale.unitPrice": "D3 단가",
   "privateSale.viewOrders": "내 사모 주문 보기",
   "stake.salePrice": "사모가",
-  "stake.stakedD3Label": "스테이킹 D3"
+  "stake.stakedD3Label": "스테이킹 D3",
+  "home.autoPartnerHint": "{entry} USDT 이상 스테이킹 시 자동으로 파트너가 됩니다",
+  "home.becomePartnerTopUpHint": "{staked} USDT 스테이킹됨 — 차액 {pay} USDT로 파트너 되기"
 }
