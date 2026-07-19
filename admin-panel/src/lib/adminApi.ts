@@ -443,3 +443,86 @@ export function updateAdmin(
 export function listPermissions() {
   return adminFetch<{ rows: PermissionDef[] }>('/permissions');
 }
+
+// ── System parameters (参数管理) ─────────────────────────────────────────────
+export type SystemParam = {
+  param_key: string;
+  param_group: string;
+  label: string;
+  value: unknown;
+  value_type: 'number' | 'string' | 'boolean' | 'json';
+  on_chain: boolean;
+  editable: boolean;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export function getParams() {
+  return adminFetch<{ ok: boolean; params: SystemParam[] }>('/params');
+}
+
+export function updateParam(key: string, value: unknown) {
+  return adminFetch<{ ok: boolean; param: SystemParam }>('/params', {
+    method: 'PATCH',
+    body: JSON.stringify({ key, value }),
+  });
+}
+
+// ── Heartbeat orders (心跳订单) ──────────────────────────────────────────────
+export type HeartbeatConfig = {
+  enabled: boolean;
+  intervalSeconds: number;
+  amountMin: number;
+  amountMax: number;
+  amountTiers: number[];
+};
+
+export type HeartbeatState = { last_tick_at: string | null; cumulative_count: number } | null;
+
+export type HeartbeatOrderRow = {
+  id: string;
+  address: string;
+  amount_usdt: number;
+  d3: number;
+  round: number;
+  source: string;
+  tx_hash: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type HeartbeatStatRow = { source: string; order_count: number; usdt_total: number };
+
+export function getHeartbeatConfig() {
+  return adminFetch<{ ok: boolean; config: HeartbeatConfig; state: HeartbeatState }>(
+    '/heartbeat/config',
+  );
+}
+
+export function updateHeartbeatConfig(
+  patch: Partial<{ enabled: boolean; intervalSeconds: number; amountMin: number; amountMax: number }>,
+) {
+  return adminFetch<{ ok: boolean; config: HeartbeatConfig }>('/heartbeat/config', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export function listHeartbeatOrders() {
+  return adminFetch<{ ok: boolean; orders: HeartbeatOrderRow[]; stats: HeartbeatStatRow[] }>(
+    '/heartbeat/orders',
+  );
+}
+
+export function addHeartbeatOrder(amountUsdt: number, address?: string) {
+  return adminFetch<{ ok: boolean; order: HeartbeatOrderRow }>('/heartbeat/orders', {
+    method: 'POST',
+    body: JSON.stringify({ amountUsdt, address }),
+  });
+}
+
+export function generateHeartbeatOrder() {
+  return adminFetch<{ ok: boolean; order: HeartbeatOrderRow }>('/heartbeat/orders/generate', {
+    method: 'POST',
+  });
+}

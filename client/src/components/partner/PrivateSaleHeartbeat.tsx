@@ -4,13 +4,10 @@ import NumberFlow from '@number-flow/react';
 import { Activity, Radio, ChevronRight, TrendingUp } from 'lucide-react';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
-import { getPrivateSaleProgress, type PrivateSaleProgress } from '@/lib/unionApi';
+import { getHeartbeat, type HeartbeatData, type HeartbeatOrder } from '@/lib/unionApi';
 import {
   PRESALE_ROUNDS,
   ROUND_ACCENTS,
-  FAKE_ORDER_INTERVAL_MS,
-  makeRandomOrder,
-  seedOrders,
   shortenAddr,
   shortenHash,
   ageSeconds,
@@ -21,7 +18,22 @@ import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
 type P = ReturnType<typeof usePartnerTranslation>;
 
-const MAX_ORDERS = 60;
+/** How often the widget re-fetches server heartbeat data (cumulative orders). */
+const POLL_MS = 45_000;
+
+/** Map a server heartbeat order into the local row shape the UI renders. */
+function toStreamOrders(list: HeartbeatOrder[]): StreamOrder[] {
+  return list.map((o, i) => ({
+    id: `${o.source}-${o.at}-${i}`,
+    hash: o.hash ?? '',
+    address: o.address,
+    amountUsdt: o.amountUsdt,
+    d3: o.d3,
+    round: o.round || 1,
+    priceUsdt: 0,
+    at: o.at,
+  }));
+}
 
 /** Relative age, localized. */
 function useTimeAgo(p: P) {
@@ -146,12 +158,14 @@ function OrderRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className={`font-mono text-[11px] truncate ${isDark ? 'text-white/85' : 'text-[#160510]/80'}`}>
-            {shortenHash(order.hash)}
+            {order.hash ? shortenHash(order.hash) : shortenAddr(order.address)}
           </span>
         </div>
-        <div className={`flex items-center gap-1 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
-          <span className="truncate font-mono">{shortenAddr(order.address)}</span>
-        </div>
+        {order.hash && (
+          <div className={`flex items-center gap-1 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+            <span className="truncate font-mono">{shortenAddr(order.address)}</span>
+          </div>
+        )}
       </div>
       <div className="shrink-0 text-right">
         <div className="text-[13px] font-extrabold leading-none text-emerald-500">
@@ -251,55 +265,59 @@ function OrdersExplorer({
 
 /**
  * 私募心跳指数 — a live activity widget for the private sale. It shows a scrolling
- * ECG heartbeat, the current round + escalating price ladder, a slowly-filling
- * progress bar, and a stream of incoming staking orders that arrive continuously.
- * Tapping it opens a block-explorer-style list of every order received.
+ * ECG heartbeat, the round-1 price (800万 D3 @ 5U) + a rising-price indicator, a
+ * fill bar, and a stream of incoming staking orders. Tapping it opens a
+ * block-explorer-style list of every order received.
  *
- * The order stream is simulated client-side (see presaleHeartbeat.ts) to convey
- * momentum; the starting fill % and current round are seeded from the real
- * getPrivateSaleProgress() when available.
+ * Data comes from the server `GET /union/heartbeat` (see getHeartbeat): real
+ * staked totals (stake_intents) + cumulative simulated orders (heartbeat_orders),
+ * combined. 质押数量 = (real + simulated USDT) ÷ round-1 price. Polls periodically
+ * to pick up newly-accrued orders; the ECG/index animation stays client-side.
  */
 export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: boolean }) {
   const p = usePartnerTranslation(lang);
   const timeAgo = useTimeAgo(p);
   const reduce = useReducedMotion();
 
-  const [round, setRound] = useState(1);
-  const [progress, setProgress] = useState<PrivateSaleProgress | null>(null);
-  const [orders, setOrders] = useState<StreamOrder[]>([]);
+  const [data, setData] = useState<HeartbeatData | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  /** USDT contributed by simulated top-up orders, added on top of the real total. */
-  const [fakeUsdt, setFakeUsdt] = useState(0);
   const [hbIndex, setHbIndex] = useState(108);
   const [pulseKey, setPulseKey] = useState(0);
   const [explorerOpen, setExplorerOpen] = useState(false);
+  const lastCountRef = useRef(0);
 
-  // Price + supply are fixed by the sale design (round 1 = 5U, 800万 D3 per round);
-  // only the sold + raised figures come from real progress data.
-  const roundInfo = PRESALE_ROUNDS[round - 1] ?? PRESALE_ROUNDS[0];
-  const price = roundInfo.priceUsdt;
-  const target = roundInfo.d3;
-  const baseSoldD3 = progress?.roundSoldD3 ?? Math.round(target * 0.38);
-  const baseRaisedUsdt = progress?.raisedUsdtTotal ?? Math.round(baseSoldD3 * price);
+  // Round 1 is the headline (800万 D3 @ 5U); progress fills toward its supply.
+  const round = 1;
+  const target = PRESALE_ROUNDS[0].d3;
+  const orders = useMemo(() => (data ? toStreamOrders(data.orders) : []), [data]);
+  const soldD3 = data?.stats.totalD3 ?? 0;
+  const raisedUsdt = data?.stats.totalUsdt ?? 0;
+  const fillPct = target > 0 ? Math.min(99.5, (soldD3 / target) * 100) : 0;
+  const sold = Math.round(soldD3);
+  const topOrders = orders.slice(0, 3);
 
-  // Keep the live values readable inside the interval callbacks.
-  const ctx = useRef({ round, price });
-  ctx.current = { round, price };
-
-  // Real data: seed the list + totals from the live private-sale progress.
+  // Fetch + poll the combined real+simulated heartbeat data. When the order count
+  // grows (a new cumulative order accrued), flare the ECG + bump the index.
   useEffect(() => {
     let cancelled = false;
-    const boot = Date.now();
-    getPrivateSaleProgress()
-      .then((r) => {
-        if (cancelled) return;
-        setProgress(r);
-        if (r.currentRound >= 1 && r.currentRound <= PRESALE_ROUNDS.length) setRound(r.currentRound);
-      })
-      .catch(() => {});
-    setOrders(seedOrders(14, ctx.current.round, ctx.current.price, boot));
+    const load = () =>
+      getHeartbeat()
+        .then((d) => {
+          if (cancelled) return;
+          setData(d);
+          const total = d.stats.realCount + d.stats.addedCount;
+          if (lastCountRef.current && total > lastCountRef.current) {
+            setHbIndex((v) => Math.min(168, v + 10 + Math.floor(Math.random() * 8)));
+            setPulseKey((k) => k + 1);
+          }
+          lastCountRef.current = total;
+        })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, POLL_MS);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
@@ -316,26 +334,6 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
     }, 1000);
     return () => clearInterval(id);
   }, []);
-
-  // Fake data: one simulated order every 10 minutes (100–2000 USDT), nudging totals.
-  useEffect(() => {
-    const id = setInterval(() => {
-      const { round: r, price: pr } = ctx.current;
-      const order = makeRandomOrder(r, pr, Date.now());
-      setOrders((prev) => [order, ...prev].slice(0, MAX_ORDERS));
-      setFakeUsdt((v) => v + order.amountUsdt);
-      setHbIndex((v) => Math.min(168, v + 10 + Math.floor(Math.random() * 8)));
-      setPulseKey((k) => k + 1);
-    }, FAKE_ORDER_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  // Real base + simulated top-ups, combined for the display totals.
-  const soldD3 = Math.min(target, baseSoldD3 + (price > 0 ? fakeUsdt / price : 0));
-  const raisedUsdt = baseRaisedUsdt + fakeUsdt;
-  const fillPct = target > 0 ? Math.min(99.5, (soldD3 / target) * 100) : 0;
-  const sold = Math.round(soldD3);
-  const topOrders = orders.slice(0, 3);
 
   return (
     <>

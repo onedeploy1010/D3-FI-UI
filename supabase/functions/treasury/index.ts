@@ -158,6 +158,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...result });
     }
 
+    if (req.method === 'POST' && path === '/internal/heartbeat-tick') {
+      requireCronSecret(req);
+      const { runHeartbeatTick } = await import('../_shared/heartbeatTick.ts');
+      const result = await runHeartbeatTick(sb);
+      return jsonResponse(result);
+    }
+
     if (req.method === 'POST' && path === '/internal/run') {
       requireCronSecret(req);
       const body = await readJson<{ maxSweepJobs?: number; maxMonitor?: number }>(req).catch(
