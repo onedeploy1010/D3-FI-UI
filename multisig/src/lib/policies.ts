@@ -179,6 +179,75 @@ export const CURATED_POLICIES: PolicyItem[] = [
   },
 ];
 
+// ── AI 审查与优化建议（渲染在 Policy 标签顶部） ────────────────────────────────
+export type RecoSeverity = 'critical' | 'warn' | 'suggest';
+export type PolicyReco = {
+  id: string;
+  severity: RecoSeverity;
+  title: string;
+  /** 问题 / 原因 */
+  detail: string;
+  /** 建议动作 */
+  action: string;
+};
+
+export const POLICY_RECOMMENDATIONS: PolicyReco[] = [
+  {
+    id: 'reco-remove-broad',
+    severity: 'critical',
+    title: '删除 broad 后端签名策略（安全洞 / V-02 未闭合）',
+    detail:
+      '策略「0d7c1494…」(id 8b9dadce-9216-4815-ac66-57a194f17392) 的 condition 只有 eth.tx.from != treasury，允许后端签【任意合约调用 / 原生转账到任意地址】，把 gas / USDT / 建钱包三条收紧策略全抵消了（ALLOW 叠加）。',
+    action:
+      '① 先应用下方 d3-anchor-allow（保住每日锚定，这是后端唯一的合约调用）→ ② 确认锚定仍成功 → ③ DELETE_POLICY id 8b9dadce-9216-4815-ac66-57a194f17392。均需 2/3 根签名。',
+  },
+  {
+    id: 'reco-operators-tag',
+    severity: 'suggest',
+    title: '【管理用户/标签】建 operators 用户标签',
+    detail: 'Turnkey 最佳实践：用标签分组管权限，而非一人一策略。operators 标签成员可批准非国库日常活动。',
+    action:
+      '建 user tag「operators」→ 加 d3finance (5eba34d3) → 应用下方 3 条 operator 策略。以后加运营人只改标签成员。需 2/3 根签名。',
+  },
+  {
+    id: 'reco-clearing-user',
+    severity: 'suggest',
+    title: '【管理用户/标签】建 clearing 标签 + 专用清算 API 用户',
+    detail:
+      '合伙人清算钱包（中转）应由独立签名用户处理，与 operators 隔离，权限收到最窄（只能转 USDT）。一边泄漏不影响另一边。',
+    action:
+      '本地生成 P-256 密钥 → 建 clearing-signer API 用户 → 建 user tag「clearing」加它 → 应用 d3-clearing-usdt-forward。需 2/3 根签名。',
+  },
+  {
+    id: 'reco-two-person',
+    severity: 'warn',
+    title: '大额出款建议双人签',
+    detail: '现在后端 USDT 转账是单人自动签（count>=1）；金额大时单点风险高。',
+    action: 'operators 的 USDT 转账策略把 count() >= 1 改成 >= 2（两操作人共签）；小额自动通道保持 1。',
+  },
+  {
+    id: 'reco-deny-governance',
+    severity: 'suggest',
+    title: 'DENY 兜底：禁止操作人碰治理',
+    detail: 'DENY 压过一切 ALLOW，防止 operators / 清算用户自我提权。',
+    action: '应用 d3-deny-operator-governance（禁 CREATE/UPDATE/DELETE_POLICY）。治理只留给 2/3 根签名。',
+  },
+  {
+    id: 'reco-root-quorum',
+    severity: 'suggest',
+    title: 'Root quorum 只做破玻璃',
+    detail: '官方建议 root 只在应急/锁死时用；日常用非 root 用户 + 最小权限。现状 2/3（DA/Ye/DADA）。',
+    action: '保持 2/3；资产规模大可升 3/5。每个 root 用户备份凭据异地、抗灾、有冗余地保存。',
+  },
+  {
+    id: 'reco-mainnet-usdt',
+    severity: 'suggest',
+    title: '上线换真 USDT 时同步策略',
+    detail: '当前 usdt-transfer / operator / clearing 用的是测试 USDT 0xE763…。',
+    action: '上线切真 BSC USDT 0x55d398…7955 时，同步更新所有含 USDT 地址的策略条件。',
+  },
+];
+
 // ── Custom templates (persisted locally) ─────────────────────────────────────
 const LS_KEY = 'd3ms_custom_policies';
 

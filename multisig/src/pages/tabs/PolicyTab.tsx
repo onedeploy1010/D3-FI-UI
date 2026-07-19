@@ -1,17 +1,49 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, ShieldCheck, Clock, Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Clock, Plus, Trash2, AlertTriangle, ShieldAlert, Lightbulb, Sparkles, ChevronDown } from 'lucide-react';
 import {
   CURATED_POLICIES,
+  POLICY_RECOMMENDATIONS,
   loadCustomPolicies,
   saveCustomPolicies,
   policyJson,
   type PolicyItem,
   type PolicyEffect,
+  type PolicyReco,
 } from '@/lib/policies';
 import { CopyButton } from '@/components/CopyButton';
 
 const TURNKEY = import.meta.env.VITE_TURNKEY_DASHBOARD_BASE ?? 'https://app.turnkey.com';
+
+const RECO_STYLE: Record<PolicyReco['severity'], { badge: string; label: string; Icon: typeof AlertTriangle }> = {
+  critical: { badge: 'text-red-700 bg-red-500/12', label: '严重', Icon: AlertTriangle },
+  warn: { badge: 'text-amber-700 bg-amber-500/12', label: '注意', Icon: ShieldAlert },
+  suggest: { badge: 'text-[#8A2B57] bg-[#8A2B57]/10', label: '建议', Icon: Lightbulb },
+};
+
+function RecoCard({ r, i }: { r: PolicyReco; i: number }) {
+  const s = RECO_STYLE[r.severity];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(i, 8) * 0.04 }}
+      className="brand-card rounded-2xl p-3.5 space-y-2"
+    >
+      <div className="flex items-center gap-2">
+        <span className={`shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${s.badge}`}>
+          <s.Icon size={11} /> {s.label}
+        </span>
+        <span className="text-[13px] font-bold text-[#160510] leading-snug">{r.title}</span>
+      </div>
+      <p className="text-[12px] text-[#160510]/75 leading-relaxed">{r.detail}</p>
+      <div className="flex items-start gap-1.5 rounded-lg bg-[#E0568F]/[0.06] border border-[#E0568F]/12 px-2.5 py-2">
+        <Sparkles size={12} className="mt-0.5 shrink-0 text-[#E0568F]" />
+        <span className="text-[12px] font-medium text-[#160510]/85 leading-relaxed">{r.action}</span>
+      </div>
+    </motion.div>
+  );
+}
 
 function PolicyCard({ item, i, onDelete }: { item: PolicyItem; i: number; onDelete?: () => void }) {
   const active = item.status === 'active';
@@ -124,10 +156,28 @@ export function PolicyTab() {
     saveCustomPolicies(next);
   };
 
+  const [showReco, setShowReco] = useState(true);
+  const critCount = POLICY_RECOMMENDATIONS.filter((r) => r.severity === 'critical').length;
+
   return (
     <>
       <div className="brand-card rounded-2xl p-3.5 text-[11px] text-[#8A2B57]/75 leading-relaxed">
         D3 多签策略清单（Turnkey 格式）。<b className="text-[#160510]">实际生效状态以 Turnkey 后台为准</b>。可复制名字 / 描述 / JSON 直接到 Turnkey 使用，也可新增自定义模版。
+      </div>
+
+      {/* AI 审查与优化建议 */}
+      <div className="space-y-2.5">
+        <button type="button" onClick={() => setShowReco((v) => !v)} className="tap w-full flex items-center gap-2 pt-1">
+          <Sparkles size={15} className="text-[#E0568F]" />
+          <h2 className="text-[13px] font-bold text-[#8A2B57]/90 uppercase tracking-wider">AI 审查与优化建议</h2>
+          {critCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full text-red-700 bg-red-500/12">
+              <AlertTriangle size={10} /> {critCount} 严重
+            </span>
+          )}
+          <ChevronDown size={16} className={`ml-auto text-[#8A2B57]/50 transition-transform ${showReco ? 'rotate-180' : ''}`} />
+        </button>
+        {showReco && POLICY_RECOMMENDATIONS.map((r, i) => <RecoCard key={r.id} r={r} i={i} />)}
       </div>
 
       {/* 新增模版 */}
