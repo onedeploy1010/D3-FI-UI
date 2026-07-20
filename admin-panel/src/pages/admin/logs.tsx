@@ -86,14 +86,19 @@ export default function LogsPage() {
             <div className="text-xs text-muted-foreground">暂无登录记录</div>
           ) : (
             sessions.map((s, i) => (
-              <div key={i} className="flex items-center justify-between gap-3 text-xs border-b border-border/40 pb-1.5 last:border-0">
-                <span className="font-medium truncate flex-1">{s.actor}</span>
-                <span className="text-muted-foreground whitespace-nowrap">
-                  {fmtTime(s.login)} → {s.logout ? fmtTime(s.logout) : '—'}
-                </span>
-                <span className={`whitespace-nowrap w-24 text-right ${s.ms == null ? 'text-emerald-500 font-semibold' : ''}`}>
-                  {s.ms == null ? '在线中' : fmtDuration(s.ms)}
-                </span>
+              <div
+                key={i}
+                className="flex flex-col gap-0.5 border-b border-border/40 pb-2 last:border-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              >
+                <span className="font-medium truncate text-xs">{s.actor}</span>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-muted-foreground truncate">
+                    {fmtTime(s.login)} → {s.logout ? fmtTime(s.logout) : '—'}
+                  </span>
+                  <span className={`whitespace-nowrap shrink-0 ${s.ms == null ? 'text-emerald-500 font-semibold' : 'text-foreground'}`}>
+                    {s.ms == null ? '在线中' : fmtDuration(s.ms)}
+                  </span>
+                </div>
               </div>
             ))
           )}
@@ -116,14 +121,18 @@ export default function LogsPage() {
         ) : (
           <div className="divide-y divide-border/40">
             {filtered.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-xs">
-                <span className="text-muted-foreground w-40 shrink-0 whitespace-nowrap">{fmtTime(r.created_at)}</span>
-                <span className="font-medium w-36 shrink-0 truncate">{r.actor_name ?? r.actor_type}</span>
-                <Badge variant="outline" className="shrink-0">{actionLabel(r.action)}</Badge>
-                <span className="text-muted-foreground truncate">
-                  {r.entity_type ?? ''}
-                  {r.entity_id ? ` · ${String(r.entity_id).slice(0, 12)}` : ''}
-                </span>
+              <div key={r.id} className="px-4 py-3 text-xs">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-semibold truncate">{r.actor_name ?? '—'}</span>
+                  <Badge variant="outline" className="shrink-0">{actionLabel(r.action)}</Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span className="truncate">
+                    {r.entity_type ?? ''}
+                    {r.entity_id ? ` · ${String(r.entity_id).slice(0, 12)}` : ''}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap">{fmtTime(r.created_at)}</span>
+                </div>
               </div>
             ))}
           </div>

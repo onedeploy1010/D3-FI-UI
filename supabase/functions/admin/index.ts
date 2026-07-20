@@ -1843,6 +1843,8 @@ Deno.serve(async (req) => {
       let q = sb
         .from('audit_logs')
         .select('*')
+        // Only HUMAN admin actions — exclude system / turnkey_policy / webhook (代码操作).
+        .eq('actor_type', 'admin')
         .order('created_at', { ascending: false })
         .limit(limit);
       if (action) q = q.ilike('action', `%${action}%`);
