@@ -747,7 +747,7 @@
     "sfSince": "启动于",
     "sfStopBtn": "停止",
     "sfStopped": "信号建议已停止",
-    "sfNoActive": "关注列表中暂无符合条件的交易员信号，调整最低评分或恢复已暂停的交易员后即可看到信号。",
+    "sfNoActive": "현재 실시간 AI 시그널이 없습니다. 자동으로 새로고침됩니다.",
     "sfFrom": "来自",
     "sfMinAgo": "分钟前",
     "sfEntry": "入场",

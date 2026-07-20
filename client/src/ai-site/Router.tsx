@@ -10,7 +10,6 @@ import Projects from "@ai/pages/Projects";
 import ProjectDetail from "@ai/pages/Projects/ProjectDetail";
 import Hyperliquid from "@ai/pages/Projects/Hyperliquid";
 import LegendATM from "@ai/pages/Projects/LegendATM";
-import Rune from "@ai/pages/Projects/Rune";
 import Tools from "@ai/pages/Tools";
 
 function NotFound() {
@@ -40,7 +39,6 @@ export function Router() {
         <Route path="/projects/detail/:slug" component={ProjectDetail} />
         <Route path="/projects/hyperliquid/:address?" component={Hyperliquid} />
         <Route path="/projects/legend-atm" component={LegendATM} />
-        <Route path="/projects/rune" component={Rune} />
         <Route path="/tools" component={Tools} />
         <Route path="/settings" component={Settings} />
         <Route path="/notifications" component={Notifications} />

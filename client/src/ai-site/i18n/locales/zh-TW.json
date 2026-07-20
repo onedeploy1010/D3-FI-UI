@@ -747,7 +747,7 @@
     "sfSince": "啟動于",
     "sfStopBtn": "停止",
     "sfStopped": "訊號建議已停止",
-    "sfNoActive": "關注列表中暫無符合条件的交易員訊號，调整最低评分或恢复已暫停的交易員后即可看到訊號。",
+    "sfNoActive": "暫無即時 AI 訊號，系統會自動刷新，請稍候。",
     "sfFrom": "来自",
     "sfMinAgo": "分钟前",
     "sfEntry": "入场",

@@ -747,7 +747,7 @@
     "sfSince": "Started",
     "sfStopBtn": "Stop",
     "sfStopped": "Signal advice stopped",
-    "sfNoActive": "No qualifying trader signals in your watchlist. Lower the min score or resume paused traders to see signals.",
+    "sfNoActive": "No live AI signals right now. They refresh automatically — check back in a moment.",
     "sfFrom": "From",
     "sfMinAgo": "min ago",
     "sfEntry": "Entry",

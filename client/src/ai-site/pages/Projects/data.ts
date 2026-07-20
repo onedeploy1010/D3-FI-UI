@@ -21,26 +21,6 @@ export interface Project {
 
 export const PROJECTS: Project[] = [
   {
-    id: "rune",
-    slug: "rune",
-    name: "RUNE Protocol",
-    symbol: "RUNE",
-    category: "Yield",
-    apy: 170.82,
-    tvl: "$312M",
-    marketCap: "$1.2B",
-    riskLevel: "high",
-    rating: 4.6,
-    tags: ["Dual-Token", "Node Staking", "AMM", "Layer1", "Cross-chain"],
-    descriptionZh:
-      "RUNE 是一条以双代币经济模型为核心的 Layer1 网络，通过节点质押与自动做市（AMM）机制为参与者提供高额收益。协议采用燃烧-质押飞轮设计，将网络费用回流至质押池，推动价格与收益率的正向循环。适合风险承受能力较强、追求高回报的进阶用户。",
-    descriptionEn:
-      "RUNE is a Layer1 network built around a dual-token economic model, combining node staking with an automated market maker (AMM) to deliver elevated yields. Its burn-and-stake flywheel routes network fees back into the staking pool, creating a positive loop between price and yield. Best suited for advanced users comfortable with higher risk in pursuit of outsized returns.",
-    website: "https://thorchain.org",
-    detailPath: "/projects/rune",
-    isRecommended: true,
-  },
-  {
     id: "hyperliquid",
     slug: "hyperliquid",
     name: "Hyperliquid Vaults",
