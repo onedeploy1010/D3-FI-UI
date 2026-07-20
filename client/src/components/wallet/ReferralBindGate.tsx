@@ -32,6 +32,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: '确认绑定',
     binding: '绑定中…',
+    bound: '成功绑定',
     warning: '绑定后不可更改，请仔细核对推荐人地址。',
     errSelf: '不能绑定自己的钱包',
     errInvalid: '请输入有效的以太坊地址',
@@ -51,6 +52,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: '確認綁定',
     binding: '綁定中…',
+    bound: '成功綁定',
     warning: '綁定後不可更改，請仔細核對推薦人地址。',
     errSelf: '不能綁定自己的錢包',
     errInvalid: '請輸入有效的以太坊地址',
@@ -70,6 +72,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: 'Confirm binding',
     binding: 'Binding…',
+    bound: 'Bound successfully',
     warning: 'Binding is irreversible. Verify the referrer address carefully.',
     errSelf: 'You cannot refer yourself',
     errInvalid: 'Enter a valid Ethereum address',
@@ -89,6 +92,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: '紐付け確認',
     binding: '紐付け中…',
+    bound: '紐付け完了',
     warning: '紐付け後は変更できません。アドレスをご確認ください。',
     errSelf: '自分自身は紹介者にできません',
     errInvalid: '有効なイーサリアムアドレスを入力',
@@ -108,6 +112,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: '연결 확인',
     binding: '연결 중…',
+    bound: '연결 완료',
     warning: '연결 후 변경 불가. 추천인 주소를 확인하세요.',
     errSelf: '본인 지갑은 추천인이 될 수 없습니다',
     errInvalid: '유효한 이더리움 주소를 입력하세요',
@@ -127,6 +132,7 @@ const copy = {
     manualPlaceholder: '0x…',
     confirm: 'ยืนยันการผูก',
     binding: 'กำลังผูก…',
+    bound: 'ผูกสำเร็จ',
     warning: 'ผูกแล้วแก้ไขไม่ได้ ตรวจสอบที่อยู่ให้ถูกต้อง',
     errSelf: 'ไม่สามารถแนะนำตัวเองได้',
     errInvalid: 'กรอกที่อยู่ Ethereum ที่ถูกต้อง',
@@ -154,6 +160,7 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
   const [sponsorInput, setSponsorInput] = useState(() => getPendingReferral() ?? '');
   const [fromLink, setFromLink] = useState(() => Boolean(getPendingReferral()));
   const [binding, setBinding] = useState(false);
+  const [bound, setBound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -207,7 +214,9 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
 
       await bindReferral(wallet, sponsor, 'partner', txHash);
       clearPendingReferral();
-      onBound();
+      // Show a "成功绑定" success state briefly before leaving the bind screen.
+      setBound(true);
+      window.setTimeout(onBound, 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const lower = msg.toLowerCase();
@@ -296,12 +305,12 @@ function ReferralBindScreen({ onBound }: { onBound: () => void }) {
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
         <GlassButton
-          variant="primary"
+          variant={bound ? 'success' : 'primary'}
           className="w-full !py-3.5"
-          disabled={binding || !sponsor}
+          disabled={binding || bound || !sponsor}
           onClick={() => void handleBind()}
         >
-          {binding ? t(lang, 'binding') : t(lang, 'confirm')}
+          {bound ? `✓ ${t(lang, 'bound')}` : binding ? t(lang, 'binding') : t(lang, 'confirm')}
         </GlassButton>
 
         <p className={`text-[10px] mt-4 text-center ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
