@@ -167,6 +167,33 @@ async function isRewardEligibleAccount(sb: Sb, wallet: string): Promise<boolean>
 }
 
 /**
+ * 引路人 = 从直推人开始往上、第一个「有效客户(个人入金≥100U)」的上级。
+ * 直推人若未达标则被跳过，引路金(60%)上浮到最近的有效客户。整条链都无有效客户 → null。
+ */
+export async function resolveEffectiveGuideWallet(
+  sb: Sb,
+  directSponsor: string,
+): Promise<string | null> {
+  let current = (directSponsor ?? '').trim();
+  const seen = new Set<string>();
+  for (let i = 0; i < 32 && current; i++) {
+    const key = current.toLowerCase();
+    if (seen.has(key)) break;
+    seen.add(key);
+    if (await isRewardEligibleAccount(sb, current)) return current;
+    const { data: ref } = await sb
+      .from('referrals')
+      .select('sponsor_wallet_address')
+      .ilike('wallet_address', current)
+      .eq('referral_type', 'partner')
+      .eq('status', 'active')
+      .maybeSingle();
+    current = (ref?.sponsor_wallet_address as string | undefined)?.trim() ?? '';
+  }
+  return null;
+}
+
+/**
  * Walk UP from the referrer, materialising each ancestor's OWN 档位 (tierCode/rank
  * from their team performance) and their 资格 eligibility. Nearest ancestor first
  * (relationDepth 1 = the referrer's own sponsor). Caches level snapshots best-effort.
@@ -605,17 +632,22 @@ export async function tryAllocateUd3ForCreditedIntent(
     .eq('status', 'active')
     .maybeSingle();
 
-  const referrerWallet = (ref?.sponsor_wallet_address as string | undefined)?.trim();
-  if (!referrerWallet) {
+  const directSponsor = (ref?.sponsor_wallet_address as string | undefined)?.trim();
+  if (!directSponsor) {
     return { ok: true, skipped: true, reason: 'no_referrer' };
   }
+  // 引路人 = 直推人往上第一个有效客户(≥100U)；直推人不达标则引路金上浮。
+  const guideWallet = await resolveEffectiveGuideWallet(sb, directSponsor);
+  if (!guideWallet) {
+    return { ok: true, skipped: true, reason: 'no_effective_guide' };
+  }
 
-  const referrerTotalPerfUsdt = await loadTeamPerf(sb, referrerWallet);
+  const referrerTotalPerfUsdt = await loadTeamPerf(sb, guideWallet);
 
   return allocateUd3ForCreditedIntent(sb, {
     intentId,
     depositorWallet,
-    referrerWallet,
+    referrerWallet: guideWallet,
     depositUsdt,
     referrerTotalPerfUsdt,
   });

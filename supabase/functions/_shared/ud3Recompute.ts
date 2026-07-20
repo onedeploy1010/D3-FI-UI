@@ -32,7 +32,7 @@ import {
 } from './ud3Reward.ts';
 import { getUd3RewardConfig, tierRank, type Ud3RewardConfig } from './ud3RewardConfig.ts';
 import { sumReferralTreePerformance, fetchPartnerAreaStats, loadEffectiveCustomerSet } from './partnerPerformance.ts';
-import { tryAllocateUd3ForCreditedIntent, setUd3UseCachedLevels, setUd3EffectiveCustomerSet } from './partnerUd3Settle.ts';
+import { tryAllocateUd3ForCreditedIntent, setUd3UseCachedLevels, setUd3EffectiveCustomerSet, resolveEffectiveGuideWallet } from './partnerUd3Settle.ts';
 
 type Sb = SupabaseClient;
 
@@ -268,7 +268,10 @@ async function projectUd3ForIntent(
     .eq('referral_type', 'partner')
     .eq('status', 'active')
     .maybeSingle();
-  const referrerWallet = (ref?.sponsor_wallet_address as string | undefined)?.trim();
+  const directSponsor = (ref?.sponsor_wallet_address as string | undefined)?.trim();
+  if (!directSponsor) return zero;
+  // 引路人 = 直推人往上第一个有效客户(≥100U)；直推人不达标则引路金上浮。
+  const referrerWallet = await resolveEffectiveGuideWallet(sb, directSponsor);
   if (!referrerWallet) return zero;
 
   // 统一等级需要引路人的总业绩+小区业绩：读物化列(recompute=final standing),否则实时求和。
