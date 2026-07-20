@@ -116,6 +116,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </button>
             </div>
             <NavList location={location} onNavigate={() => setDrawerOpen(false)} />
+            <div className="px-4 py-4 border-t border-sidebar-border">
+              <p className="text-sm font-medium truncate mb-2">{user?.username}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  void logout();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              >
+                <LogOut className="h-4 w-4" />
+                退出登录
+              </button>
+            </div>
           </aside>
         </div>
       )}
