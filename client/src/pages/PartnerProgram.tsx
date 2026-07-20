@@ -12,7 +12,6 @@ import { useWallet } from '@/contexts/wallet-context';
 import { usePartnerProgram } from '@/hooks/usePartnerProgram';
 import { useReferralStatus } from '@/hooks/useReferralStatus';
 import { useDepositPayment } from '@/hooks/useDepositPayment';
-import { PARTNER_ENTRY_USDT } from '@/components/partner/partnerData';
 import { PartnerHomeTab } from '@/components/partner/PartnerHomeTab';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerStakeTab } from '@/components/partner/PartnerStakeTab';
@@ -135,8 +134,10 @@ export default function PartnerProgram() {
       if (!hasReferralBound) return false;
       try {
         if (withPartnerJoin && !state.isPartner) {
-          await payForJoin(PARTNER_ENTRY_USDT);
-          joinPartner(hasReferralBound);
+          // Charge the amount shown in the UI (补差价 for top-up, or the full
+          // stake when auto-qualifying) — not a hardcoded 5000.
+          await payForJoin(amount);
+          joinPartner(hasReferralBound, amount);
           if (isDemo) toast.success(p('stake.demoPaySuccess'));
           return true;
         }

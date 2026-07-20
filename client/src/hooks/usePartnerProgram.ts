@@ -294,15 +294,15 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
   );
 
   const joinPartner = useCallback(
-    (hasReferralBound: boolean) => {
+    (hasReferralBound: boolean, amountUsdt: number = PARTNER_ENTRY_USDT) => {
       if (!wallet || state.isPartner || !hasReferralBound) return false;
       if (isDemoWallet(wallet)) {
-        const order = createDemoMockStakeOrder(PARTNER_ENTRY_USDT, 'partner_join');
+        const order = createDemoMockStakeOrder(amountUsdt, 'partner_join');
         const session = addDemoMockStakeOrder(order, { partnerJoined: true });
         setState((prev) => applyDemoSessionOverlay({ ...prev, transfers: [] }, session));
         return true;
       }
-      persist(applyPartnerJoin(state));
+      persist(applyPartnerJoin(state, amountUsdt));
       void refreshTeamProfile({ force: true });
       return true;
     },

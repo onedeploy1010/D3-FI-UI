@@ -658,12 +658,15 @@ export function applyCrowdfundStake(prev: PartnerState, amountUsdt: number): Par
   };
 }
 
-export function applyPartnerJoin(prev: PartnerState): PartnerState {
+export function applyPartnerJoin(
+  prev: PartnerState,
+  amountUsdt: number = PARTNER_ENTRY_USDT,
+): PartnerState {
   return {
     ...prev,
     isPartner: true,
     joinedAt: new Date().toISOString().slice(0, 10),
-    stakeOrders: [createStakeOrder(PARTNER_ENTRY_USDT, 'partner_join'), ...prev.stakeOrders],
+    stakeOrders: [createStakeOrder(amountUsdt, 'partner_join'), ...prev.stakeOrders],
     dtPreorderEligible: true,
   };
 }
