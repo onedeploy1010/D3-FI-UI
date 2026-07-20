@@ -15,6 +15,7 @@ import {
   fetchDirectPartnerReferrals,
   fetchPartnerTeamStats,
 } from '../_shared/partnerPerformance.ts';
+import { startOfSgtDayIso } from '../_shared/partnerTimezone.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { HttpError, shortWallet } from '../_shared/wallet.ts';
 import {
@@ -93,7 +94,7 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
   let acctQ = sb
     .from('partner_accounts')
     .select(
-      'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, joined_at, created_at',
+      'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, team_perf_usdt, small_area_perf_usdt, joined_at, created_at',
     )
     .order('created_at', { ascending: false })
     .limit(500);
@@ -121,28 +122,50 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
     }
   }
 
-  const rows = await Promise.all(
-    allWallets.map(async (pk) => {
-      const a = accountMap.get(pk);
-      const stats = await fetchPartnerTeamStats(sb, pk).catch(() => null);
-      const ref = referralMap.get(pk);
-      return {
-        walletAddress: pk,
-        isPartner: Boolean(a?.is_partner),
-        ud3Balance: Number(a?.sd3_balance ?? 0),
-        pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
-        marketLeaderStatus: a?.market_leader_status ?? 'none',
-        subsidyRatePct: a?.subsidy_rate_pct == null ? null : Number(a.subsidy_rate_pct),
-        joinedAt: a?.joined_at ?? null,
-        createdAt: a?.created_at ?? ref?.referredAt ?? null,
-        sponsorWallet: ref?.sponsor ?? null,
-        referredAt: ref?.referredAt ?? null,
-        teamPerformanceUsd: stats?.teamPerformanceUsd ?? 0,
-        personalPerformanceUsd: stats?.personalPerformanceUsd ?? 0,
-        dailyNewPerformanceUsd: stats?.dailyNewPerformanceUsd ?? 0,
-      };
-    }),
-  );
+  // PERF: 团队业绩 reads the MATERIALIZED team_perf_usdt column (kept fresh by
+  // settlement) instead of walking every member's referral subtree per row — that
+  // per-member fetchPartnerTeamStats made the member list very slow. 个人业绩 +
+  // 当日新增 are computed in ONE batched stake_intents query for all wallets.
+  const CREDITED = ['credited', 'completed', 'sweep_pending', 'sweeping'];
+  const dayStart = startOfSgtDayIso();
+  const personalMap = new Map<string, number>();
+  const dailyNewMap = new Map<string, number>();
+  if (allWallets.length) {
+    const { data: intents } = await sb
+      .from('stake_intents')
+      .select('wallet_address, amount_usdt, updated_at')
+      .in('wallet_address', allWallets)
+      .in('status', CREDITED);
+    for (const it of intents ?? []) {
+      const k = w(it.wallet_address as string);
+      const amt = Number(it.amount_usdt ?? 0);
+      personalMap.set(k, (personalMap.get(k) ?? 0) + amt);
+      if (String(it.updated_at ?? '') >= dayStart) {
+        dailyNewMap.set(k, (dailyNewMap.get(k) ?? 0) + amt);
+      }
+    }
+  }
+
+  const rows = allWallets.map((pk) => {
+    const a = accountMap.get(pk);
+    const ref = referralMap.get(pk);
+    return {
+      walletAddress: pk,
+      isPartner: Boolean(a?.is_partner),
+      ud3Balance: Number(a?.sd3_balance ?? 0),
+      pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
+      marketLeaderStatus: a?.market_leader_status ?? 'none',
+      subsidyRatePct: a?.subsidy_rate_pct == null ? null : Number(a.subsidy_rate_pct),
+      joinedAt: a?.joined_at ?? null,
+      createdAt: a?.created_at ?? ref?.referredAt ?? null,
+      sponsorWallet: ref?.sponsor ?? null,
+      referredAt: ref?.referredAt ?? null,
+      teamPerformanceUsd: Number(a?.team_perf_usdt ?? 0),
+      smallAreaPerformanceUsd: Number(a?.small_area_perf_usdt ?? 0),
+      personalPerformanceUsd: personalMap.get(pk) ?? 0,
+      dailyNewPerformanceUsd: dailyNewMap.get(pk) ?? 0,
+    };
+  });
 
   return { rows, total: walletSet.size, limit, offset };
 }
@@ -531,9 +554,32 @@ async function listStakes(sb: Sb, params: URLSearchParams) {
   const { data: positions, count, error } = await q.range(offset, offset + limit - 1);
   if (error) throw error;
 
+  const isUd3Kind = kind === 'ud3';
+  // Map raw snake_case rows → the camelCase shape the admin StakeRow UI reads
+  // (principalUsdt / principalUd3 / dailyYield). Returning raw rows showed 本金 $0.
+  const rows = (positions ?? []).map((p) => {
+    const principal = Number(p.principal_usdt ?? 0);
+    return {
+      id: p.id,
+      wallet: p.wallet_address,
+      kind: isUd3Kind ? 'ud3' : 'usdt',
+      principalUsdt: isUd3Kind ? 0 : principal,
+      principalUd3: isUd3Kind ? principal : 0,
+      dailyYield: Number(p.daily_yield_usdt ?? 0),
+      status: p.status,
+      createdAt: p.created_at,
+      startedAt: p.started_at ?? null,
+      endedAt: p.unlock_at ?? null,
+      exitCapUsdt: p.exit_cap_d3 != null ? Number(p.exit_cap_d3) : null,
+      releasedUsdt: p.released_d3 != null ? Number(p.released_d3) : null,
+      intentId: p.intent_id ?? null,
+      intent_id: p.intent_id ?? null,
+    };
+  });
+
   return {
-    kind: kind === 'ud3' ? 'ud3' : 'usdt',
-    rows: positions ?? [],
+    kind: isUd3Kind ? 'ud3' : 'usdt',
+    rows,
     total: count ?? 0,
     limit,
     offset,
