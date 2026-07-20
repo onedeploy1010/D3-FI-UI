@@ -85,6 +85,21 @@ export function PartnerTeamDashboard({
         {wallet && (
           <AddressBlock value={wallet} isDark={isDark} compact dense showCopy surface="inset" />
         )}
+        {/* 推荐人数(直推) + 团队人数(总伞下) for the current user. */}
+        <div className="mt-2 flex items-center gap-4 text-[11px]">
+          <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>
+            {p('team.directReferrals')}{' '}
+            <b className="font-extrabold text-[#E0568F] tabular-nums">
+              {(teamNodes.me?.directCount ?? 0).toLocaleString()}
+            </b>
+          </span>
+          <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>
+            {p('team.teamMembers')}{' '}
+            <b className={`font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              {(teamNodes.me?.teamCount ?? 0).toLocaleString()}
+            </b>
+          </span>
+        </div>
       </div>
 
       <div className="relative px-4 py-3.5 space-y-2.5">
