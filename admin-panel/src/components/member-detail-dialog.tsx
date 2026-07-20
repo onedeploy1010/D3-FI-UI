@@ -42,10 +42,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 p-3">
+    <div className="rounded-xl cell-inset p-3">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+      <p className="mt-1 text-sm font-bold tabular-nums text-foreground">{value}</p>
+      {hint && <p className="mt-0.5 text-[10px] text-primary/80">{hint}</p>}
     </div>
   );
 }
