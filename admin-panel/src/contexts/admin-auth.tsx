@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { Redirect } from "wouter";
 import { supabase } from "@/lib/supabase";
+import { recordSessionEvent } from "@/lib/adminApi";
 
 /**
  * Admin auth — fully delegated to Supabase Auth (2026-05-01).
@@ -32,7 +33,12 @@ interface AdminUser {
 interface AdminAuthContextType {
   user: AdminUser | null;
   loading: boolean;
+  /** @deprecated password login retained for back-compat; use requestOtp+verifyOtp. */
   login: (username: string, password: string) => Promise<void>;
+  /** Step 1: send an 8-digit email OTP (same flow as the multisig system). */
+  requestOtp: (email: string) => Promise<void>;
+  /** Step 2: verify the emailed code and load the admin profile. */
+  verifyOtp: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   isLoggedIn: boolean;
   hasPermission: (key: string) => boolean;
@@ -212,7 +218,38 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     setUser(profile);
   }, []);
 
+  // ── Email OTP (mirrors the multisig super-partner login) ───────────────────
+  const requestOtp = useCallback(async (email: string) => {
+    const addr = email.trim().toLowerCase();
+    if (!addr.includes('@')) throw new Error('请输入完整邮箱地址');
+    // shouldCreateUser:false — only pre-registered admins may log in.
+    const { error } = await supabase.auth.signInWithOtp({
+      email: addr,
+      options: { shouldCreateUser: false },
+    });
+    if (error) throw new Error(error.message || '发送验证码失败');
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, code: string) => {
+    const addr = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: addr,
+      token: code.trim(),
+      type: 'email',
+    });
+    if (error) throw new Error(error.message || '验证码错误');
+    if (!data.user) throw new Error('登录未返回用户');
+    const profile = await loadAdminProfile(data.user.id, data.user.email ?? addr);
+    if (!profile) {
+      await supabase.auth.signOut();
+      throw new Error('该账户未授权访问管理后台');
+    }
+    setUser(profile);
+    void recordSessionEvent('login').catch(() => {});
+  }, []);
+
   const logout = useCallback(async () => {
+    await recordSessionEvent('logout').catch(() => {});
     await supabase.auth.signOut();
     setUser(null);
   }, []);
@@ -227,7 +264,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AdminAuthContext.Provider value={{ user, loading, login, logout, isLoggedIn: !!user, hasPermission }}>
+    <AdminAuthContext.Provider value={{ user, loading, login, requestOtp, verifyOtp, logout, isLoggedIn: !!user, hasPermission }}>
       {children}
     </AdminAuthContext.Provider>
   );

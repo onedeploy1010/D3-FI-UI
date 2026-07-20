@@ -4,22 +4,37 @@ import { useAdminAuth } from "@/contexts/admin-auth";
 import { motion } from "framer-motion";
 
 export default function LoginPage() {
-  const { login } = useAdminAuth();
+  const { requestOtp, verifyOtp } = useAdminAuth();
   const [, navigate] = useLocation();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSendCode(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await login(username, password);
+      await requestOtp(email);
+      setStep("code");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "发送验证码失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerify(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await verifyOtp(email, code);
       navigate("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "验证码错误");
     } finally {
       setLoading(false);
     }
@@ -139,43 +154,74 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
         >
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">用户名</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-                autoFocus
-                className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
-                placeholder="Username"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">密码</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
-                placeholder="Password"
-              />
-            </div>
-            {error && (
-              <div className="text-destructive text-sm text-center bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-                {error}
+          {step === "email" ? (
+            <form onSubmit={handleSendCode} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">邮箱 · Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                  placeholder="you@example.com"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1.5">仅限已授权的管理员邮箱，验证码将发送至此邮箱。</p>
               </div>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
-            >
-              {loading ? "登录中..." : "登录 · Login"}
-            </button>
-          </form>
+              {error && (
+                <div className="text-destructive text-sm text-center bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {loading ? "发送中..." : "发送验证码 · Send code"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerify} className="space-y-5">
+              <div className="text-xs text-muted-foreground text-center">
+                验证码已发送至 <span className="text-foreground font-medium">{email}</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">验证码 · Code</label>
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  required
+                  autoFocus
+                  maxLength={8}
+                  className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-center tracking-[0.4em] font-mono placeholder:tracking-normal placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-lg"
+                  placeholder="8 位验证码"
+                />
+              </div>
+              {error && (
+                <div className="text-destructive text-sm text-center bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading || code.length < 6}
+                className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {loading ? "验证中..." : "登录 · Verify"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStep("email"); setCode(""); setError(""); }}
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ← 返回修改邮箱
+              </button>
+            </form>
+          )}
         </motion.div>
       </div>
     </div>

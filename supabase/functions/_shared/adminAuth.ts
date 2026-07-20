@@ -39,6 +39,7 @@ export const PERMISSION_CATALOG: readonly PermissionDef[] = [
   { key: 'treasury.write', label: '管理金库', group: '金库' },
   { key: 'admins.read', label: '查看管理员', group: '管理员' },
   { key: 'admins.manage', label: '管理管理员', group: '管理员' },
+  { key: 'logs.read', label: '查看操作日志', group: '日志' },
 ] as const;
 
 export const ALL_PERMISSION_KEYS: readonly string[] = PERMISSION_CATALOG.map((p) => p.key);

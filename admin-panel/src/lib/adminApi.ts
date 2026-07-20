@@ -230,6 +230,37 @@ export function setMemberSubsidyRate(wallet: string, ratePct: number | null) {
   );
 }
 
+// ---- Operation log (audit) ----
+
+export type AuditLogRow = {
+  id: string;
+  actor_type: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  new_value: unknown;
+  ip_address: string | null;
+  created_at: string;
+};
+
+/** Record an admin login/logout for the operation log + online-duration tracking. */
+export function recordSessionEvent(event: 'login' | 'logout') {
+  return adminFetch<{ ok?: boolean }>('/session/event', {
+    method: 'POST',
+    body: JSON.stringify({ event }),
+  });
+}
+
+export function getAuditLogs(params?: { action?: string; limit?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.action) qs.set('action', params.action);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const q = qs.toString();
+  return adminFetch<{ logs: AuditLogRow[] }>(`/audit-logs${q ? `?${q}` : ''}`);
+}
+
 // ---- Referral tree ----
 
 export type ReferralTreeNode = {

@@ -1817,6 +1817,51 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, admin });
     }
 
+    // Admin session login/logout event → audit_logs (for the 操作日志 page + 在线时长).
+    if (req.method === 'POST' && path === '/session/event') {
+      const body = await readJson<{ event?: 'login' | 'logout' }>(req).catch(() => ({} as { event?: string }));
+      const ev = body.event === 'logout' ? 'logout' : 'login';
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: `admin_${ev}`,
+        entityType: 'admin_users',
+        entityId: admin.userId,
+        newValue: { at: new Date().toISOString(), username: admin.username },
+      }).catch(() => {});
+      return jsonResponse({ ok: true });
+    }
+
+    // Operation log (audit_logs) — every admin action + login/logout, newest first.
+    if (req.method === 'GET' && path === '/audit-logs') {
+      if (!adminHasPermission(admin, 'logs.read')) {
+        throw new HttpError(403, 'Missing logs.read permission');
+      }
+      const url = new URL(req.url);
+      const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit') ?? 300)));
+      const action = url.searchParams.get('action');
+      let q = sb
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (action) q = q.ilike('action', `%${action}%`);
+      const { data, error } = await q;
+      if (error) throw new HttpError(502, error.message);
+      const rows = data ?? [];
+      // Resolve admin usernames for actor_id so the UI shows who did what.
+      const ids = [...new Set(rows.map((r) => r.actor_id).filter(Boolean) as string[])];
+      const nameMap = new Map<string, string>();
+      if (ids.length) {
+        const { data: admins } = await sb.from('admin_users').select('user_id, username').in('user_id', ids);
+        for (const a of admins ?? []) nameMap.set(a.user_id as string, a.username as string);
+      }
+      return jsonResponse({
+        ok: true,
+        logs: rows.map((r) => ({ ...r, actor_name: nameMap.get(r.actor_id) ?? null })),
+      });
+    }
+
     if (req.method === 'GET' && path === '/dashboard') {
       return jsonResponse({ ok: true, ...(await dashboardStats(sb)) });
     }

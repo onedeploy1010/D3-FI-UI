@@ -12,13 +12,13 @@ import MembersPage from '@/pages/admin/members';
 import ReferralsPage from '@/pages/admin/referrals';
 import PartnersPage from '@/pages/admin/partners';
 import StakesPage from '@/pages/admin/stakes';
-import FundsPage from '@/pages/admin/funds';
 import SubsidiesPage from '@/pages/admin/subsidies';
 import SecurityPage from '@/pages/admin/security';
 import ParamsPage from '@/pages/admin/params';
 
 const TransactionsPage = lazy(() => import('@/pages/admin/transactions'));
 const RolesPage = lazy(() => import('@/pages/admin/roles'));
+const LogsPage = lazy(() => import('@/pages/admin/logs'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000 } },
@@ -36,12 +36,12 @@ function AdminRoutes() {
               <Route path="/referrals" component={ReferralsPage} />
               <Route path="/partners" component={PartnersPage} />
               <Route path="/stakes" component={StakesPage} />
-              <Route path="/funds" component={FundsPage} />
               <Route path="/subsidies" component={SubsidiesPage} />
               <Route path="/security" component={SecurityPage} />
               <Route path="/params" component={ParamsPage} />
               <Route path="/transactions" component={TransactionsPage} />
               <Route path="/roles" component={RolesPage} />
+              <Route path="/logs" component={LogsPage} />
               <Route path="/">
                 <Redirect to="/dashboard" />
               </Route>
