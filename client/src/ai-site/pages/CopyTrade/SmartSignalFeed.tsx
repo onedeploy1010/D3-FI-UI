@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@ai/lib/utils";
@@ -7,6 +8,8 @@ import {
   Zap, TrendingUp, TrendingDown, Target, ShieldAlert, Radio,
   Trophy, Users, Settings2, ChevronRight, CircleStop, Clock,
 } from "lucide-react";
+import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 import type { WatchlistEntry } from "./types";
 
 export interface ActiveFollow {
@@ -21,6 +24,22 @@ export interface ActiveFollow {
   };
 }
 
+// Raw signal returned by the `ai` edge function (/copytrade/signals): LLM-derived
+// signal + live entry price and derived target/stop attached server-side.
+interface RawSignal {
+  id: number | string;
+  symbol: string;
+  direction: string;
+  confidence: number;
+  source?: string;
+  reason?: string;
+  timestamp?: string;
+  status?: string;
+  entry?: number;
+  target?: number;
+  stopLoss?: number;
+}
+
 interface AdviceSignal {
   id: string;
   symbol: string;
@@ -29,24 +48,9 @@ interface AdviceSignal {
   target: number;
   stopLoss: number;
   confidence: number;
-  traderName: string;
+  source: string;
   minutesAgo: number;
-  reasonKey: string;
-}
-
-const PAIRS: { symbol: string; base: number }[] = [
-  { symbol: "BTC/USDT", base: 97400 },
-  { symbol: "ETH/USDT", base: 3620 },
-  { symbol: "SOL/USDT", base: 212 },
-  { symbol: "BNB/USDT", base: 645 },
-  { symbol: "XRP/USDT", base: 2.31 },
-  { symbol: "DOGE/USDT", base: 0.324 },
-];
-
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
+  reason?: string;
 }
 
 function fmtP(p: number): string {
@@ -55,38 +59,27 @@ function fmtP(p: number): string {
   return p.toFixed(4);
 }
 
-function generateSignals(entries: WatchlistEntry[], follow: ActiveFollow): AdviceSignal[] {
-  const bucket = Math.floor(Date.now() / 600_000);
-  const active = entries.filter(e => !e.paused && e.trader.followScore >= follow.params.minFollowScore);
-  const signals: AdviceSignal[] = [];
-  active.forEach(entry => {
-    const seedBase = hashStr(entry.trader.address) + bucket * 13 + hashStr(follow.strategyId);
-    const count = 1 + (seedBase % 2);
-    for (let k = 0; k < count; k++) {
-      const seed = seedBase + k * 977;
-      const pair = PAIRS[seed % PAIRS.length];
-      const isLong = seed % 3 !== 1;
-      const movePct = (1.2 + (seed % 28) / 10) / 100;
-      const entryPrice = pair.base * (1 + ((seed % 21) - 10) / 4000);
-      const target = isLong ? entryPrice * (1 + movePct) : entryPrice * (1 - movePct);
-      const stopLoss = isLong
-        ? entryPrice * (1 - follow.params.stopLossBuffer / 100 / 3)
-        : entryPrice * (1 + follow.params.stopLossBuffer / 100 / 3);
-      signals.push({
-        id: `${entry.trader.address}-${k}-${bucket}`,
-        symbol: pair.symbol,
-        direction: isLong ? "LONG" : "SHORT",
-        entry: entryPrice,
-        target,
-        stopLoss,
-        confidence: 58 + (seed % 37),
-        traderName: entry.trader.name,
-        minutesAgo: 1 + (seed % 42),
-        reasonKey: `copyTrade.sfReason${(seed % 4) + 1}`,
-      });
-    }
+/** Map real backend signals into the display shape (confidence 0-10 → %). */
+function mapSignals(raw: RawSignal[]): AdviceSignal[] {
+  const now = Date.now();
+  return raw.map((s, i) => {
+    const conf = s.confidence <= 10 ? Math.round(s.confidence * 10) : Math.round(s.confidence);
+    const minutesAgo = s.timestamp
+      ? Math.max(0, Math.round((now - new Date(s.timestamp).getTime()) / 60_000))
+      : 0;
+    return {
+      id: String(s.id ?? i),
+      symbol: s.symbol,
+      direction: String(s.direction).toUpperCase() === "SHORT" ? "SHORT" : "LONG",
+      entry: s.entry ?? 0,
+      target: s.target ?? 0,
+      stopLoss: s.stopLoss ?? 0,
+      confidence: Math.min(99, Math.max(1, conf)),
+      source: s.source ?? "AI Engine",
+      minutesAgo,
+      reason: s.reason,
+    };
   });
-  return signals.sort((a, b) => a.minutesAgo - b.minutesAgo).slice(0, 10);
 }
 
 interface Props {
@@ -100,9 +93,17 @@ interface Props {
 export function SmartSignalFeed({ entries, activeFollow, onStop, onGoRankings, onGoConfig }: Props) {
   const { t } = useTranslation();
 
+  const { data: rawSignals = [], isLoading } = useQuery<RawSignal[]>({
+    queryKey: ["copytrade-signals"],
+    queryFn: () => aiFetch<RawSignal[]>("/copytrade/signals", { headers: apiHeaders() }),
+    enabled: !!activeFollow,
+    refetchInterval: 20_000,
+    staleTime: 15_000,
+  });
+
   const signals = useMemo(
-    () => (activeFollow ? generateSignals(entries, activeFollow) : []),
-    [entries, activeFollow],
+    () => (activeFollow ? mapSignals(rawSignals) : []),
+    [rawSignals, activeFollow],
   );
 
   if (!activeFollow) {
@@ -203,7 +204,7 @@ export function SmartSignalFeed({ entries, activeFollow, onStop, onGoRankings, o
       {/* Signal list */}
       {signals.length === 0 ? (
         <div className="rounded-2xl border border-border/40 bg-card/60 p-8 text-center text-sm text-muted-foreground">
-          {t("copyTrade.sfNoActive")}
+          {isLoading ? t("common.loading") : t("copyTrade.sfNoActive")}
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -235,21 +236,25 @@ export function SmartSignalFeed({ entries, activeFollow, onStop, onGoRankings, o
                           </span>
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          {t("copyTrade.sfFrom")} <span className="font-semibold text-foreground/80">{sig.traderName}</span>
+                          {t("copyTrade.sfFrom")} <span className="font-semibold text-foreground/80">{sig.source}</span>
                           <span className="mx-1">·</span>{sig.minutesAgo} {t("copyTrade.sfMinAgo")}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] font-mono">
-                      <span className="text-muted-foreground">{t("copyTrade.sfEntry")} <span className="font-bold text-foreground">${fmtP(sig.entry)}</span></span>
-                      <span className="flex items-center gap-1 text-emerald-600"><Target className="h-3 w-3" /> ${fmtP(sig.target)}</span>
-                      <span className="flex items-center gap-1 text-red-500"><ShieldAlert className="h-3 w-3" /> ${fmtP(sig.stopLoss)}</span>
+                    {sig.entry > 0 && (
+                      <div className="flex items-center gap-3 text-[11px] font-mono">
+                        <span className="text-muted-foreground">{t("copyTrade.sfEntry")} <span className="font-bold text-foreground">${fmtP(sig.entry)}</span></span>
+                        <span className="flex items-center gap-1 text-emerald-600"><Target className="h-3 w-3" /> ${fmtP(sig.target)}</span>
+                        <span className="flex items-center gap-1 text-red-500"><ShieldAlert className="h-3 w-3" /> ${fmtP(sig.stopLoss)}</span>
+                      </div>
+                    )}
+                  </div>
+                  {sig.reason && (
+                    <div className="mt-2.5 pt-2.5 border-t border-border/40 flex items-start gap-1.5">
+                      <Zap className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-muted-foreground">{sig.reason}</p>
                     </div>
-                  </div>
-                  <div className="mt-2.5 pt-2.5 border-t border-border/40 flex items-start gap-1.5">
-                    <Zap className="h-3 w-3 text-primary shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-muted-foreground">{t(sig.reasonKey)}</p>
-                  </div>
+                  )}
                 </motion.div>
               );
             })}

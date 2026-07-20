@@ -295,29 +295,32 @@ Deno.serve(async (req) => {
       return jsonResponse(await getPlatformAgentsWithStatus('copytrade'));
     }
     if (path === '/copytrade/signals' && method === 'GET') {
+      let list: Array<Record<string, unknown>> = [];
       const existing = await listSignals(wallet, 10);
-      if (existing.length > 0) return jsonResponse(existing);
-      if (!isOpenRouterConfigured()) return jsonResponse([]);
-      const prices = await fetchLivePrices(['BTC', 'ETH', 'SOL']);
-      const signals = await withCache('copytrade-signals', () =>
-        analyzeJson<{ signals: { symbol: string; direction: string; confidence: number; reason: string; source: string }[] }>(
-          'You are a crypto trading signal engine. JSON only.',
-          `Live: ${prices.map((p) => `${p.sym} $${p.price.toFixed(0)} (${p.change24h.toFixed(2)}%)`).join(', ')}. Generate 3-5 actionable signals. JSON: {"signals":[{"symbol":"BTC/USDT","direction":"LONG|SHORT","confidence":6-9.5,"reason":"brief","source":"ANALYST|ARBITER"}]}`,
-        ),
-      );
-      const rows = (signals.signals ?? []).map((s) => ({
-        symbol: s.symbol,
-        direction: s.direction,
-        confidence: s.confidence,
-        source: s.source,
-        reason: s.reason,
-        status: 'active',
-        pnl: null,
-      }));
-      await resolveUser(wallet);
-      const saved = await saveSignals(wallet, rows);
-      return jsonResponse(
-        saved.map((r) => ({
+      if (existing.length > 0) {
+        list = existing as Array<Record<string, unknown>>;
+      } else if (!isOpenRouterConfigured()) {
+        return jsonResponse([]);
+      } else {
+        const prices = await fetchLivePrices(['BTC', 'ETH', 'SOL']);
+        const signals = await withCache('copytrade-signals', () =>
+          analyzeJson<{ signals: { symbol: string; direction: string; confidence: number; reason: string; source: string }[] }>(
+            'You are a crypto trading signal engine. JSON only.',
+            `Live: ${prices.map((p) => `${p.sym} $${p.price.toFixed(0)} (${p.change24h.toFixed(2)}%)`).join(', ')}. Generate 3-5 actionable signals. JSON: {"signals":[{"symbol":"BTC/USDT","direction":"LONG|SHORT","confidence":6-9.5,"reason":"brief","source":"ANALYST|ARBITER"}]}`,
+          ),
+        );
+        const rows = (signals.signals ?? []).map((s) => ({
+          symbol: s.symbol,
+          direction: s.direction,
+          confidence: s.confidence,
+          source: s.source,
+          reason: s.reason,
+          status: 'active',
+          pnl: null,
+        }));
+        await resolveUser(wallet);
+        const saved = await saveSignals(wallet, rows);
+        list = saved.map((r) => ({
           id: r.id,
           symbol: r.symbol,
           direction: r.direction,
@@ -327,8 +330,27 @@ Deno.serve(async (req) => {
           timestamp: r.created_at,
           status: r.status,
           pnl: r.pnl,
-        })),
-      );
+        }));
+      }
+
+      // Enrich with a live entry price + derived target/stop so the signal feed
+      // shows real levels anchored to the current market price.
+      const bases = [...new Set(list.map((s) => String(s.symbol).split('/')[0].toUpperCase()))];
+      const priceRows = await fetchLivePrices(bases).catch(() => []);
+      const priceMap = new Map(priceRows.map((p) => [p.sym, p.price]));
+      const enriched = list.map((s) => {
+        const base = String(s.symbol).split('/')[0].toUpperCase();
+        const entry = priceMap.get(base) ?? 0;
+        const isLong = String(s.direction).toUpperCase() === 'LONG';
+        const move = 0.018;
+        return {
+          ...s,
+          entry,
+          target: entry ? (isLong ? entry * (1 + move * 2) : entry * (1 - move * 2)) : 0,
+          stopLoss: entry ? (isLong ? entry * (1 - move) : entry * (1 + move)) : 0,
+        };
+      });
+      return jsonResponse(enriched);
     }
     if (path === '/copytrade/ai-chat' && method === 'POST') {
       const message = body.message as string | undefined;
