@@ -4,7 +4,7 @@ import { AddressBlock } from '@/components/ui/AddressBlock';
 import { glassCardClass, GlassButton } from '@/components/ui/GlassSurface';
 import { PartnerUd3TransferModal } from '@/components/partner/PartnerUd3TransferModal';
 import { resolveUd3SLevel, UD3_TIERS } from '@/components/partner/ud3Rules';
-import { computePartnerAreaStats, partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
+import { computePartnerAreaStats, partnerTeamDepth, mergeGuideMockDownline, pickGuideTransferTargetId, sumDownlinePersonalUsd, type PartnerTeamNode } from '@/components/partner/partnerTeamData';
 import {
   getTeamAlias,
   loadTeamAliases,
@@ -34,10 +34,13 @@ function layerDepthLabel(depth: number, p: ReturnType<typeof usePartnerTranslati
 
 function NodeStatGrid({
   node,
+  downlineUsd,
   isDark,
   p,
 }: {
   node: PartnerTeamNode;
+  /** 伞下业绩 = downline personal stakes only (excludes this node's own stake). */
+  downlineUsd: number;
   isDark: boolean;
   p: ReturnType<typeof usePartnerTranslation>;
 }) {
@@ -45,7 +48,7 @@ function NodeStatGrid({
     <div className="grid grid-cols-2 gap-2">
       <PartnerInsetCell label={p('tree.personalStake')} value={`$${node.personalUsd.toLocaleString()}`} isDark={isDark} />
       <PartnerInsetCell label={p('tree.teamCount')} value={node.teamCount.toLocaleString()} isDark={isDark} />
-      <PartnerInsetCell label={p('tree.teamPerf')} value={`$${node.teamUsd.toLocaleString()}`} isDark={isDark} />
+      <PartnerInsetCell label={p('tree.teamPerf')} value={`$${downlineUsd.toLocaleString()}`} isDark={isDark} />
       <PartnerInsetCell
         label={p('tree.newPerf')}
         value={`$${node.dailyNewUsd.toLocaleString()}`}
@@ -381,7 +384,14 @@ export function PartnerTeamTree({
             aria-hidden
           />
         </button>
-        {expandedNodes.has(node.id) && <NodeStatGrid node={node} isDark={isDark} p={p} />}
+        {expandedNodes.has(node.id) && (
+          <NodeStatGrid
+            node={node}
+            downlineUsd={sumDownlinePersonalUsd(displayNodes, node.id)}
+            isDark={isDark}
+            p={p}
+          />
+        )}
         <div className="flex gap-2 pt-1">
           <PartnerRaisedButton
             variant="secondary"
