@@ -133,6 +133,48 @@ async function sumPersonalPerformance(sb: Sb, wallet: string): Promise<number> {
   ) / 100;
 }
 
+/**
+ * 有效客户线 — 个人累计入金（credited/sweep_pending/completed 的 crowdfund + partner_join）
+ * ≥ 此金额即为「有效客户」，有资格领取 UD3 奖励（引路人 60% + 上级 40% 级差），无需成为合伙人。
+ */
+export const UD3_EFFECTIVE_CUSTOMER_MIN_USDT = 100;
+
+/** True if `wallet` has staked ≥ UD3_EFFECTIVE_CUSTOMER_MIN_USDT (有效客户 = 可领 UD3 奖励). */
+export async function isEffectiveCustomer(sb: Sb, wallet: string): Promise<boolean> {
+  if (!wallet) return false;
+  const personal = await sumPersonalPerformance(sb, wallet);
+  return personal >= UD3_EFFECTIVE_CUSTOMER_MIN_USDT;
+}
+
+/**
+ * Batch: set of ALL effective-customer wallets (lowercased) in one pass — 每个钱包
+ * 个人累计入金 ≥ 100U。供 UD3 重算一次性预加载，避免逐个上级查询（否则会超时）。
+ */
+export async function loadEffectiveCustomerSet(sb: Sb): Promise<Set<string>> {
+  const totals = new Map<string, number>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await sb
+      .from('stake_intents')
+      .select('wallet_address, amount_usdt')
+      .in('status', CREDITED_STATUSES)
+      .range(from, from + pageSize - 1);
+    if (error) break;
+    const rows = data ?? [];
+    for (const r of rows) {
+      const w = String(r.wallet_address ?? '').toLowerCase();
+      if (!w) continue;
+      totals.set(w, (totals.get(w) ?? 0) + Number(r.amount_usdt ?? 0));
+    }
+    if (rows.length < pageSize) break;
+  }
+  const out = new Set<string>();
+  for (const [w, sum] of totals) {
+    if (sum >= UD3_EFFECTIVE_CUSTOMER_MIN_USDT) out.add(w);
+  }
+  return out;
+}
+
 async function sumBranchDailyNew(sb: Sb, rootWallet: string, dayStartIso: string, endIso?: string): Promise<number> {
   const wallets = await collectPartnerDownlineWallets(sb, rootWallet);
   wallets.push(rootWallet);

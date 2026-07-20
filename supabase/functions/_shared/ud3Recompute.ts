@@ -31,8 +31,8 @@ import {
   type Ud3NetworkAncestor,
 } from './ud3Reward.ts';
 import { getUd3RewardConfig, tierRank, type Ud3RewardConfig } from './ud3RewardConfig.ts';
-import { sumReferralTreePerformance, fetchPartnerAreaStats } from './partnerPerformance.ts';
-import { tryAllocateUd3ForCreditedIntent, setUd3UseCachedLevels } from './partnerUd3Settle.ts';
+import { sumReferralTreePerformance, fetchPartnerAreaStats, loadEffectiveCustomerSet } from './partnerPerformance.ts';
+import { tryAllocateUd3ForCreditedIntent, setUd3UseCachedLevels, setUd3EffectiveCustomerSet } from './partnerUd3Settle.ts';
 
 type Sb = SupabaseClient;
 
@@ -112,6 +112,8 @@ export interface Ud3CalcLogSnapshot {
   referrerTotalPerfUsdt: number;
   /** 引路人自身小区业绩 — 统一等级 S2-S6 按小区达标所需。 */
   referrerSmallAreaPerfUsdt?: number;
+  /** 引路人是否有效客户（≥100U）。缺省视为 true（兼容旧快照）。false → 不发 60% 直推。 */
+  referrerEligible?: boolean;
   networkChain?: Ud3SnapshotAncestor[];
   guideTierCode?: string | null;
   intentId?: string;
@@ -133,7 +135,9 @@ export function buildUd3RecomputeInput(
     totalPerfUsdt: Number(snapshot.referrerTotalPerfUsdt ?? 0),
     smallAreaPerfUsdt: Number(snapshot.referrerSmallAreaPerfUsdt ?? 0),
   });
-  const guideTierCode = guideLevel?.label ?? null;
+  // 引路人须是有效客户（≥100U）才领 60% 直推。缺省 (undefined) 视为有效，兼容旧快照。
+  const guideEligible = snapshot.referrerEligible !== false;
+  const guideTierCode = guideEligible ? (guideLevel?.label ?? null) : null;
 
   const chain = Array.isArray(snapshot.networkChain) ? snapshot.networkChain : [];
   const networkAncestors: Ud3NetworkAncestor[] = chain.map((node, i) => {
@@ -172,6 +176,7 @@ interface CreditedIntent {
 async function fetchUplineChainReadOnly(
   sb: Sb,
   referrerWallet: string,
+  effectiveSet: Set<string>,
 ): Promise<Ud3SnapshotAncestor[]> {
   const chain: Ud3SnapshotAncestor[] = [];
   let current = referrerWallet;
@@ -212,7 +217,8 @@ async function fetchUplineChainReadOnly(
       smallAreaPerfUsdt: Number(networkPerf),
     });
     const tierCode = sLevel?.label ?? 'S0';
-    const isRewardEligible = (acct as { is_partner?: boolean } | null)?.is_partner === true;
+    // 领取资格 = 有效客户（个人累计入金 ≥ 100U），不再要求 is_partner。预加载集合，O(1) 查。
+    const isRewardEligible = effectiveSet.has(sponsor.trim().toLowerCase());
 
     chain.push({
       wallet: sponsor,
@@ -241,6 +247,7 @@ async function projectUd3ForIntent(
   sb: Sb,
   intent: CreditedIntent,
   config: Ud3RewardConfig,
+  effectiveSet: Set<string>,
 ): Promise<ResettleProjection> {
   const depositUsdt = Number(intent.amount_usdt ?? 0);
   const depositorWallet = String(intent.wallet_address ?? '').trim();
@@ -277,7 +284,8 @@ async function projectUd3ForIntent(
   const referrerSmallAreaPerfUsdt = Number(
     (refAcct as { small_area_perf_usdt?: number | null } | null)?.small_area_perf_usdt ?? 0,
   );
-  const networkChain = await fetchUplineChainReadOnly(sb, referrerWallet);
+  const networkChain = await fetchUplineChainReadOnly(sb, referrerWallet, effectiveSet);
+  const referrerEligible = effectiveSet.has(referrerWallet.trim().toLowerCase());
 
   const result = calculateUd3TierDifferenceRewards(
     buildUd3RecomputeInput(
@@ -286,6 +294,7 @@ async function projectUd3ForIntent(
         referrerWallet,
         referrerTotalPerfUsdt,
         referrerSmallAreaPerfUsdt,
+        referrerEligible,
         networkChain,
         intentId: intent.id,
       },
@@ -444,6 +453,9 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
   // The surviving USDT deposits we will re-settle from.
   const intents = await selectCreditedUsdtIntents(sb, plan, limit);
 
+  // Preload the 有效客户 set once (个人入金 ≥100U) — O(1) eligibility during replay.
+  const effectiveSet = await loadEffectiveCustomerSet(sb);
+
   // apply: wipe first, then replay. performReset keeps referrals + performance +
   // the materialized team/small-area columns, so the replay reads cached levels
   // (== final standing) and completes fast instead of re-walking every subtree.
@@ -459,6 +471,7 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
   // Cached-level fast path ON for this run only; reset in finally so a shared edge
   // isolate never leaks it into a subsequent LIVE settlement.
   setUd3UseCachedLevels(true);
+  setUd3EffectiveCustomerSet(effectiveSet);
   try {
   for (const intent of intents) {
     if (mode === 'apply') {
@@ -495,7 +508,7 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
         unallocated,
       });
     } else {
-      const proj = await projectUd3ForIntent(sb, intent, config);
+      const proj = await projectUd3ForIntent(sb, intent, config, effectiveSet);
       newUd3Paid = newUd3Paid.plus(new Decimal(proj.guide)).plus(new Decimal(proj.networkTotal));
       newUnallocated = newUnallocated.plus(new Decimal(proj.unallocated));
       resettled.push({
@@ -511,6 +524,7 @@ export async function resetAndResettleUd3(sb: Sb, opts: ResetResettleOpts): Prom
   }
   } finally {
     setUd3UseCachedLevels(false);
+    setUd3EffectiveCustomerSet(null);
   }
 
   const summary: ResetResettleSummary = {

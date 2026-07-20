@@ -39,7 +39,7 @@ import {
   tierRank,
   UD3_ALGO_VERSION_V3,
 } from './ud3RewardConfig.ts';
-import { sumReferralTreePerformance, fetchPartnerAreaStats } from './partnerPerformance.ts';
+import { sumReferralTreePerformance, fetchPartnerAreaStats, isEffectiveCustomer } from './partnerPerformance.ts';
 import { toSgtDateString } from './partnerTimezone.ts';
 
 type Sb = SupabaseClient;
@@ -70,6 +70,15 @@ function parseSLevelId(label?: string | null): number | null {
 let ud3UseCachedLevels = false;
 export function setUd3UseCachedLevels(on: boolean): void {
   ud3UseCachedLevels = on;
+}
+
+// Recompute-only preloaded 有效客户 set (lowercased wallets with 个人入金 ≥100U). When
+// present, eligibility is an O(1) membership check instead of a per-ancestor query —
+// this keeps the reset+resettle within the edge time budget. Live settlement leaves it
+// null and computes fresh per deposit. Set/cleared by resetAndResettleUd3 (try/finally).
+let ud3EffectiveSet: Set<string> | null = null;
+export function setUd3EffectiveCustomerSet(s: Set<string> | null): void {
+  ud3EffectiveSet = s;
 }
 
 /** Resolve {teamPerf(总), smallArea(小区)} for a wallet — cached fast path or fresh. */
@@ -150,13 +159,11 @@ async function cacheAccountLevels(
  * This is the 资格 gate that is orthogonal to 档位 (tier-rank) matching — a
  * high-tier but non-partner ancestor can still be skipped for a slot.
  */
+// UD3 领取资格 = 有效客户（个人累计入金 ≥ 100U），不再要求 is_partner（合伙人）。
+// 重算时用预加载集合做 O(1) 判定；实时结算无集合则逐个查询。
 async function isRewardEligibleAccount(sb: Sb, wallet: string): Promise<boolean> {
-  const { data } = await sb
-    .from('partner_accounts')
-    .select('is_partner')
-    .ilike('wallet_address', wallet)
-    .maybeSingle();
-  return (data as { is_partner?: boolean } | null)?.is_partner === true;
+  if (ud3EffectiveSet) return ud3EffectiveSet.has(wallet.trim().toLowerCase());
+  return isEffectiveCustomer(sb, wallet);
 }
 
 /**
@@ -256,7 +263,9 @@ export async function allocateUd3ForCreditedIntent(
     totalPerfUsdt: input.referrerTotalPerfUsdt,
     smallAreaPerfUsdt: referrerArea.smallArea,
   });
-  const guideTierCode = guideLevel?.label ?? null;
+  // 引路人也须是有效客户（≥100U）才领 60% 直推；否则不发放。
+  const guideEligible = await isRewardEligibleAccount(sb, input.referrerWallet);
+  const guideTierCode = guideLevel && guideEligible ? guideLevel.label : null;
   const guideRatePct = guideLevel ? (UD3_TIERS[guideLevel.id - 1]?.ratePct ?? 0) : 0;
 
   const result = calculateUd3TierDifferenceRewards({
