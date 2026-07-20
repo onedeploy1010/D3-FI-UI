@@ -86,19 +86,23 @@ export function PartnerTeamDashboard({
           <AddressBlock value={wallet} isDark={isDark} compact dense showCopy surface="inset" />
         )}
         {/* 推荐人数(直推) + 团队人数(总伞下) for the current user. */}
-        <div className="mt-2 flex items-center gap-4 text-[11px]">
-          <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>
-            {p('team.directReferrals')}{' '}
-            <b className="font-extrabold text-[#E0568F] tabular-nums">
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <div className="partner-depth-inset rounded-xl px-3 py-2">
+            <div className={`text-[11px] font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+              {p('team.directReferrals')}
+            </div>
+            <div className="mt-0.5 text-xl font-extrabold leading-none text-[#E0568F] tabular-nums">
               {(teamNodes.me?.directCount ?? 0).toLocaleString()}
-            </b>
-          </span>
-          <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>
-            {p('team.teamMembers')}{' '}
-            <b className={`font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            </div>
+          </div>
+          <div className="partner-depth-inset rounded-xl px-3 py-2">
+            <div className={`text-[11px] font-semibold ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+              {p('team.teamMembers')}
+            </div>
+            <div className={`mt-0.5 text-xl font-extrabold leading-none tabular-nums ${isDark ? 'text-white' : 'text-[#160510]'}`}>
               {(teamNodes.me?.teamCount ?? 0).toLocaleString()}
-            </b>
-          </span>
+            </div>
+          </div>
         </div>
       </div>
 
