@@ -271,6 +271,21 @@ export function normalizeStakeOrderKind(kind: string): StakeOrderKind {
   return 'crowdfund';
 }
 
+/**
+ * 合伙人只能参与一次 — keep at most ONE partner_join order. Drops stale optimistic
+ * "ghost" joins that could linger in persisted client state and render as two
+ * 合伙人参与 rows. Order is preserved; the first partner_join wins.
+ */
+export function dedupePartnerJoinOrders(orders: PartnerStakeOrder[]): PartnerStakeOrder[] {
+  let seenJoin = false;
+  return orders.filter((o) => {
+    if (o.kind !== 'partner_join') return true;
+    if (seenJoin) return false;
+    seenJoin = true;
+    return true;
+  });
+}
+
 export function isPrincipalStakeKind(kind: StakeOrderKind | string): boolean {
   const k = normalizeStakeOrderKind(kind);
   return k === 'crowdfund' || k === 'partner_join';
@@ -901,12 +916,14 @@ export function migratePartnerState(raw: unknown): PartnerState {
   if (Array.isArray(s.stakeOrders)) {
     return {
       ...base,
-      stakeOrders: s.stakeOrders.map((o) => ({
-        ...o,
-        kind: normalizeStakeOrderKind(o.kind as string),
-        dailyYieldUsdt:
-          o.dailyYieldUsdt > 0 ? o.dailyYieldUsdt : calcDailyUsdtYield(o.principalUsdt),
-      })),
+      stakeOrders: dedupePartnerJoinOrders(
+        s.stakeOrders.map((o) => ({
+          ...o,
+          kind: normalizeStakeOrderKind(o.kind as string),
+          dailyYieldUsdt:
+            o.dailyYieldUsdt > 0 ? o.dailyYieldUsdt : calcDailyUsdtYield(o.principalUsdt),
+        })),
+      ),
       totalNewPerformanceUsd: s.totalNewPerformanceUsd ?? s.teamPerformanceUsd ?? 0,
       marketLeaderStatus: s.marketLeaderStatus ?? 'none',
       partnerSubsidyApplications: s.partnerSubsidyApplications ?? [],
@@ -962,7 +979,9 @@ export function hydratePartnerStateFromApi(
   );
   if (!hasServer) return local;
 
-  const stakeOrders: PartnerStakeOrder[] = positions.map(mapStakePositionToOrder);
+  const stakeOrders: PartnerStakeOrder[] = dedupePartnerJoinOrders(
+    positions.map(mapStakePositionToOrder),
+  );
 
   // Server positions are authoritative for a real account. We deliberately do NOT
   // merge local optimistic orders back in: they carry client-generated ids that
