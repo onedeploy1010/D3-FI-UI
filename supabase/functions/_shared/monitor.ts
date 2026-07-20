@@ -10,6 +10,7 @@ import {
 import { rollupPartnerPerformance } from './partnerPerformance.ts';
 import { syncStakePositionOnCredit } from './partnerSettlement.ts';
 import { tryAllocateUd3ForCreditedIntent } from './partnerUd3Settle.ts';
+import { notify } from './notifications.ts';
 import type { Hash } from 'npm:viem@2';
 
 type Sb = SupabaseClient;
@@ -96,6 +97,10 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
 
     await rollupPartnerPerformance(sb, dep.wallet_address as string, Number(received)).catch((e) => {
       console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
+    });
+
+    await notify(sb, dep.wallet_address as string, 'stake_success', {
+      amount: Number(received).toLocaleString(),
     });
 
     if (dep.intent_id) {
@@ -191,6 +196,7 @@ export async function promoteDetectedDeposits(sb: Sb, limit = 20): Promise<numbe
       await rollupPartnerPerformance(sb, walletAddress, Number(received)).catch((e) => {
         console.error('[monitor] partner performance rollup:', e instanceof Error ? e.message : e);
       });
+      await notify(sb, walletAddress, 'stake_success', { amount: Number(received).toLocaleString() });
       await syncStakePositionOnCredit(sb, dep.intent_id as string).catch((e) => {
         console.error('[monitor] stake position sync:', e instanceof Error ? e.message : e);
       });

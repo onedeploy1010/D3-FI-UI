@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
+import { notify, shortWalletForNotice } from '../_shared/notifications.ts';
 import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
 import { resetDemoPartnerSession } from '../_shared/demoPartnerReset.ts';
 import { getPrivyToken } from '../_shared/privy.ts';
@@ -1189,6 +1190,7 @@ Deno.serve(async (req) => {
           .eq('status', 'active')
           .limit(1)
           .maybeSingle();
+        await notify(sb, sponsorWallet.trim(), 'referral_bound', { wallet: shortWalletForNotice(wallet) });
         return jsonResponse({ referral: synced, created: true, onchain: true });
       }
 
@@ -1211,6 +1213,7 @@ Deno.serve(async (req) => {
         .select()
         .single();
       if (error) throw new HttpError(502, error.message);
+      await notify(sb, sponsor.wallet_address, 'referral_bound', { wallet: shortWalletForNotice(wallet) });
       return jsonResponse({ referral: data, created: true });
     }
 
@@ -1235,7 +1238,35 @@ Deno.serve(async (req) => {
         return jsonResponse({ notifications: [], migrated: false });
       }
       if (error) throw new HttpError(502, error.message);
-      return jsonResponse({ notifications: data ?? [], migrated: true });
+
+      // Render templated rows in the viewer's language from notification_templates.
+      const rows = data ?? [];
+      const lang = (url.searchParams.get('lang') ?? 'zh-CN').trim();
+      const keys = [...new Set(rows.map((r) => r.template_key).filter(Boolean) as string[])];
+      const tmplMap = new Map<string, { content: Record<string, { title: string; message: string }>; link_path: string | null }>();
+      if (keys.length) {
+        const { data: tmpls } = await sb
+          .from('notification_templates')
+          .select('key, content, link_path')
+          .in('key', keys);
+        for (const t of tmpls ?? []) tmplMap.set(t.key as string, { content: t.content, link_path: t.link_path });
+      }
+      const interp = (s: string, p: Record<string, unknown> | null) =>
+        String(s ?? '').replace(/\{(\w+)\}/g, (_, k) => (p && p[k] != null ? String(p[k]) : `{${k}}`));
+      const rendered = rows.map((r) => {
+        const tmpl = r.template_key ? tmplMap.get(r.template_key) : null;
+        if (tmpl) {
+          const c = tmpl.content[lang] ?? tmpl.content['en'] ?? tmpl.content['zh-CN'];
+          if (c) {
+            const title = interp(c.title, r.params);
+            const message = interp(c.message, r.params);
+            // Fill both zh/en columns with the rendered lang so any client mapping shows it.
+            return { ...r, title_zh: title, title_en: title, message_zh: message, message_en: message, link_path: r.link_path ?? tmpl.link_path };
+          }
+        }
+        return r;
+      });
+      return jsonResponse({ notifications: rendered, migrated: true });
     }
 
     // POST /notifications/:id/read

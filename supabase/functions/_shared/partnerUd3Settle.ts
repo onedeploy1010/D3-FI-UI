@@ -28,6 +28,7 @@
 import Decimal from 'npm:decimal.js@10';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { resolveUd3SLevel, UD3_TIERS } from './partnerUd3Rules.ts';
+import { notify } from './notifications.ts';
 import {
   calculateUd3TierDifferenceRewards,
   ud3TierRewardIdempotencyKey,
@@ -116,6 +117,17 @@ async function cacheAccountLevels(
   // 统一等级：引路人受贿金系数 与 网体差额 共用同一 S1-S6 等级。
   // S1=总业绩≥100；S2-S6=小区业绩。ud3_tier_id 与 ud3_v_level 记同一等级。
   const level = resolveUd3SLevel({ totalPerfUsdt: teamPerfUsdt, smallAreaPerfUsdt });
+  // Detect a達標升级 for the 小铃铛 (skip during recompute — the cached-levels flag is
+  // on then, and a full reset+replay must not spam every account with level-ups).
+  let prevLevelId = 0;
+  if (!ud3UseCachedLevels) {
+    const { data: prev } = await sb
+      .from('partner_accounts')
+      .select('ud3_v_level')
+      .ilike('wallet_address', wallet)
+      .maybeSingle();
+    prevLevelId = Number((prev as { ud3_v_level?: number | null } | null)?.ud3_v_level ?? 0);
+  }
   await sb.from('partner_accounts').upsert(
     {
       wallet_address: wallet,
@@ -128,6 +140,9 @@ async function cacheAccountLevels(
     },
     { onConflict: 'wallet_address' },
   );
+  if (!ud3UseCachedLevels && level && level.id > prevLevelId) {
+    await notify(sb, wallet, 'level_up', { level: level.label });
+  }
 }
 
 /**

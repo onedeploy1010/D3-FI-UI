@@ -366,12 +366,16 @@ export function PartnerAssetsTab({
                     <span className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{row.at}</span>
                   </div>
                   <div className={`text-sm font-bold mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                    {row.kind === 'transfer' ? '-' : '+'}
+                    {row.kind === 'transfer' && row.direction !== 'received' ? '-' : '+'}
                     {row.amount.toLocaleString()} {row.unit}
                   </div>
                   {row.kind === 'transfer' && row.toAddress && (
                     <AddressBlock
-                      label={row.toLabel ?? p('assets.downline')}
+                      label={
+                        row.direction === 'received'
+                          ? p('assets.receivedFrom')
+                          : row.toLabel ?? p('assets.downline')
+                      }
                       value={row.toAddress}
                       isDark={isDark}
                       compact

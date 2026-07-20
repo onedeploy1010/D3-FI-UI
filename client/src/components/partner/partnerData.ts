@@ -352,10 +352,13 @@ export type PartnerStakeOrder = {
 
 export type PartnerTransfer = {
   id: string;
+  /** The counterparty address (recipient when sent, sender when received). */
   toAddress: string;
   toLabel?: string;
   amountUd3: number;
   at: string;
+  /** 'sent' = 转账给下级；'received' = 收到 UD3。 */
+  direction?: 'sent' | 'received';
 };
 
 export type PartnerYieldWithdrawal = {
@@ -378,6 +381,8 @@ export type PartnerHistoryRecord = {
   toAddress?: string;
   toLabel?: string;
   unlockAt?: string;
+  /** transfer 方向：'sent' = 转账，'received' = 收到。 */
+  direction?: 'sent' | 'received';
 };
 
 export type Ud3RewardRole = 'direct' | 'upline';
@@ -631,6 +636,7 @@ export function buildHistoryRecords(state: PartnerState): PartnerHistoryRecord[]
     unit: 'UD3',
     toAddress: tr.toAddress,
     toLabel: tr.toLabel,
+    direction: tr.direction ?? 'sent',
   }));
   const withdrawals: PartnerHistoryRecord[] = (state.yieldWithdrawals ?? []).map((w) => ({
     id: w.id,
@@ -1030,11 +1036,14 @@ export function hydratePartnerStateFromApi(
     const amt = Number(
       (r as { amount_ud3?: number | string }).amount_ud3 ?? r.amount_sd3 ?? 0,
     );
+    const rr = r as { direction?: 'sent' | 'received'; counterparty?: string };
+    const direction = rr.direction === 'received' ? 'received' : 'sent';
     return {
       id: r.id,
-      toAddress: r.to_wallet,
+      toAddress: rr.counterparty ?? r.to_wallet,
       amountUd3: Number.isFinite(amt) ? amt : 0,
       at: r.created_at.slice(0, 10),
+      direction,
     };
   });
 

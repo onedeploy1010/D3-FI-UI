@@ -2,9 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchNotifications, mapNotification, markAllNotificationsRead, markNotificationRead } from '@/lib/notificationApi';
 import type { UserNotificationView } from '@/lib/notificationTypes';
 
-type Lang = 'zh' | 'en';
-
-export function useNotifications(wallet: string | null, lang: Lang = 'zh') {
+export function useNotifications(wallet: string | null, lang: string = 'zh-CN') {
   const [items, setItems] = useState<UserNotificationView[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [migrated, setMigrated] = useState(true);
@@ -18,7 +16,7 @@ export function useNotifications(wallet: string | null, lang: Lang = 'zh') {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchNotifications(wallet);
+      const data = await fetchNotifications(wallet, false, lang);
       setMigrated(data.migrated);
       setItems(data.notifications.map((row) => mapNotification(row, lang)));
     } catch (e) {

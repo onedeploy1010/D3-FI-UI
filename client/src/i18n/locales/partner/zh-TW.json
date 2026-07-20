@@ -404,5 +404,6 @@
   "heartbeat.priceRisingHint": "後續輪次逐輪上漲",
   "heartbeat.viewInPortal": "門戶查看",
   "stake.paySuccessTitle": "質押成功",
-  "stake.paySuccessBody": "請到「訂單」頁面查看。若未顯示，鏈上驗證約需 1–5 分鐘，請稍後刷新頁面。"
+  "stake.paySuccessBody": "請到「訂單」頁面查看。若未顯示，鏈上驗證約需 1–5 分鐘，請稍後刷新頁面。",
+  "assets.receivedFrom": "收到來自"
 }

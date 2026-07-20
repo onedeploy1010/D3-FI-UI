@@ -511,7 +511,9 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     sb
       .from('partner_ud3_transfers')
       .select('*')
-      .ilike('from_wallet', w)
+      // Both directions: sent (from me) AND received (to me) so the history shows
+      // incoming UD3 too, not just outgoing.
+      .or(`from_wallet.ilike.${w},to_wallet.ilike.${w}`)
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(50),
@@ -595,7 +597,16 @@ export async function fetchPartnerAccountBundle(sb: Sb, wallet: string) {
     ud3Settlements: ud3History.data ?? [],
     ud3Allocations,
     yieldSettlements: yieldHistory.data ?? [],
-    ud3Transfers: ud3Transfers.data ?? [],
+    // Annotate each transfer with direction (sent/received) + the counterparty so
+    // the recipient's history shows incoming UD3 as a 收到 record.
+    ud3Transfers: (ud3Transfers.data ?? []).map((r) => {
+      const sent = String(r.from_wallet ?? '').toLowerCase() === w.toLowerCase();
+      return {
+        ...r,
+        direction: sent ? 'sent' : 'received',
+        counterparty: sent ? r.to_wallet : r.from_wallet,
+      };
+    }),
     yieldWithdrawals: yieldWithdrawals.data ?? [],
   };
 }

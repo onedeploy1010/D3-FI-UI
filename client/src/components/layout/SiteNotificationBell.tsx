@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Bell, Check, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import { GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
 import { useWallet } from '@/contexts/wallet-context';
 import { useNotifications } from '@/hooks/useNotifications';
+import { LanguageContext } from '@/i18n/LanguageContext';
 
 const categoryColors: Record<string, string> = {
   protocol: '#E0568F',
@@ -29,7 +30,11 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
   const { wallet } = useWallet();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-  const { items, unreadCount, isLoading, markRead, markAllRead } = useNotifications(wallet, lang);
+  // Prefer the full app language (6-lang) so DB-templated notifications render in
+  // the viewer's actual language; fall back to the legacy zh/en prop.
+  const langCtx = useContext(LanguageContext);
+  const notifLang = langCtx?.lang ?? (lang === 'en' ? 'en' : 'zh-CN');
+  const { items, unreadCount, isLoading, markRead, markAllRead } = useNotifications(wallet, notifLang);
 
   if (!wallet) return null;
 

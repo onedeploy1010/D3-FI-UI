@@ -1,6 +1,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { writeAuditLog } from './audit.ts';
 import { isPartnerDownlineOf } from './partnerPerformance.ts';
+import { notify, shortWalletForNotice } from './notifications.ts';
 import { HttpError } from './wallet.ts';
 
 type Sb = SupabaseClient;
@@ -130,6 +131,11 @@ export async function transferPartnerUd3(
     entityId: transfer.id as string,
     newValue: { fromWallet: from, toWallet: recipientWallet, amountUd3: amount },
   });
+
+  // 小铃铛：转账方「转账成功」+ 收款方「收到 UD3」。best-effort，DB 模板多语言渲染。
+  const amtStr = amount.toLocaleString();
+  await notify(sb, from, 'ud3_transfer_sent', { amount: amtStr, to: shortWalletForNotice(recipientWallet) });
+  await notify(sb, recipientWallet, 'ud3_received', { amount: amtStr, from: shortWalletForNotice(from) });
 
   return {
     transferId: transfer.id as string,
