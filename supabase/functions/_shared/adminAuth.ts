@@ -44,6 +44,19 @@ export const PERMISSION_CATALOG: readonly PermissionDef[] = [
 
 export const ALL_PERMISSION_KEYS: readonly string[] = PERMISSION_CATALOG.map((p) => p.key);
 
+// The SINGLE root admin — the ONLY account allowed to create/edit/delete admins and
+// change admin permissions. Every other admin (incl. other superadmins) may hold any
+// other permission but can never touch the admin roster. Override via env if needed.
+export const ROOT_ADMIN_USERNAME =
+  (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env
+    .get('ROOT_ADMIN_USERNAME')
+    ?.trim()
+    .toLowerCase() || 'd3finance@hotmail.com';
+
+export function isRootAdmin(admin: AdminProfile): boolean {
+  return String(admin.username ?? '').trim().toLowerCase() === ROOT_ADMIN_USERNAME;
+}
+
 // Read-only subset (every `.read` permission) — the auditor preset and the
 // baseline for support.
 export const READ_PERMISSION_KEYS: readonly string[] = ALL_PERMISSION_KEYS.filter((k) =>

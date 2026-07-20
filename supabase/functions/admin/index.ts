@@ -4,11 +4,13 @@ import {
   adminHasPermission,
   requireAdminUser,
   assertCanManageAdmin,
+  isRootAdmin,
   isValidRole,
   isValidPermissionKey,
   permissionsForRole,
   PERMISSION_CATALOG,
   ROLE_PRESETS,
+  ROOT_ADMIN_USERNAME,
 } from '../_shared/adminAuth.ts';
 import {
   collectPartnerDownlineWallets,
@@ -1431,6 +1433,16 @@ function requireSuperadmin(admin: AdminProfile) {
   }
 }
 
+// Managing the admin roster + admin permissions is restricted to the SINGLE root
+// admin (d3finance@hotmail.com). Other superadmins hold every other permission but
+// cannot touch admins. Every admin change is still audited (writeAuditLog inside
+// createAdmin/patchAdmin/deleteAdmin).
+function requireRootAdmin(admin: AdminProfile) {
+  if (!isRootAdmin(admin)) {
+    throw new HttpError(403, `仅 ${ROOT_ADMIN_USERNAME} 可管理管理员与权限`);
+  }
+}
+
 function requirePermission(admin: AdminProfile, key: string) {
   if (!adminHasPermission(admin, key)) {
     throw new HttpError(403, `Missing ${key} permission`);
@@ -2626,31 +2638,57 @@ Deno.serve(async (req) => {
     }
 
     // Create an admin: provision/link the auth user, then upsert admin_users.
-    // Superadmin only.
+    // Root admin (d3finance) only.
     if (req.method === 'POST' && path === '/admins') {
-      requireSuperadmin(admin);
+      requireRootAdmin(admin);
       const body = await readJson<{
         email?: string;
         role?: string;
         permissions?: unknown;
         username?: string;
       }>(req);
-      return jsonResponse({ ok: true, ...(await createAdmin(sb, body, admin)) });
+      const created = await createAdmin(sb, body, admin);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'admin_create',
+        entityType: 'admin_users',
+        entityId: (created as { userId?: string }).userId ?? null,
+        newValue: { email: body.email, role: body.role, permissions: body.permissions },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, ...created });
     }
 
     const adminUserMatch = path.match(/^\/admins\/([0-9a-fA-F-]{36})$/);
-    // Update an admin's role and/or explicit permissions. Requires admins.manage
-    // AND passes the privilege-escalation / self-escalation guard.
+    // Update an admin's role and/or explicit permissions. Root admin only + passes
+    // the privilege-escalation / self-escalation guard. Audited.
     if (req.method === 'PATCH' && adminUserMatch) {
-      requirePermission(admin, 'admins.manage');
+      requireRootAdmin(admin);
       const body = await readJson<{ role?: string; permissions?: unknown }>(req);
-      return jsonResponse({ ok: true, ...(await patchAdmin(sb, adminUserMatch[1], body, admin)) });
+      const patched = await patchAdmin(sb, adminUserMatch[1], body, admin);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'admin_update',
+        entityType: 'admin_users',
+        entityId: adminUserMatch[1],
+        newValue: { role: body.role, permissions: body.permissions },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, ...patched });
     }
 
-    // Revoke an admin. Superadmin only; cannot delete self.
+    // Revoke an admin. Root admin (d3finance) only; cannot delete self. Audited.
     if (req.method === 'DELETE' && adminUserMatch) {
-      requireSuperadmin(admin);
-      return jsonResponse({ ok: true, ...(await deleteAdmin(sb, adminUserMatch[1], admin)) });
+      requireRootAdmin(admin);
+      const deleted = await deleteAdmin(sb, adminUserMatch[1], admin);
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'admin_delete',
+        entityType: 'admin_users',
+        entityId: adminUserMatch[1],
+      }).catch(() => {});
+      return jsonResponse({ ok: true, ...deleted });
     }
 
     throw new HttpError(404, 'Not found');
