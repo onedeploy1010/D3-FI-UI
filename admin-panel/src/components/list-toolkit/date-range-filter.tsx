@@ -78,8 +78,10 @@ export function DateRangeFilter({ value, onChange, label = "日期" }: Props) {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 mt-2 w-72 rounded-xl border border-border/80 bg-background shadow-2xl p-3 right-0 sm:left-0 sm:right-auto">
+          <div className="fixed inset-0 z-40 bg-black/40 sm:bg-transparent" onClick={() => setOpen(false)} />
+          <div className="z-50 rounded-xl border border-border/80 bg-background shadow-2xl p-3
+            fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-2rem)] max-w-xs
+            sm:absolute sm:left-0 sm:right-auto sm:top-full sm:translate-x-0 sm:translate-y-0 sm:mt-2 sm:w-72">
             <div className="flex items-center gap-1.5 flex-wrap mb-3">
               {[
                 { label: "今日",  v: { from: todayISO(),    to: todayISO() } },
