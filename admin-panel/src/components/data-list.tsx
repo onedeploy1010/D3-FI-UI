@@ -162,7 +162,7 @@ export function DataList<T>({
       {/* Toolbar */}
       <div className="sticky top-0 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/85 px-3 py-2.5 backdrop-blur">
         {searchKeys?.length ? (
-          <div className="relative min-w-[180px] flex-1">
+          <div className="relative w-full sm:w-auto sm:min-w-[180px] sm:flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
@@ -171,7 +171,7 @@ export function DataList<T>({
                 resetPage();
               }}
               placeholder={searchPlaceholder}
-              className="h-9 w-full rounded-lg border border-border bg-input/40 pl-8 pr-3 text-sm outline-none focus:border-primary/60"
+              className="h-9 w-full rounded-lg cell-inset pl-8 pr-3 text-sm outline-none transition-colors focus:border-primary/60"
             />
           </div>
         ) : null}
@@ -220,7 +220,7 @@ export function DataList<T>({
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card/40 px-6 py-14 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-xl cell-inset px-6 py-14 text-center">
           <Inbox className="h-8 w-8 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">{emptyText}</p>
         </div>
@@ -230,8 +230,8 @@ export function DataList<T>({
           <div className="hidden overflow-hidden rounded-xl border border-border/60 md:block">
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  {expandable && <TableHead className="w-8" />}
+                <TableRow className="border-border/60 bg-muted/30 hover:bg-muted/30">
+                  {expandable && <TableHead className="w-10" />}
                   {columns.map((c) => (
                     <TableHead key={c.key} className={cn('whitespace-nowrap', c.className)}>
                       {c.sortable ? (
@@ -260,10 +260,14 @@ export function DataList<T>({
                     <Fragment key={id}>
                       <TableRow
                         onClick={onRowClick ? () => onRowClick(row) : undefined}
-                        className={cn(onRowClick && 'cursor-pointer')}
+                        className={cn(
+                          'border-border/40',
+                          onRowClick && 'cursor-pointer',
+                          isOpen && 'bg-muted/40 hover:bg-muted/40',
+                        )}
                       >
                         {expandable && (
-                          <TableCell className="w-8 pr-0">
+                          <TableCell className="w-10 pr-0">
                             <button
                               type="button"
                               aria-label={isOpen ? '收起' : '展开'}
@@ -271,7 +275,7 @@ export function DataList<T>({
                                 e.stopPropagation();
                                 toggleExpand(id);
                               }}
-                              className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                              className="tap-target rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                             >
                               <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
                             </button>
@@ -284,9 +288,9 @@ export function DataList<T>({
                         ))}
                       </TableRow>
                       {expandable && isOpen && (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={colCount} className="bg-muted/20">
-                            {renderExpanded?.(row)}
+                        <TableRow className="border-border/40 hover:bg-transparent">
+                          <TableCell colSpan={colCount} className="bg-muted/25 p-3">
+                            <div className="overflow-x-auto rounded-lg">{renderExpanded?.(row)}</div>
                           </TableCell>
                         </TableRow>
                       )}
@@ -307,38 +311,39 @@ export function DataList<T>({
                   key={id}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={cn(
-                    'rounded-xl border border-border/60 bg-card/40 p-3',
-                    onRowClick && 'cursor-pointer',
+                    'rounded-xl cell-inset p-3 transition-colors',
+                    onRowClick && 'cursor-pointer active:brightness-110',
+                    isOpen && 'border-primary/40 ring-1 ring-primary/30',
                   )}
                 >
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {columns
                       .filter((c) => !c.mobileHide)
                       .map((c) => (
                         <div key={c.key} className="flex items-start justify-between gap-3 text-sm">
-                          <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
                             {c.label}
                           </span>
-                          <span className="min-w-0 text-right">
+                          <span className="min-w-0 break-words text-right font-medium text-foreground">
                             {c.render ? c.render(row) : displayValue(getField(row, c.key))}
                           </span>
                         </div>
                       ))}
                   </div>
                   {expandable && (
-                    <div className="mt-2 border-t border-border/50 pt-2">
+                    <div className="mt-2.5 border-t border-border/50 pt-2">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleExpand(id);
                         }}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        className="inline-flex min-h-[36px] items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                       >
                         详情
                         <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isOpen && 'rotate-180')} />
                       </button>
-                      {isOpen && <div className="mt-2">{renderExpanded?.(row)}</div>}
+                      {isOpen && <div className="mt-2 overflow-x-auto">{renderExpanded?.(row)}</div>}
                     </div>
                   )}
                 </div>

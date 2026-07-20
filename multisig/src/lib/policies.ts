@@ -219,6 +219,38 @@ export const POLICY_RECOMMENDATIONS: PolicyReco[] = [
       '本地生成 P-256 密钥 → 建 clearing-signer API 用户 → 建 user tag「clearing」加它 → 应用 d3-clearing-usdt-forward。需 2/3 根签名。',
   },
   {
+    id: 'reco-user-count',
+    severity: 'suggest',
+    title: '【架构】需要几个 Turnkey 用户',
+    detail: '现有 4 个：后端自动签(d3finance 5eba34d3) + 3 根签名(DA/Ye/DADA)。按角色分离更安全。',
+    action:
+      '至少再加 1 个【专用 clearing-signer】(清算自动签，隔离) → 共 5。若 operators 要独立真人(不复用后端 key)再 +1。root 保持 3 人。',
+  },
+  {
+    id: 'reco-user-tags',
+    severity: 'suggest',
+    title: '【架构】需要的 user tag（管人）',
+    detail: 'user tag 把「用户」分组用于策略共识（谁能批）。',
+    action: '建 2 个：operators(日常运营)、clearing(清算签名用户)。root 3 人已是 root quorum，不必额外标签。',
+  },
+  {
+    id: 'reco-pk-tags',
+    severity: 'suggest',
+    title: '【架构】用 private key tag 管钱包（别列地址）',
+    detail:
+      'user tag 管「人」，private key tag 管「钱包」。清算钱包一合伙人一个、热钱包也在增长，策略里列 200 个 from 地址不可维护。',
+    action:
+      '建 private key tag：clearing-wallets(所有清算钱包)、hot-wallets(结算/gas/闪兑/充值池)。策略条件改成「从该标签的钱包」，新建钱包打上标签自动纳入，无需改策略。',
+  },
+  {
+    id: 'reco-contract-mgmt',
+    severity: 'suggest',
+    title: '【架构】智能合约特权角色交给 Turnkey',
+    detail: '合约代码不放进 Turnkey；Turnkey 管钥匙 + 签名。但合约特权角色应由 Turnkey 钱包持有，且调用要有策略。',
+    action:
+      'ReferralRegistry ADMIN/UPGRADER → root 多签钱包；DailyStateAnchor ANCHORER → gas 钱包(+anchor-allow)。合约调用按「合约地址 + 函数选择器」精确授权(usdt-transfer 已是此模式)。',
+  },
+  {
     id: 'reco-two-person',
     severity: 'warn',
     title: '大额出款建议双人签',

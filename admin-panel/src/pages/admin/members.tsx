@@ -7,7 +7,7 @@ import { adminFetch, type MemberRow } from '@/lib/adminApi';
 import { fmtUsd } from '@/lib/supabase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Crown, RotateCw, ShieldCheck } from 'lucide-react';
+import { Crown, Eye, RotateCw, ShieldCheck } from 'lucide-react';
 
 /**
  * The list endpoint may enrich rows with a display name / internal remark; the
@@ -177,10 +177,32 @@ export default function MembersPage() {
         mobileHide: true,
         render: (row) =>
           row.sponsorWallet ? (
-            <AddressChip address={row.sponsorWallet} variant="compact" />
+            <div className="flex items-center gap-1">
+              <AddressChip address={row.sponsorWallet} variant="compact" />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6 shrink-0"
+                title="查看推荐人"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  open(row.sponsorWallet!);
+                }}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           ) : (
             <span className="text-muted-foreground">—</span>
           ),
+      },
+      {
+        key: 'createdAt',
+        label: '注册日期',
+        sortable: true,
+        className: 'whitespace-nowrap text-right md:text-left text-xs text-muted-foreground',
+        render: (row) =>
+          row.createdAt ? new Date(row.createdAt).toLocaleDateString('zh-CN') : '—',
       },
       {
         key: 'joinedAt',
@@ -191,7 +213,7 @@ export default function MembersPage() {
           row.joinedAt ? new Date(row.joinedAt).toLocaleDateString('zh-CN') : '—',
       },
     ],
-    [],
+    [open],
   );
 
   const renderExpanded = useCallback(
@@ -209,6 +231,17 @@ export default function MembersPage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="shrink-0">推荐人</span>
             <AddressChip address={row.sponsorWallet} variant="compact" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 gap-1 px-2 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                open(row.sponsorWallet!);
+              }}
+            >
+              <Eye className="h-3.5 w-3.5" /> 查看
+            </Button>
           </div>
         )}
         {row.remark && (

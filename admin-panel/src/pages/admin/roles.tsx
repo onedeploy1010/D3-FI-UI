@@ -10,6 +10,7 @@ import {
   type AdminUser,
   type PermissionDef,
 } from '@/lib/adminApi';
+import { useAdminAuth } from '@/contexts/admin-auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -395,6 +396,11 @@ function CreateAdminDialog({
 // ---------------------------------------------------------------------------
 
 export default function RolesPage() {
+  const { user } = useAdminAuth();
+  // Only the single root admin (d3finance@hotmail.com) may create / edit / delete
+  // admins or change permissions. The backend enforces this via requireRootAdmin;
+  // this gate just hides the controls so non-root admins don't hit a 403.
+  const isRoot = (user?.username ?? '').trim().toLowerCase() === 'd3finance@hotmail.com';
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [catalog, setCatalog] = useState<PermissionsCatalog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -528,37 +534,40 @@ export default function RolesPage() {
         key: 'actions',
         label: '操作',
         className: 'text-right',
-        render: (row) => (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditing(row);
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              编辑
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-              aria-label="删除管理员"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleting(row);
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        ),
+        render: (row) =>
+          isRoot ? (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing(row);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                编辑
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                aria-label="删除管理员"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleting(row);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
       },
     ],
-    [roleLabel, permLabel],
+    [roleLabel, permLabel, isRoot],
   );
 
   return (
@@ -571,19 +580,31 @@ export default function RolesPage() {
             <RotateCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
             刷新
           </Button>
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setCreateOpen(true)}
-            disabled={!catalog}
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            新增管理员
-          </Button>
+          {isRoot && (
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setCreateOpen(true)}
+              disabled={!catalog}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              新增管理员
+            </Button>
+          )}
         </>
       }
     >
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {!isRoot && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl cell-inset p-3 text-xs text-muted-foreground">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <span>
+            只有根管理员 <span className="font-medium text-foreground">d3finance@hotmail.com</span>{' '}
+            可以新增、编辑或删除管理员及修改权限。你可以查看当前管理员名单。
+          </span>
+        </div>
+      )}
 
       <DataList<AdminUser>
         columns={columns}
@@ -593,7 +614,7 @@ export default function RolesPage() {
         searchPlaceholder="搜索用户名 / 邮箱…"
         filters={filters}
         dateKey="createdAt"
-        onRowClick={(row) => setEditing(row)}
+        onRowClick={isRoot ? (row) => setEditing(row) : undefined}
         pageSize={20}
         loading={loading}
         emptyText="暂无管理员"

@@ -34,7 +34,6 @@ import { DataList, type DataListColumn } from '@/components/data-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -207,13 +206,11 @@ function StatCard({
   const valueTone =
     tone === 'good' ? 'text-emerald-500' : tone === 'bad' ? 'text-red-500' : 'text-foreground';
   return (
-    <Card className="border-border/60">
-      <CardContent className="p-3.5">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`text-lg font-bold mt-1 tabular-nums ${valueTone}`}>{value}</p>
-        {sub && <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>}
-      </CardContent>
-    </Card>
+    <div className="rounded-xl cell-inset p-3">
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={`text-lg font-bold mt-1 tabular-nums ${valueTone}`}>{value}</p>
+      {sub && <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>}
+    </div>
   );
 }
 
@@ -562,13 +559,12 @@ export default function SecurityPage() {
                 const Icon = meta.icon;
                 const busy = busyFlag === f.flag;
                 return (
-                  <Card
+                  <div
                     key={f.flag}
-                    className={`border-border/60 transition-colors ${
-                      f.paused ? 'border-red-500/40 bg-red-500/[0.03]' : ''
+                    className={`rounded-xl cell-inset p-4 space-y-3 transition-colors ${
+                      f.paused ? 'ring-1 ring-inset ring-red-500/40' : ''
                     }`}
                   >
-                    <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0">
                           <span
@@ -632,7 +628,7 @@ export default function SecurityPage() {
                       </p>
 
                       {(f.reason || f.updated_at) && (
-                        <div className="rounded-lg bg-muted/40 px-2.5 py-2 space-y-0.5">
+                        <div className="rounded-lg bg-black/25 px-2.5 py-2 space-y-0.5">
                           {f.reason && (
                             <p className="text-[11px] text-foreground/80 break-words">
                               原因：{f.reason}
@@ -645,8 +641,7 @@ export default function SecurityPage() {
                           )}
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                  </div>
                 );
               })}
             </div>
@@ -692,58 +687,54 @@ export default function SecurityPage() {
                     : undefined
                 }
               />
-              <Card className="border-border/60">
-                <CardContent className="p-3.5 flex flex-col justify-between h-full">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    健康状态
-                  </p>
-                  {solvency ? (
-                    solvency.healthy ? (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 w-fit bg-emerald-500/15 text-emerald-600 border-emerald-500/40"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5 mr-1" /> 健康
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 w-fit bg-red-500/15 text-red-500 border-red-500/40"
-                      >
-                        <ShieldAlert className="h-3.5 w-3.5 mr-1" /> 风险
-                      </Badge>
-                    )
+              <div className="rounded-xl cell-inset p-3 flex flex-col justify-between">
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  健康状态
+                </p>
+                {solvency ? (
+                  solvency.healthy ? (
+                    <Badge
+                      variant="outline"
+                      className="mt-1 w-fit bg-emerald-500/15 text-emerald-600 border-emerald-500/40"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 mr-1" /> 健康
+                    </Badge>
                   ) : (
-                    <p className="text-lg font-bold mt-1">—</p>
-                  )}
-                </CardContent>
-              </Card>
+                    <Badge
+                      variant="outline"
+                      className="mt-1 w-fit bg-red-500/15 text-red-500 border-red-500/40"
+                    >
+                      <ShieldAlert className="h-3.5 w-3.5 mr-1" /> 风险
+                    </Badge>
+                  )
+                ) : (
+                  <p className="text-lg font-bold mt-1">—</p>
+                )}
+              </div>
             </div>
             {solvency && (
-              <Card className="border-border/60">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">偿付率健康度</span>
-                    <span
-                      className={`font-bold tabular-nums ${
-                        solvency.healthy ? 'text-emerald-500' : 'text-red-500'
-                      }`}
-                    >
-                      {(solvency.ratio * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <Progress
-                    value={Math.max(0, Math.min(100, solvency.ratio * 100))}
-                    className={solvency.healthy ? '' : '[&>div]:bg-red-500'}
-                  />
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {solvency.healthy
-                      ? '偿付率处于安全区间，闪兑与提现正常运行。'
-                      : '偿付率低于安全阈值，闪兑可能已自动熔断，请核查储备与负债。'}
-                    100% 表示储备恰好覆盖全部负债。
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="rounded-xl cell-inset p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">偿付率健康度</span>
+                  <span
+                    className={`font-bold tabular-nums ${
+                      solvency.healthy ? 'text-emerald-500' : 'text-red-500'
+                    }`}
+                  >
+                    {(solvency.ratio * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Progress
+                  value={Math.max(0, Math.min(100, solvency.ratio * 100))}
+                  className={solvency.healthy ? '' : '[&>div]:bg-red-500'}
+                />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {solvency.healthy
+                    ? '偿付率处于安全区间，闪兑与提现正常运行。'
+                    : '偿付率低于安全阈值，闪兑可能已自动熔断，请核查储备与负债。'}
+                  100% 表示储备恰好覆盖全部负债。
+                </p>
+              </div>
             )}
           </section>
 
@@ -767,39 +758,37 @@ export default function SecurityPage() {
               }
             />
             {Object.keys(limits).length === 0 ? (
-              <Card className="border-border/60">
-                <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                  暂无限额配置
-                </CardContent>
-              </Card>
+              <div className="rounded-xl cell-inset p-6 text-center text-sm text-muted-foreground">
+                暂无限额配置
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {Object.entries(limits).map(([k, v]) => {
                   const meta = LIMIT_META[k];
                   return (
-                    <Card key={k} className="border-border/60">
-                      <CardContent className="p-3.5">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="text-xs font-semibold">{meta?.label ?? k}</span>
-                          <span className="text-sm font-bold tabular-nums shrink-0">
-                            {v == null || v === '' ? '—' : String(v)}
-                            {meta?.unit && v != null && v !== '' && (
-                              <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-                                {meta.unit}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[10px] font-mono text-muted-foreground break-all">
-                          {k}
+                    <div key={k} className="rounded-xl cell-inset p-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-xs font-semibold min-w-0 break-words">
+                          {meta?.label ?? k}
+                        </span>
+                        <span className="text-sm font-bold tabular-nums shrink-0 text-primary">
+                          {v == null || v === '' ? '—' : String(v)}
+                          {meta?.unit && v != null && v !== '' && (
+                            <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                              {meta.unit}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] font-mono text-muted-foreground break-all">
+                        {k}
+                      </p>
+                      {meta?.hint && (
+                        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                          {meta.hint}
                         </p>
-                        {meta?.hint && (
-                          <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                            {meta.hint}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -821,19 +810,17 @@ export default function SecurityPage() {
 
             {/* Severity summary strip */}
             {alertCounts && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {(['P0', 'P1', 'P2', 'P3'] as const).map((sev) => (
-                  <Card key={sev} className="border-border/60">
-                    <CardContent className="p-2.5 text-center">
-                      <Badge variant="outline" className={`${SEVERITY_STYLE[sev]} mb-1`}>
-                        {sev}
-                      </Badge>
-                      <p className="text-lg font-bold tabular-nums leading-none">
-                        {alertCounts[sev] ?? 0}
-                      </p>
-                      <p className="mt-1 text-[10px] text-muted-foreground">{SEVERITY_HINT[sev]}</p>
-                    </CardContent>
-                  </Card>
+                  <div key={sev} className="rounded-xl cell-inset p-2.5 text-center">
+                    <Badge variant="outline" className={`${SEVERITY_STYLE[sev]} mb-1`}>
+                      {sev}
+                    </Badge>
+                    <p className="text-lg font-bold tabular-nums leading-none">
+                      {alertCounts[sev] ?? 0}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">{SEVERITY_HINT[sev]}</p>
+                  </div>
                 ))}
               </div>
             )}

@@ -23,7 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -194,9 +193,9 @@ function WorkflowStepper({ status }: { status: string }) {
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="space-y-0.5">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="text-sm">{value}</div>
+    <div className="rounded-xl cell-inset p-3 space-y-1">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <div className="text-sm font-bold text-foreground [&_*]:font-normal">{value}</div>
     </div>
   );
 }
@@ -221,8 +220,10 @@ function TicketDetailBody({
   const t = detail.ticket;
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border/60 bg-card/40 px-3 py-4">
-        <WorkflowStepper status={t.status} />
+      <div className="rounded-xl cell-inset px-3 py-4 overflow-x-auto">
+        <div className="min-w-[280px]">
+          <WorkflowStepper status={t.status} />
+        </div>
       </div>
 
       <Tabs defaultValue="info">
@@ -235,7 +236,7 @@ function TicketDetailBody({
         </TabsList>
 
         <TabsContent value="info" className="mt-3 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <InfoRow label="类型" value={KIND_LABEL[t.kind] ?? t.kind} />
             <InfoRow label="状态" value={<StatusBadge status={t.status} />} />
             <InfoRow
@@ -261,9 +262,9 @@ function TicketDetailBody({
           </div>
 
           {(detail.receiptUrls?.length ?? 0) > 0 && (
-            <div className="space-y-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold">
-                <Paperclip className="h-3.5 w-3.5" /> 票据附件
+            <div className="rounded-xl cell-inset p-3 space-y-2">
+              <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <Paperclip className="h-3.5 w-3.5 text-primary" /> 票据附件
               </p>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {detail.receiptUrls!.map((item) => {
@@ -274,7 +275,7 @@ function TicketDetailBody({
                       href={item.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="block aspect-square overflow-hidden rounded-lg border bg-muted/30"
+                      className="block aspect-square overflow-hidden rounded-lg border border-border/60 bg-muted/30"
                     >
                       {isVideo ? (
                         <div className="flex h-full items-center justify-center p-2 text-center text-[11px] text-muted-foreground">
@@ -291,13 +292,13 @@ function TicketDetailBody({
           )}
 
           {detail.priorTickets.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold">历史补贴申请</p>
-              <div className="rounded-lg border border-border/60 divide-y divide-border/50">
+            <div className="rounded-xl cell-inset p-3 space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">历史补贴申请</p>
+              <div className="rounded-lg border border-border/50 divide-y divide-border/50 overflow-hidden">
                 {detail.priorTickets.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground"
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground"
                   >
                     <span>{KIND_LABEL[p.kind] ?? p.kind}</span>
                     <span className="flex items-center gap-2">
@@ -312,7 +313,7 @@ function TicketDetailBody({
         </TabsContent>
 
         <TabsContent value="thread" className="mt-3 space-y-3">
-          <div className="max-h-[38vh] space-y-2 overflow-y-auto rounded-lg border border-border/60 bg-muted/10 p-3">
+          <div className="max-h-[38vh] space-y-2 overflow-y-auto rounded-xl cell-inset p-3">
             {detail.messages.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">暂无沟通记录</p>
             ) : (
@@ -370,8 +371,8 @@ function TicketDetailBody({
       {canWrite && (
         <>
           <Separator />
-          <div className="space-y-2">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">工单处理</p>
+          <div className="rounded-xl cell-inset p-3 space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">工单处理</p>
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
@@ -647,29 +648,32 @@ export default function SubsidiesPage() {
         ) : undefined
       }
     >
-      <Card className="mb-4 border-border/60 bg-card/40">
-        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-1 py-3 text-sm">
-          <span className="text-muted-foreground">当前生效比例</span>
-          <span>
-            合伙人补贴 <span className="font-semibold text-foreground">{settings.partnerSubsidyRatePct}%</span>
-          </span>
-          <span>
-            市场补贴 <span className="font-semibold text-foreground">{settings.marketSubsidyRatePct}%</span>
-          </span>
-        </CardContent>
-      </Card>
+      <div className="mb-4 space-y-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">当前生效比例</p>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="rounded-xl cell-inset p-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">合伙人补贴</p>
+            <p className="text-lg font-bold text-primary">{settings.partnerSubsidyRatePct}%</p>
+          </div>
+          <div className="rounded-xl cell-inset p-3 space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">市场补贴</p>
+            <p className="text-lg font-bold text-primary">{settings.marketSubsidyRatePct}%</p>
+          </div>
+        </div>
+      </div>
 
       {walletFilter && (
-        <div className="flex items-center gap-2 text-xs rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
-          <span className="text-muted-foreground">已筛选钱包：</span>
-          <span className="font-mono truncate">{walletFilter}</span>
-          <button
-            type="button"
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs rounded-xl border border-primary/40 bg-primary/10 px-3 py-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">已筛选钱包</span>
+          <span className="min-w-0 flex-1 font-mono truncate text-foreground">{walletFilter}</span>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate('/subsidies')}
-            className="ml-auto text-primary hover:underline shrink-0"
+            className="shrink-0 text-primary"
           >
-            清除筛选
-          </button>
+            <X className="h-3.5 w-3.5" /> 清除筛选
+          </Button>
         </div>
       )}
 
@@ -689,7 +693,7 @@ export default function SubsidiesPage() {
       {/* Detail: Dialog on desktop, Drawer on mobile */}
       {isDesktop ? (
         <Dialog open={Boolean(selectedId)} onOpenChange={(o) => !o && closeTicket()}>
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{detailHeader}</DialogTitle>
             </DialogHeader>
@@ -709,14 +713,14 @@ export default function SubsidiesPage() {
 
       {/* Program settings (可借比例) */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>可借比例设置</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs">
-                <span className="text-muted-foreground">合伙人补贴 (%)</span>
+              <label className="rounded-xl cell-inset p-3 space-y-1.5">
+                <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">合伙人补贴 (%)</span>
                 <input
                   type="number"
                   min={0}
@@ -724,11 +728,11 @@ export default function SubsidiesPage() {
                   step={0.1}
                   value={settingsDraft.partnerSubsidyRatePct}
                   onChange={(e) => setSettingsDraft((s) => ({ ...s, partnerSubsidyRatePct: e.target.value }))}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
                 />
               </label>
-              <label className="space-y-1 text-xs">
-                <span className="text-muted-foreground">市场补贴 (%)</span>
+              <label className="rounded-xl cell-inset p-3 space-y-1.5">
+                <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">市场补贴 (%)</span>
                 <input
                   type="number"
                   min={0}
@@ -736,15 +740,15 @@ export default function SubsidiesPage() {
                   step={0.1}
                   value={settingsDraft.marketSubsidyRatePct}
                   onChange={(e) => setSettingsDraft((s) => ({ ...s, marketSubsidyRatePct: e.target.value }))}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
                 />
               </label>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              当前生效：合伙人 {settings.partnerSubsidyRatePct}% · 市场 {settings.marketSubsidyRatePct}%
+              当前生效：合伙人 <span className="font-semibold text-primary">{settings.partnerSubsidyRatePct}%</span> · 市场 <span className="font-semibold text-primary">{settings.marketSubsidyRatePct}%</span>
             </p>
             {canWrite && (
-              <Button disabled={settingsSaving} onClick={() => void saveSettings()}>
+              <Button className="w-full sm:w-auto" disabled={settingsSaving} onClick={() => void saveSettings()}>
                 {settingsSaving ? '保存中…' : '保存比例'}
               </Button>
             )}

@@ -267,37 +267,51 @@ export default function ParamsPage() {
 
             {/* Frequency + amount range */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs">增单间隔 (秒)</Label>
+              <div className="rounded-xl cell-inset p-3 space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  增单间隔 (秒)
+                </Label>
                 <Input
                   value={intervalDraft}
                   onChange={(e) => setIntervalDraft(e.target.value)}
                   disabled={!canWrite}
                   inputMode="numeric"
+                  className="w-full"
                 />
               </div>
-              <div>
-                <Label className="text-xs">虚单最小 (USDT)</Label>
+              <div className="rounded-xl cell-inset p-3 space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  虚单最小 (USDT)
+                </Label>
                 <Input
                   value={minDraft}
                   onChange={(e) => setMinDraft(e.target.value)}
                   disabled={!canWrite}
                   inputMode="numeric"
+                  className="w-full"
                 />
               </div>
-              <div>
-                <Label className="text-xs">虚单最大 (USDT)</Label>
+              <div className="rounded-xl cell-inset p-3 space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  虚单最大 (USDT)
+                </Label>
                 <Input
                   value={maxDraft}
                   onChange={(e) => setMaxDraft(e.target.value)}
                   disabled={!canWrite}
                   inputMode="numeric"
+                  className="w-full"
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={saveConfig} disabled={!canWrite || savingCfg} size="sm">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <Button
+                onClick={saveConfig}
+                disabled={!canWrite || savingCfg}
+                size="sm"
+                className="w-full sm:w-auto"
+              >
                 {savingCfg ? <Loader2 className="h-4 w-4 animate-spin" /> : '保存配置'}
               </Button>
               <Button
@@ -305,20 +319,27 @@ export default function ParamsPage() {
                 disabled={!canWrite}
                 size="sm"
                 variant="outline"
+                className="w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4" /> 手动新增订单
               </Button>
-              <Button onClick={genOne} disabled={!canWrite} size="sm" variant="outline">
+              <Button
+                onClick={genOne}
+                disabled={!canWrite}
+                size="sm"
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
                 <Zap className="h-4 w-4" /> 立即生成一条
               </Button>
-              <Button onClick={loadHeartbeat} size="sm" variant="ghost">
+              <Button onClick={loadHeartbeat} size="sm" variant="ghost" className="w-full sm:w-auto">
                 <RefreshCw className="h-4 w-4" /> 刷新
               </Button>
             </div>
 
             {/* Recent orders */}
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-xs">
+            <div className="rounded-xl cell-inset overflow-x-auto">
+              <table className="w-full min-w-[520px] text-xs">
                 <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
                     <th className="text-left font-medium px-3 py-2">来源</th>
@@ -364,31 +385,36 @@ export default function ParamsPage() {
         {grouped.map(([group, list]) => (
           <Card key={group}>
             <CardContent className="p-4">
-              <div className="font-semibold mb-3">{GROUP_LABEL[group] ?? group}</div>
-              <div className="space-y-1">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {GROUP_LABEL[group] ?? group}
+              </div>
+              <div className="space-y-2">
                 {list.map((pm) => (
                   <div
                     key={pm.param_key}
-                    className="flex items-center gap-3 py-2 border-b last:border-b-0"
+                    className="flex flex-col gap-3 rounded-xl cell-inset p-3 sm:flex-row sm:items-center"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">{pm.label}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">{pm.label}</span>
                         {pm.on_chain && (
                           <Badge variant="outline" className="gap-1 text-amber-600 border-amber-500/40">
                             <Lock className="h-3 w-3" /> 将由多签管理
                           </Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground font-mono truncate">
-                        {pm.param_key} = {fmtValue(pm)}
+                      <div className="mt-1 overflow-x-auto text-xs font-mono text-muted-foreground">
+                        <span className="whitespace-nowrap">
+                          {pm.param_key} = <span className="text-primary">{fmtValue(pm)}</span>
+                        </span>
                       </div>
                     </div>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => openEdit(pm)}
                       disabled={!canWrite || !pm.editable}
+                      className="w-full sm:w-auto sm:shrink-0"
                     >
                       <Pencil className="h-4 w-4" /> 编辑
                     </Button>
@@ -408,19 +434,21 @@ export default function ParamsPage() {
           </DialogHeader>
           {editParam && (
             <div className="space-y-2">
-              <div className="text-xs text-muted-foreground font-mono">{editParam.param_key}</div>
+              <div className="rounded-xl cell-inset p-2 text-xs text-muted-foreground font-mono overflow-x-auto">
+                <span className="whitespace-nowrap">{editParam.param_key}</span>
+              </div>
               {editParam.value_type === 'json' ? (
                 <Textarea
                   value={editDraft}
                   onChange={(e) => setEditDraft(e.target.value)}
                   rows={8}
-                  className="font-mono text-xs"
+                  className="w-full font-mono text-xs"
                 />
               ) : editParam.value_type === 'boolean' ? (
                 <select
                   value={editDraft}
                   onChange={(e) => setEditDraft(e.target.value)}
-                  className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+                  className="w-full h-9 rounded-md cell-inset px-3 text-sm text-foreground"
                 >
                   <option value="true">true</option>
                   <option value="false">false</option>
@@ -430,6 +458,7 @@ export default function ParamsPage() {
                   value={editDraft}
                   onChange={(e) => setEditDraft(e.target.value)}
                   inputMode={editParam.value_type === 'number' ? 'decimal' : 'text'}
+                  className="w-full"
                 />
               )}
               {editParam.on_chain && (
@@ -457,22 +486,27 @@ export default function ParamsPage() {
             <DialogTitle>手动新增显示订单</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <Label className="text-xs">金额 (USDT)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                金额 (USDT)
+              </Label>
               <Input
                 value={addAmount}
                 onChange={(e) => setAddAmount(e.target.value)}
                 inputMode="decimal"
                 placeholder="500"
+                className="w-full"
               />
             </div>
-            <div>
-              <Label className="text-xs">地址 (可选，留空自动生成)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                地址 (可选，留空自动生成)
+              </Label>
               <Input
                 value={addAddress}
                 onChange={(e) => setAddAddress(e.target.value)}
                 placeholder="0x…"
-                className="font-mono"
+                className="w-full font-mono"
               />
             </div>
           </div>
@@ -492,9 +526,11 @@ export default function ParamsPage() {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-lg border p-2.5">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className={`text-lg font-bold ${accent ? 'text-pink-500' : ''}`}>{value}</div>
+    <div className="rounded-xl cell-inset p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-lg font-bold ${accent ? 'text-primary' : 'text-foreground'}`}>
+        {value}
+      </div>
     </div>
   );
 }

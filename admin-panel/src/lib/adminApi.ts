@@ -35,6 +35,8 @@ export type MemberRow = {
   pendingUsdtYield: number;
   marketLeaderStatus: string;
   joinedAt: string | null;
+  /** 注册日期 (profile created / first referral bind). */
+  createdAt: string | null;
   sponsorWallet: string | null;
   teamPerformanceUsd: number;
   personalPerformanceUsd: number;
