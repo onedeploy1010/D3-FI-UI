@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import { AddressChip } from './address-chip';
 import { getMember, setMemberLeader, setMemberRemark, setMemberSubsidyRate, type MemberDetail } from '@/lib/adminApi';
 import { useAdminAuth } from '@/contexts/admin-auth';
+import { useLocation } from 'wouter';
 import { fmtUsd } from '@/lib/supabase';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
@@ -69,6 +70,7 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
   const [leaderReason, setLeaderReason] = useState('');
   const [submittingLeader, setSubmittingLeader] = useState(false);
 
+  const [, navigate] = useLocation();
   // Per-member subsidy-rate override (needs `subsidies.rates`).
   const { hasPermission } = useAdminAuth();
   const canEditRate = hasPermission('subsidies.rates');
@@ -260,6 +262,30 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
           </div>
         )}
       </Section>
+
+      {/* Subsidy overview: quota + ticket amounts by status + jump to tickets */}
+      {data.subsidySummary && (
+        <Section title="补贴概览 Subsidy">
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="可申请额度" value={`$${fmtUsd(data.subsidySummary.quotaRemaining)}`} hint={`比例 ${data.subsidySummary.ratePct ?? 10}%`} />
+            <Stat label="申请中" value={`$${fmtUsd(data.subsidySummary.pendingUsd)}`} />
+            <Stat label="已批准" value={`$${fmtUsd(data.subsidySummary.approvedUsd)}`} />
+            <Stat label="已发放" value={`$${fmtUsd(data.subsidySummary.paidUsd)}`} />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full mt-1"
+            disabled={data.subsidySummary.ticketCount === 0}
+            onClick={() => {
+              onClose();
+              navigate(`/subsidies?wallet=${wallet}`);
+            }}
+          >
+            查看补贴工单{data.subsidySummary.ticketCount > 0 ? `（${data.subsidySummary.ticketCount}）` : ''}
+          </Button>
+        </Section>
+      )}
 
       {/* Per-member subsidy rate (needs subsidies.rates permission) */}
       {canEditRate && (

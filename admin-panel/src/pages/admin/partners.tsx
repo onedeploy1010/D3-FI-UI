@@ -4,6 +4,7 @@ import { PageShell } from './page-shell';
 import { AddressChip } from '@/components/address-chip';
 import { DataList, type DataListColumn, type DataListFilter } from '@/components/data-list';
 import { adminFetch } from '@/lib/adminApi';
+import { useMemberDialog } from '@/components/member-dialog-provider';
 import { fmtUsd } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -130,6 +131,7 @@ function DetailStat({ label, children }: { label: string; children: ReactNode })
 }
 
 export default function PartnersPage() {
+  const { open } = useMemberDialog();
   const [rows, setRows] = useState<PartnerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -320,6 +322,7 @@ export default function PartnersPage() {
         searchPlaceholder="搜索钱包地址…"
         filters={filters}
         dateKey="joined_at"
+        onRowClick={(r) => open(r.wallet_address)}
         renderExpanded={renderExpanded}
         pageSize={15}
         loading={loading}

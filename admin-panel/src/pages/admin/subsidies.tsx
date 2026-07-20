@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useLocation, useSearch } from 'wouter';
 import { toast } from 'sonner';
 import {
   Check,
@@ -417,6 +418,17 @@ export default function SubsidiesPage() {
 
   const [rows, setRows] = useState<SubsidyTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  // Optional ?wallet= filter (jumped in from a member/partner detail dialog).
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const walletFilter = useMemo(() => new URLSearchParams(search).get('wallet') ?? '', [search]);
+  const visibleRows = useMemo(
+    () =>
+      walletFilter
+        ? rows.filter((r) => (r.wallet_address ?? '').toLowerCase() === walletFilter.toLowerCase())
+        : rows,
+    [rows, walletFilter],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [reply, setReply] = useState('');
@@ -647,9 +659,23 @@ export default function SubsidiesPage() {
         </CardContent>
       </Card>
 
+      {walletFilter && (
+        <div className="flex items-center gap-2 text-xs rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
+          <span className="text-muted-foreground">已筛选钱包：</span>
+          <span className="font-mono truncate">{walletFilter}</span>
+          <button
+            type="button"
+            onClick={() => navigate('/subsidies')}
+            className="ml-auto text-primary hover:underline shrink-0"
+          >
+            清除筛选
+          </button>
+        </div>
+      )}
+
       <DataList<SubsidyTicket>
         columns={columns}
-        rows={rows}
+        rows={visibleRows}
         getRowId={(r) => r.id}
         searchKeys={['wallet_address', 'id']}
         searchPlaceholder="搜索钱包 / 工单号…"

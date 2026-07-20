@@ -26,6 +26,7 @@ import {
 } from '../_shared/systemParams.ts';
 import { insertHeartbeatOrder, generateHeartbeatOrderNow } from '../_shared/heartbeatTick.ts';
 import {
+  computeSubsidyQuota,
   getPartnerProgramSettings,
   setMemberSubsidyRatePct,
   signSubsidyReceiptDownloads,
@@ -288,10 +289,12 @@ type ReferralNode = {
 
 async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> {
   const pk = w(wallet);
-  const [accountRes, referralRes, directs, downline, stats] = await Promise.all([
+  // PERF: read the MATERIALIZED team/small-area columns instead of fetchPartnerTeamStats
+  // (which re-walked the subtree several times PER NODE — the referral tree was slow).
+  const [accountRes, referralRes, directs, downline] = await Promise.all([
     sb
       .from('partner_accounts')
-      .select('is_partner, market_leader_status')
+      .select('is_partner, market_leader_status, team_perf_usdt, small_area_perf_usdt')
       .ilike('wallet_address', pk)
       .maybeSingle(),
     sb
@@ -302,25 +305,25 @@ async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> 
       .maybeSingle(),
     fetchDirectPartnerReferrals(sb, pk),
     collectPartnerDownlineWallets(sb, pk),
-    fetchPartnerTeamStats(sb, pk),
   ]);
-  const sLevel =
-    resolveUd3SLevel({
-      totalPerfUsdt: stats.teamPerformanceUsd,
-      smallAreaPerfUsdt: stats.smallAreaPerformanceUsd,
-    })?.label ?? null;
+  const acct = accountRes.data as
+    | { is_partner?: boolean; market_leader_status?: string; team_perf_usdt?: number | null; small_area_perf_usdt?: number | null }
+    | null;
+  const teamPerf = Number(acct?.team_perf_usdt ?? 0);
+  const smallArea = Number(acct?.small_area_perf_usdt ?? 0);
+  const sLevel = resolveUd3SLevel({ totalPerfUsdt: teamPerf, smallAreaPerfUsdt: smallArea })?.label ?? null;
   return {
     wallet: pk,
     shortWallet: shortWallet(pk),
     sponsorWallet: (referralRes.data?.sponsor_wallet_address as string) ?? null,
     directCount: directs.length,
     teamCount: downline.length,
-    bigAreaPerfUsdt: stats.largeAreaPerformanceUsd,
-    smallAreaPerfUsdt: stats.smallAreaPerformanceUsd,
+    bigAreaPerfUsdt: Math.max(0, Math.round((teamPerf - smallArea) * 100) / 100),
+    smallAreaPerfUsdt: smallArea,
     sLevel,
     vLevel: sLevel, // S/V qualify off the same 总业绩 bracket
-    isPartner: Boolean(accountRes.data?.is_partner),
-    marketLeaderStatus: (accountRes.data?.market_leader_status as string) ?? 'none',
+    isPartner: Boolean(acct?.is_partner),
+    marketLeaderStatus: acct?.market_leader_status ?? 'none',
   };
 }
 
@@ -354,6 +357,24 @@ async function getMemberBundle(sb: Sb, wallet: string) {
         .reduce((acc, s) => acc + Number(s.principal_usdt ?? 0), 0),
     );
 
+  // 补贴概览：可申请额度 + 按状态汇总的工单金额（申请中 / 已批准 / 已发放）。
+  const [quota, ticketsRes] = await Promise.all([
+    computeSubsidyQuota(sb, pk, 'partner_subsidy').catch(() => null),
+    sb.from('partner_subsidy_tickets').select('amount_usd, status').ilike('wallet_address', pk),
+  ]);
+  const tickets = (ticketsRes.data ?? []) as Array<{ amount_usd: number | null; status: string }>;
+  const sumStatus = (statuses: string[]) =>
+    round2(tickets.filter((t) => statuses.includes(t.status)).reduce((s, t) => s + Number(t.amount_usd ?? 0), 0));
+  const subsidySummary = {
+    ratePct: quota?.ratePct ?? null,
+    quotaRemaining: quota?.remaining ?? 0,
+    quotaCap: quota?.cap ?? 0,
+    pendingUsd: sumStatus(['open', 'pending_info', 'under_review']),
+    approvedUsd: sumStatus(['approved']),
+    paidUsd: sumStatus(['paid']),
+    ticketCount: tickets.length,
+  };
+
   return {
     wallet: pk,
     profile: {
@@ -365,6 +386,7 @@ async function getMemberBundle(sb: Sb, wallet: string) {
     marketLeaderStatus: node.marketLeaderStatus,
     isPartner: node.isPartner,
     subsidyRatePct: account?.subsidy_rate_pct == null ? null : Number(account.subsidy_rate_pct),
+    subsidySummary,
     stakeSummary: {
       count: stakes.length,
       usdtPrincipal: sumKinds(USDT_STAKE_KINDS),

@@ -192,6 +192,15 @@ export type MemberDetail = {
   isPartner: boolean;
   /** Per-member subsidy % override; null = use global default (10%). */
   subsidyRatePct: number | null;
+  subsidySummary?: {
+    ratePct: number | null;
+    quotaRemaining: number;
+    quotaCap: number;
+    pendingUsd: number;
+    approvedUsd: number;
+    paidUsd: number;
+    ticketCount: number;
+  };
   stakeSummary: MemberStakeSummary;
   balances: MemberBalances;
   referral: MemberReferralSummary;
