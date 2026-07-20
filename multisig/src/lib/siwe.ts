@@ -63,9 +63,9 @@ export async function siweSignIn(
   const message = new SiweMessage({
     domain: window.location.host,
     address,
-    // EIP-4361 statement must be ASCII — non-ASCII (e.g. 中文) makes the SIWE
-    // parser's ABNF grammar reject the message ("max line number / matched 122").
-    statement: 'Sign in to D3 Multisig.',
+    // Unified with the main app's statement. EIP-4361 statement must be ASCII —
+    // non-ASCII (e.g. 中文) makes the SIWE ABNF parser reject the message.
+    statement: 'Sign in to D3 Finance.',
     uri: window.location.origin,
     version: '1',
     chainId,
