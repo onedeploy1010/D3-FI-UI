@@ -341,4 +341,81 @@ export async function buildPositions(address: string): Promise<PositionsPayload>
   return mapPositionsPayload(address, rows);
 }
 
+/**
+ * Build a single trader profile for the address-lookup / search feature.
+ * Real: aggregates the trader's live Polymarket positions (pnl, portfolio value,
+ * active count) and derives the same follow/edge/copyability metrics as the
+ * leaderboard's mapTrader, so a searched trader looks consistent with the board.
+ * `username` (when known via resolve) is used for the display name + profile URL.
+ */
+export async function buildTrader(address: string, username?: string): Promise<TraderView> {
+  const addr = address.toLowerCase();
+  let rows = await fetchPmPositions(addr, 25, true);
+  if (rows.length === 0) rows = await fetchPmPositions(addr, 25, false);
+
+  const seed = hashSeed(addr);
+  const openPnl = rows.reduce((s, r) => s + Number(r.cashPnl ?? 0), 0);
+  const currentValue = rows.reduce((s, r) => s + Number(r.currentValue ?? 0), 0);
+  const cost = rows.reduce((s, r) => s + Number(r.initialValue ?? 0), 0);
+  const activePositions = rows.filter(
+    (r) => Number(r.currentValue) > 0 && Number(r.curPrice) > 0 && !r.redeemable,
+  ).length;
+  const vol = Math.max(cost, currentValue, 1);
+
+  const pnlScore = Math.log10(Math.max(Math.abs(openPnl), 10));
+  const volScore = Math.log10(Math.max(vol, 100));
+
+  const edge = Math.min(99, Math.round(42 + pnlScore * 11));
+  const followScore = Math.min(99, Math.round(55 + pnlScore * 9 + Math.min(12, volScore * 2)));
+  const copyability = Math.min(95, Math.round(38 + volScore * 14));
+  const confidence = Math.min(98, Math.round(50 + edge * 0.35));
+  const lagTolerance = seededInt(seed, 18, 72);
+  const drawdown = Math.min(42, Math.round(14 + volScore * 3));
+  const profitFactor = Math.round((1.2 + pnlScore * 0.35) * 10) / 10;
+  const openPnlPct = cost > 0 ? Math.round((openPnl / cost) * 1000) / 10 : 0;
+
+  const name = username?.trim() || `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  const badges: string[] = openPnl > 100_000 ? ['Proven'] : ['On-chain'];
+  const tags: string[] = [];
+  if (vol > 1_000_000) tags.push('High Volume');
+  if (openPnl > 500_000) tags.push('Whale PnL');
+  tags.push('Polymarket');
+
+  const topPositions: TraderPositionView[] = rows
+    .slice()
+    .sort((a, b) => Number(b.currentValue ?? 0) - Number(a.currentValue ?? 0))
+    .slice(0, 4)
+    .map(mapTraderPosition);
+
+  return {
+    rank: null,
+    address: addr,
+    name,
+    profileImage: null,
+    badges,
+    tags: tags.slice(0, 3),
+    followScore,
+    edge,
+    copyability,
+    confidence,
+    lagTolerance,
+    openPnl: Math.round(openPnl),
+    openPnlPct,
+    currentValue: Math.round(currentValue),
+    activePositions,
+    profitFactor,
+    drawdown,
+    activity: rows.length,
+    activitySample: 'live positions',
+    marketFit: Math.min(99, Math.round(50 + copyability * 0.4)),
+    concentration: seededInt(seed >> 1, 12, 48),
+    type: 'lookup',
+    aiAnalysis: `Live Polymarket profile: ${activePositions} open of ${rows.length} tracked positions, realized PnL $${Math.round(openPnl).toLocaleString('en-US')}, portfolio value $${Math.round(currentValue).toLocaleString('en-US')}.`,
+    topPositions,
+    polymarketUrl: username
+      ? `https://polymarket.com/@${username}`
+      : `https://polymarket.com/profile/${addr}`,
+  };
+}
+
 export { CACHE_TTL_MS };

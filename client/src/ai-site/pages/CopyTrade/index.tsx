@@ -11,6 +11,8 @@ import {
   useCancelOrder,
 } from "@ai/api-client-react";
 import type { ExchangeConnection } from "@ai/api-client-react";
+import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -88,16 +90,13 @@ function ManageExchangeDialog({
     if (apiKeyLabel !== exchange.name) body.apiKeyLabel = apiKeyLabel;
 
     setIsSaving(true);
-    fetch(`/api/copytrade/exchanges/${exchange.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(res => {
-      if (!res.ok) throw new Error("Failed");
-      toast({ title: t("copyTrade.exchangeUpdated") });
-      onRefetch();
-      onClose();
-    }).catch(() => toast({ title: t("copyTrade.updateFailed"), variant: "destructive" }))
+    aiFetch(`/copytrade/exchanges/${exchange.id}`, { method: "PATCH", headers: apiHeaders(), body })
+      .then(() => {
+        toast({ title: t("copyTrade.exchangeUpdated") });
+        onRefetch();
+        onClose();
+      })
+      .catch(() => toast({ title: t("copyTrade.updateFailed"), variant: "destructive" }))
       .finally(() => setIsSaving(false));
   };
 
@@ -380,11 +379,12 @@ export default function CopyTrade() {
   };
 
   const handleDeleteExchange = (id: number) => {
-    fetch(`/api/copytrade/exchanges/${id}`, { method: "DELETE" }).then(res => {
-      if (!res.ok) throw new Error("Failed");
-      toast({ title: t("copyTrade.exchangeRemoved") });
-      refetchExchanges();
-    }).catch(() => toast({ title: t("copyTrade.exchangeRemoveFailed"), variant: "destructive" }));
+    aiFetch(`/copytrade/exchanges/${id}`, { method: "DELETE", headers: apiHeaders() })
+      .then(() => {
+        toast({ title: t("copyTrade.exchangeRemoved") });
+        refetchExchanges();
+      })
+      .catch(() => toast({ title: t("copyTrade.exchangeRemoveFailed"), variant: "destructive" }));
   };
 
   const handleCancelOrder = (id: number) => {

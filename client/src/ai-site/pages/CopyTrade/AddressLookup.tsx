@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Trader } from "./types";
 import { fetchPolymarketPositions, resolvePolymarketUsername } from "@/lib/polymarketApi";
+import { aiFetch } from "@/lib/aiApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PolyPosition {
@@ -501,9 +502,10 @@ export function AddressLookup({ onCopyTrader }: { onCopyTrader: (trader: Trader)
 
   const { data: trader, isLoading: traderLoading } = useQuery<Trader>({
     queryKey: ["copytrade-trader", query],
-    queryFn: () => fetch(`/api/copytrade/trader/${encodeURIComponent(query)}`).then(r => r.json()) as Promise<Trader>,
+    queryFn: () => aiFetch<Trader>(`/copytrade/trader/${encodeURIComponent(query)}`),
     enabled: query.length > 3,
     staleTime: 30000,
+    retry: 1,
   });
 
   const isLoading = resolving || traderLoading;

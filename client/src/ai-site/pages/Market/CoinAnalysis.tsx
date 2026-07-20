@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, Target, Zap, BrainCircuit, Scale,
 } from "lucide-react";
 import { CoinKlineChart } from "./CoinKlineChart";
-import { marketFetch } from "@/lib/marketApi";
+import { aiFetch } from "@/lib/aiApi";
 
 // ── Deterministic helpers ──────────────────────────────────────────────────────
 function hashStr(s: string): number {
@@ -170,7 +170,7 @@ export function CoinAnalysis() {
 
   const { data: liveData, isLoading } = useQuery({
     queryKey: ["coin-analysis", selected],
-    queryFn: () => marketFetch(`/coin-analysis/${selected}`),
+    queryFn: () => aiFetch(`/market/coin-analysis/${selected}`),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });

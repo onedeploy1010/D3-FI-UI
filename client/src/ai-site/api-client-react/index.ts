@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { readDemoWalletFromSession, DEMO_LINE_LEADER_WALLET } from "@/lib/demoWallet";
 import { marketFetch } from "@/lib/marketApi";
+import { aiFetch } from "@/lib/aiApi";
 
 export const DEMO_WALLET = DEMO_LINE_LEADER_WALLET;
 
@@ -31,30 +32,16 @@ export type ExchangeConnection = {
   exchange: string;
 };
 
-async function apiGet<T>(path: string): Promise<T> {
-  const r = await fetch(`/api${path}`, { headers: apiHeaders() });
-  if (!r.ok) throw new Error(`${path} failed: ${r.status}`);
-  return r.json() as Promise<T>;
+function apiGet<T>(path: string): Promise<T> {
+  return aiFetch<T>(path, { headers: apiHeaders() });
 }
 
-async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`/api${path}`, {
-    method: "POST",
-    headers: apiHeaders({ "Content-Type": "application/json" }),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!r.ok) throw new Error(`${path} failed: ${r.status}`);
-  return r.json() as Promise<T>;
+function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return aiFetch<T>(path, { method: "POST", headers: apiHeaders(), body });
 }
 
-async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`/api${path}`, {
-    method: "PUT",
-    headers: apiHeaders({ "Content-Type": "application/json" }),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!r.ok) throw new Error(`${path} failed: ${r.status}`);
-  return r.json() as Promise<T>;
+function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return aiFetch<T>(path, { method: "PUT", headers: apiHeaders(), body });
 }
 
 export function useGetUserProfile() {
@@ -222,11 +209,7 @@ export function useUpdateCopyTradeConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
-      fetch(`/api/copytrade/configs/${id}`, {
-        method: "PATCH",
-        headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(data),
-      }),
+      aiFetch(`/copytrade/configs/${id}`, { method: "PATCH", headers: apiHeaders(), body: data }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["copy-configs"] }),
   });
 }
@@ -235,7 +218,7 @@ export function useDeleteCopyTradeConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: number }) =>
-      fetch(`/api/copytrade/configs/${id}`, { method: "DELETE", headers: apiHeaders() }),
+      aiFetch(`/copytrade/configs/${id}`, { method: "DELETE", headers: apiHeaders() }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["copy-configs"] }),
   });
 }

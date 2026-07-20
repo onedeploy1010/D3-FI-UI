@@ -1,21 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 
-async function fetchPreferences(): Promise<Record<string, unknown>> {
-  const r = await fetch("/api/user/preferences", { headers: apiHeaders() });
-  if (!r.ok) throw new Error("preferences fetch failed");
-  return r.json() as Promise<Record<string, unknown>>;
+function fetchPreferences(): Promise<Record<string, unknown>> {
+  return aiFetch<Record<string, unknown>>("/user/preferences", { headers: apiHeaders() });
 }
 
-async function putPreferences(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const r = await fetch("/api/user/preferences", {
+function putPreferences(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return aiFetch<Record<string, unknown>>("/user/preferences", {
     method: "PUT",
-    headers: apiHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(patch),
+    headers: apiHeaders(),
+    body: patch,
   });
-  if (!r.ok) throw new Error("preferences update failed");
-  return r.json() as Promise<Record<string, unknown>>;
 }
 
 /** Persist a single preference key in Supabase (replaces localStorage). */

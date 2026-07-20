@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { useCreateStrategy, useGetStrategyCatalog, useGetUserStrategies } from "@ai/api-client-react";
+import { apiHeaders, useCreateStrategy, useGetStrategyCatalog, useGetUserStrategies } from "@ai/api-client-react";
 import type { CreateStrategyBodyRiskLevel } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -255,26 +256,25 @@ function useTokens() {
   const owned = userData?.ownedIds ?? [];
   const kb = userData?.knowledgeBase ?? [];
 
-  const purchase = async (id: string, cost: number) => {
-    const r = await fetch("/api/strategies/purchase", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (!r.ok) return false;
-    await refetch();
-    return true;
+  const purchase = async (id: string, _cost: number) => {
+    try {
+      await aiFetch("/strategies/purchase", { method: "POST", headers: apiHeaders(), body: { id } });
+      await refetch();
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const addToKB = (id: string) => {
     if (kb.includes(id)) return;
     const next = [...kb, id];
-    fetch("/api/strategies/user", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ knowledgeBase: next }) }).then(() => refetch());
+    aiFetch("/strategies/user", { method: "PUT", headers: apiHeaders(), body: { knowledgeBase: next } }).then(() => refetch());
   };
 
   const removeFromKB = (id: string) => {
     const next = kb.filter((k) => k !== id);
-    fetch("/api/strategies/user", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ knowledgeBase: next }) }).then(() => refetch());
+    aiFetch("/strategies/user", { method: "PUT", headers: apiHeaders(), body: { knowledgeBase: next } }).then(() => refetch());
   };
 
   return { balance, owned, kb, purchase, addToKB, removeFromKB };

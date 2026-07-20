@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@ai/lib/utils";
 import { Send, Bot, Terminal, MessageSquare, Zap, TrendingUp, TrendingDown, Shield, Flame, ChevronRight } from "lucide-react";
+import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 import type { AIAgent, Signal } from "./types";
 
 interface ChatMessage {
@@ -160,24 +162,24 @@ export function AIConsole() {
 
   const { data: agents = [] } = useQuery<AIAgent[]>({
     queryKey: ["ai-agents"],
-    queryFn: () => fetch("/api/copytrade/ai-agents").then(r => r.json()) as Promise<AIAgent[]>,
+    queryFn: () => aiFetch<AIAgent[]>("/copytrade/ai-agents", { headers: apiHeaders() }),
     staleTime: 60000,
   });
 
   const { data: signals = [] } = useQuery<Signal[]>({
     queryKey: ["copytrade-signals"],
-    queryFn: () => fetch("/api/copytrade/signals").then(r => r.json()) as Promise<Signal[]>,
+    queryFn: () => aiFetch<Signal[]>("/copytrade/signals", { headers: apiHeaders() }),
     refetchInterval: 15000,
     staleTime: 10000,
   });
 
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: (msg: string) =>
-      fetch("/api/copytrade/ai-chat", {
+      aiFetch<ChatMessage>("/copytrade/ai-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, agentId }),
-      }).then(r => r.json()) as Promise<ChatMessage>,
+        headers: apiHeaders(),
+        body: { message: msg, agentId },
+      }),
     onSuccess: (reply) => setMessages(prev => [...prev, reply]),
   });
 

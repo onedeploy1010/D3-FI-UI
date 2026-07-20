@@ -8,6 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Settings2, Bell, Plus, Trash2, AlertCircle, MessageSquare, Send, CheckCircle2, Zap, Radio, Mail, Bot } from "lucide-react";
 import { cn } from "@ai/lib/utils";
 import { useToast } from "@ai/hooks/use-toast";
+import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 import {
   Dialog,
   DialogContent,
@@ -191,7 +193,7 @@ function ChannelsTab() {
   const [testingId, setTestingId] = useState<number | null>(null);
 
   const reload = async () => {
-    try { const r = await fetch("/api/notifications/channels"); setChannels(await r.json()); } catch { /* ignore */ }
+    try { setChannels(await aiFetch<Channel[]>("/notifications/channels", { headers: apiHeaders() })); } catch { /* ignore */ }
     setLoading(false);
   };
 
@@ -200,9 +202,11 @@ function ChannelsTab() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      const r = await fetch("/api/notifications/channels", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: addName, type: addType, config: addConfig, events: addEvents }) });
-      if (!r.ok) throw new Error("Failed");
+      await aiFetch("/notifications/channels", {
+        method: "POST",
+        headers: apiHeaders(),
+        body: { name: addName, type: addType, config: addConfig, events: addEvents },
+      });
       toast({ title: t("settings.channelAdded"), description: `${PLATFORM_CFG[addType]?.label} connected.` });
       setAddOpen(false); setAddName(""); setAddConfig({}); setAddEvents(["trade","signal","alert"]);
       reload();
@@ -211,15 +215,14 @@ function ChannelsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    await fetch(`/api/notifications/channels/${id}`, { method: "DELETE" });
+    await aiFetch(`/notifications/channels/${id}`, { method: "DELETE", headers: apiHeaders() }).catch(() => {});
     setChannels(prev => prev.filter(c => c.id !== id));
   };
 
   const handleTest = async (id: number) => {
     setTestingId(id);
     try {
-      const r = await fetch(`/api/notifications/channels/${id}/test`, { method: "POST" });
-      const d = await r.json();
+      const d = await aiFetch<{ ok?: boolean; error?: string }>(`/notifications/channels/${id}/test`, { method: "POST", headers: apiHeaders() });
       if (d.ok) toast({ title: t("settings.testSent"), description: t("settings.checkChannel") });
       else toast({ title: t("settings.testFailed"), description: d.error, variant: "destructive" });
     } catch { toast({ title: "Error", description: "Could not send test.", variant: "destructive" }); }
@@ -227,7 +230,7 @@ function ChannelsTab() {
   };
 
   const handleToggle = async (ch: Channel) => {
-    await fetch(`/api/notifications/channels/${ch.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !ch.enabled }) });
+    await aiFetch(`/notifications/channels/${ch.id}`, { method: "PUT", headers: apiHeaders(), body: { enabled: !ch.enabled } }).catch(() => {});
     setChannels(prev => prev.map(c => c.id === ch.id ? { ...c, enabled: !c.enabled } : c));
   };
 

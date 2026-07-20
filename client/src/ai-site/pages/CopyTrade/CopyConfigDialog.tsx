@@ -17,6 +17,8 @@ import { cn } from "@ai/lib/utils";
 import { Bot, Shield, Zap, Flame, Copy, CheckCircle, TrendingUp, Target, Activity } from "lucide-react";
 import type { Trader, AIAgent } from "./types";
 import { useToast } from "@ai/hooks/use-toast";
+import { apiHeaders } from "@ai/api-client-react";
+import { aiFetch } from "@/lib/aiApi";
 
 type RiskPref = "conservative" | "balanced" | "aggressive";
 type CopyMode = "percent" | "threshold" | "fixed";
@@ -82,7 +84,7 @@ export function CopyConfigDialog({
 
   const { data: agents = [] } = useQuery<AIAgent[]>({
     queryKey: ["ai-agents"],
-    queryFn: () => fetch("/api/copytrade/ai-agents").then(r => r.json()) as Promise<AIAgent[]>,
+    queryFn: () => aiFetch<AIAgent[]>("/copytrade/ai-agents", { headers: apiHeaders() }),
     staleTime: 60000,
   });
 
