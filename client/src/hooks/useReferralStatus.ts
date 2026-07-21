@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { isReferralBoundForWallet } from '@/lib/referral';
+import { isReferralBoundForWallet, isReferralRootWallet } from '@/lib/referral';
 import { useUnionProfileQuery } from '@/hooks/useUnionProfileQuery';
 
 /**
@@ -17,8 +17,13 @@ import { useUnionProfileQuery } from '@/hooks/useUnionProfileQuery';
 export function useReferralStatus(wallet: string | null) {
   const query = useUnionProfileQuery(wallet);
 
-  const hasReferralBound =
-    wallet && query.data ? isReferralBoundForWallet(wallet, query.data.referrals) : false;
+  // Genesis root(s) have no sponsor — treat them as bound so every referral gate
+  // (bind gate, home/stake "please bind" prompts) lets them straight in.
+  const hasReferralBound = isReferralRootWallet(wallet)
+    ? true
+    : wallet && query.data
+      ? isReferralBoundForWallet(wallet, query.data.referrals)
+      : false;
   const loading = Boolean(wallet) && query.isLoading;
   // Only an actual error with no data on hand — never flip a bound user to "unbound".
   const error = query.isError && !query.data;
