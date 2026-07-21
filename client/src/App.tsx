@@ -19,7 +19,10 @@ import { ReferralLanding } from "@/components/wallet/ReferralLanding";
 function Router() {
   return (
     <Switch>
+      {/* Production "/" is served the standalone marketing page (dist/public/index.html);
+          the React landing lives at /app and stays reachable via client-side nav on "/". */}
       <Route path={"/"} component={Landing} />
+      <Route path={"/app"} component={Landing} />
       <Route path={"/portal"} component={Portal} />
       <Route path={"/r/:wallet"} component={ReferralLanding} />
       <Route path={"/union/r/:wallet"} component={ReferralLanding} />

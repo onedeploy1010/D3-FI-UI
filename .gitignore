@@ -114,3 +114,11 @@ client/public/__manus__/version.json
 .project-config.json
 supabase/.env.secrets
 admin-panel/.env
+
+*storybook.log
+storybook-static
+
+# D3FinanceDocuments source assets (PDF/PPTX/DOCX/logos) are hosted in Supabase
+# Storage, not committed. Only the marketing homepage index.html is tracked.
+/D3FinanceDocuments/*
+!/D3FinanceDocuments/index.html
