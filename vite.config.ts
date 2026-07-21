@@ -243,6 +243,35 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split heavy vendor libs into stable shared chunks so lazy routes that
+        // use the same lib don't each rebundle it, and app-code edits don't
+        // invalidate the (rarely-changing) vendor cache.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("recharts") || id.includes("/d3-")) return "vendor-charts";
+          if (id.includes("lightweight-charts")) return "vendor-kline";
+          if (id.includes("framer-motion")) return "vendor-motion";
+          if (
+            id.includes("@reown") ||
+            id.includes("@walletconnect") ||
+            id.includes("wagmi") ||
+            id.includes("/viem/") ||
+            id.includes("/ox/") ||
+            id.includes("@noble") ||
+            id.includes("@scure") ||
+            id.includes("abitype")
+          ) {
+            return "vendor-wallet";
+          }
+          if (id.includes("react-dom") || id.includes("/react/")) return "vendor-react";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("i18next")) return "vendor-i18n";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port: 3000,

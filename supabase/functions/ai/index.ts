@@ -296,13 +296,15 @@ Deno.serve(async (req) => {
     }
     if (path === '/copytrade/signals' && method === 'GET') {
       let list: Array<Record<string, unknown>> = [];
+      let promptPrices: Awaited<ReturnType<typeof fetchLivePrices>> = [];
       const existing = await listSignals(wallet, 10);
       if (existing.length > 0) {
         list = existing as Array<Record<string, unknown>>;
       } else if (!isOpenRouterConfigured()) {
         return jsonResponse([]);
       } else {
-        const prices = await fetchLivePrices(['BTC', 'ETH', 'SOL']);
+        promptPrices = await fetchLivePrices(['BTC', 'ETH', 'SOL']);
+        const prices = promptPrices;
         const signals = await withCache('copytrade-signals', () =>
           analyzeJson<{ signals: { symbol: string; direction: string; confidence: number; reason: string; source: string }[] }>(
             'You are a crypto trading signal engine. JSON only.',
@@ -336,8 +338,14 @@ Deno.serve(async (req) => {
       // Enrich with a live entry price + derived target/stop so the signal feed
       // shows real levels anchored to the current market price.
       const bases = [...new Set(list.map((s) => String(s.symbol).split('/')[0].toUpperCase()))];
-      const priceRows = await fetchLivePrices(bases).catch(() => []);
-      const priceMap = new Map(priceRows.map((p) => [p.sym, p.price]));
+      // Reuse prices already fetched for the generation prompt; only fetch bases
+      // we don't have yet (avoids a duplicate external price call on cache miss).
+      const priceMap = new Map(promptPrices.map((p) => [p.sym, p.price]));
+      const missingBases = bases.filter((b) => !priceMap.has(b));
+      if (missingBases.length > 0) {
+        const priceRows = await fetchLivePrices(missingBases).catch(() => []);
+        for (const p of priceRows) priceMap.set(p.sym, p.price);
+      }
       const enriched = list.map((s) => {
         const base = String(s.symbol).split('/')[0].toUpperCase();
         const entry = priceMap.get(base) ?? 0;
@@ -408,16 +416,22 @@ Deno.serve(async (req) => {
     // ── Trader lookup (search) ─────────────────────────────────────────────
     if (seg[0] === 'copytrade' && seg[1] === 'trader' && seg[2] && method === 'GET') {
       const raw = decodeURIComponent(seg[2]).trim();
-      let address = raw.toLowerCase();
-      let username: string | undefined;
-      if (!/^0x[a-f0-9]{40}$/.test(address)) {
-        // Treat as a username / slug → resolve to a wallet first.
-        const resolved = await resolvePmUsername(raw);
-        if (!resolved.address) return jsonResponse({ error: resolved.error ?? 'Trader not found' }, 404);
-        address = resolved.address.toLowerCase();
-        username = resolved.username;
+      // Cache per query so repeated lookups don't re-hit Polymarket every time.
+      const trader = await withCache(`pm-trader:${raw.toLowerCase()}`, async () => {
+        let address = raw.toLowerCase();
+        let username: string | undefined;
+        if (!/^0x[a-f0-9]{40}$/.test(address)) {
+          // Treat as a username / slug → resolve to a wallet first.
+          const resolved = await resolvePmUsername(raw);
+          if (!resolved.address) return { error: resolved.error ?? 'Trader not found', notFound: true };
+          address = resolved.address.toLowerCase();
+          username = resolved.username;
+        }
+        return await buildTrader(address, username);
+      });
+      if ((trader as { notFound?: boolean }).notFound) {
+        return jsonResponse({ error: (trader as { error?: string }).error ?? 'Trader not found' }, 404);
       }
-      const trader = await buildTrader(address, username);
       return jsonResponse(trader);
     }
 

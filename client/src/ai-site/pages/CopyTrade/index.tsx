@@ -3,12 +3,9 @@ import { useTranslation } from "react-i18next";
 import {
   useGetExchangeConnections,
   useGetCopyTradeConfigs,
-  useGetOrders,
-  useGetCopyTradeStats,
   useCreateCopyTradeConfig,
   useUpdateCopyTradeConfig,
   useDeleteCopyTradeConfig,
-  useCancelOrder,
 } from "@ai/api-client-react";
 import type { ExchangeConnection } from "@ai/api-client-react";
 import { apiHeaders } from "@ai/api-client-react";
@@ -296,19 +293,14 @@ export default function CopyTrade() {
   const { t } = useTranslation();
   const { data: exchanges = [], isLoading: isLoadingExchanges, refetch: refetchExchanges } = useGetExchangeConnections();
   const { data: configs = [], isLoading: isLoadingConfigs, refetch: refetchConfigs } = useGetCopyTradeConfigs();
-  const { data: stats = { totalPnl: 0, winRate: 0, activeConfigs: 0, totalTrades: 0, sharpeRatio: 0, maxDrawdown: 0 }, isLoading: isLoadingStats } = useGetCopyTradeStats();
-  const { data: orders = [], isLoading: isLoadingOrders } = useGetOrders({ limit: 50 });
   const updateConfig = useUpdateCopyTradeConfig();
   const deleteConfig = useDeleteCopyTradeConfig();
   const { toast } = useToast();
 
-  const cancelOrder = useCancelOrder();
-  const [orderTab, setOrderTab] = useState("all");
   const [manageExchange, setManageExchange] = useState<ExchangeConnection | null>(null);
   const [manageExchangeOpen, setManageExchangeOpen] = useState(false);
   const [newConfigOpen, setNewConfigOpen] = useState(false);
   const [deleteConfigId, setDeleteConfigId] = useState<number | null>(null);
-  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
 
   // ── Two-mode state ────────────────────────────────────────────────────────
   const [mode, setMode] = useState<"smart" | "quant">("smart");
@@ -339,12 +331,6 @@ export default function CopyTrade() {
     addToWatchlist(trader);
     toast({ title: t("copyTrade.addedToWatchlist"), description: `${trader.name} ${t("copyTrade.isBeingTracked")}` });
   };
-
-  const filteredOrders = orders?.filter(o =>
-    orderTab === "all" ? true :
-    orderTab === "open" ? o.status === "open" :
-    o.status !== "open"
-  );
 
   const handleToggleConfig = (id: number, isActive: boolean) => {
     updateConfig.mutate(
@@ -385,16 +371,6 @@ export default function CopyTrade() {
         refetchExchanges();
       })
       .catch(() => toast({ title: t("copyTrade.exchangeRemoveFailed"), variant: "destructive" }));
-  };
-
-  const handleCancelOrder = (id: number) => {
-    cancelOrder.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: t("copyTrade.orderCancelled") });
-        setCancelOrderId(null);
-      },
-      onError: () => toast({ title: t("copyTrade.cancelFailed"), variant: "destructive" }),
-    });
   };
 
   const SMART_TABS = [
@@ -556,325 +532,6 @@ export default function CopyTrade() {
         )}
       </AnimatePresence>
 
-        {false && <div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {isLoadingStats ? (
-          Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
-        ) : stats && (
-          <>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4 flex flex-col justify-between h-full">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total PNL</span>
-                <div>
-                  <PnlBadge value={stats.totalPnl} type="currency" className="text-2xl font-bold font-mono tracking-tight" />
-                  <p className="text-xs text-muted-foreground mt-1">All time return</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4 flex flex-col justify-between h-full">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sharpe Ratio</span>
-                <div>
-                  <div className="text-2xl font-bold tracking-tight font-mono">{stats.sharpeRatio.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Risk adjusted</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4 flex flex-col justify-between h-full">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Win Rate</span>
-                <div>
-                  <div className="text-2xl font-bold tracking-tight font-mono">{formatPercent(stats.winRate, 1, false)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Risk-adjusted</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardContent className="p-4 flex flex-col justify-between h-full">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Max Drawdown</span>
-                <div>
-                  <div className="text-2xl font-bold tracking-tight font-mono text-red-500">-{formatPercent(stats.maxDrawdown, 2, false)}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Peak to trough</p>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <Card className="border-border/50 bg-card/50 backdrop-blur">
-            <CardHeader className="pb-3 border-b border-border/20">
-              <CardTitle className="text-sm font-medium">Exchange APIs</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoadingExchanges ? (
-                <div className="p-4 space-y-3">
-                  {Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-                </div>
-              ) : exchanges && exchanges.length > 0 ? (
-                <div className="divide-y divide-border/20">
-                  {exchanges.map(ex => (
-                    <div key={ex.id} className="p-4 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={cn(
-                          "w-2 h-2 rounded-full shrink-0",
-                          ex.isConnected && ex.tradingEnabled ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" :
-                          ex.isConnected ? "bg-yellow-500" : "bg-red-500"
-                        )} />
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-sm truncate">{ex.name}</h4>
-                          <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                            {ex.balance ? formatCurrency(ex.balance) : "---"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleOpenManage(ex)}>Manage</Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteExchange(ex.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">No connected exchanges</div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 bg-card/50 backdrop-blur">
-            <CardHeader className="pb-3 border-b border-border/20">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Active Configs</CardTitle>
-                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setNewConfigOpen(true)}>
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoadingConfigs ? (
-                <div className="p-4 space-y-3">
-                  {Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
-                </div>
-              ) : configs && configs.length > 0 ? (
-                <div className="divide-y divide-border/20">
-                  {configs.map(config => (
-                    <div key={config.id} className="p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-bold text-sm truncate mr-2">{config.name}</h4>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Badge variant="outline" className={cn(
-                            "text-[10px] px-1.5 py-0",
-                            config.isActive ? "text-primary border-primary/30 bg-primary/10" : "text-muted-foreground border-border"
-                          )}>
-                            {config.isActive ? "ACTIVE" : "PAUSED"}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            title={config.isActive ? "Pause" : "Resume"}
-                            onClick={() => handleToggleConfig(config.id, config.isActive)}
-                            disabled={updateConfig.isPending}
-                          >
-                            {config.isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title={t("copyTrade.delete")}
-                            onClick={() => setDeleteConfigId(config.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex justify-between bg-muted/30 px-2 py-1 rounded">
-                          <span className="text-muted-foreground">Alloc</span>
-                          <span className="font-mono font-medium">{config.allocationPercent}%</span>
-                        </div>
-                        <div className="flex justify-between bg-muted/30 px-2 py-1 rounded">
-                          <span className="text-muted-foreground">Max Lev</span>
-                          <span className="font-mono font-medium">{config.maxLeverage}x</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">No active configurations</div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="lg:col-span-2 border-border/50 bg-card/50 backdrop-blur">
-          <CardHeader className="pb-0 border-b border-border/20">
-            <div className="flex items-center justify-between gap-3 pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 shrink-0">
-                <Activity className="h-4 w-4 text-primary" />
-                Execution Log
-              </CardTitle>
-              <Tabs value={orderTab} onValueChange={setOrderTab} className="w-auto">
-                <TabsList className="grid grid-cols-3 h-8 w-[220px] sm:w-[280px]">
-                  <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                  <TabsTrigger value="open" className="text-xs">Open</TabsTrigger>
-                  <TabsTrigger value="history" className="text-xs">History</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoadingOrders ? (
-              <div className="p-4 space-y-3">
-                {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-              </div>
-            ) : filteredOrders && filteredOrders.length > 0 ? (
-              <>
-                {/* Desktop table — hidden on mobile */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/30 text-muted-foreground text-[10px] uppercase tracking-wider text-left border-b border-border/20">
-                        <th className="py-2 pl-4 font-medium">Time/Asset</th>
-                        <th className="py-2 font-medium">Action</th>
-                        <th className="py-2 font-medium text-right">Price/Qty</th>
-                        <th className="py-2 font-medium text-right">AI Score</th>
-                        <th className="py-2 font-medium text-right pr-4">Status/PNL</th>
-                        <th className="py-2 font-medium w-10 pr-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/20">
-                      {filteredOrders.map(order => (
-                        <tr key={order.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 pl-4">
-                            <div className="font-bold">{order.symbol}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{formatDateTime(order.createdAt)}</div>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className={cn(
-                                "text-[10px] px-1.5 py-0 border-0 rounded-sm font-bold uppercase",
-                                order.side === "buy" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-                              )}>
-                                {order.side}
-                              </Badge>
-                              <span className="text-[10px] text-muted-foreground uppercase">{order.type}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 text-right">
-                            <div className="font-mono">{order.price ? formatCurrency(order.price, 4) : "MARKET"}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">Vol: {formatCompactNumber(order.quantity)}</div>
-                          </td>
-                          <td className="py-3 text-right">
-                            {order.aiScore ? (
-                              <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                  {order.aiScore.toFixed(1)}
-                                </span>
-                                {order.aiReason && <span className="text-[9px] text-muted-foreground mt-1 truncate max-w-[80px]" title={order.aiReason}>{order.aiReason}</span>}
-                              </div>
-                            ) : <span className="text-muted-foreground">-</span>}
-                          </td>
-                          <td className="py-3 text-right pr-4">
-                            {order.status === "open" ? (
-                              <Badge variant="outline" className="text-[10px] text-blue-500 border-blue-500/30">OPEN</Badge>
-                            ) : order.status === "cancelled" || order.status === "rejected" ? (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">CANCELLED</Badge>
-                            ) : (
-                              <PnlBadge value={order.pnl} type="currency" />
-                            )}
-                          </td>
-                          <td className="py-3 pr-2">
-                            {order.status === "open" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title={t("copyTrade.cancelOrder")}
-                                onClick={() => setCancelOrderId(order.id)}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile card list — visible only on mobile */}
-                <div className="md:hidden divide-y divide-border/20">
-                  {filteredOrders.map(order => (
-                    <div key={order.id} className="p-3 hover:bg-muted/30 transition-colors">
-                      {/* Row 1: symbol + side + status + cancel */}
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-bold text-sm truncate">{order.symbol}</span>
-                          <Badge variant="outline" className={cn(
-                            "text-[10px] px-1.5 py-0 border-0 rounded-sm font-bold uppercase shrink-0",
-                            order.side === "buy" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-                          )}>
-                            {order.side}
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground uppercase shrink-0">{order.type}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {order.status === "open" ? (
-                            <Badge variant="outline" className="text-[10px] text-blue-500 border-blue-500/30">OPEN</Badge>
-                          ) : order.status === "cancelled" || order.status === "rejected" ? (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">CANCELLED</Badge>
-                          ) : (
-                            <PnlBadge value={order.pnl} type="currency" />
-                          )}
-                          {order.status === "open" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setCancelOrderId(order.id)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      {/* Row 2: price · qty · time */}
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono flex-wrap">
-                        <span>{order.price ? formatCurrency(order.price, 4) : "MARKET"}</span>
-                        <span className="text-border">·</span>
-                        <span>Vol: {formatCompactNumber(order.quantity)}</span>
-                        <span className="text-border">·</span>
-                        <span>{formatDateTime(order.createdAt)}</span>
-                        {order.aiScore && (
-                          <>
-                            <span className="text-border">·</span>
-                            <span className="bg-primary/10 text-primary px-1 rounded">AI {order.aiScore.toFixed(1)}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-sm text-muted-foreground">No execution history found</div>
-            )}
-          </CardContent>
-        </Card>
-      </div></div>}
-
       <CopyConfigDialog
         open={copyConfigOpen}
         trader={copyTrader}
@@ -915,26 +572,6 @@ export default function CopyTrade() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={cancelOrderId !== null} onOpenChange={(o) => { if (!o) setCancelOrderId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will cancel the open order. If it has been partially filled, only the remaining portion will be cancelled.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Order</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (cancelOrderId !== null) handleCancelOrder(cancelOrderId); }}
-              disabled={cancelOrder.isPending}
-            >
-              {cancelOrder.isPending ? "Cancelling..." : "Cancel Order"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

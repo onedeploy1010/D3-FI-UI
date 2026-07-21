@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -5,19 +6,31 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Landing from "./pages/Landing";
-import Portal from "./pages/Portal";
-import D3Fi from "./pages/D3Fi";
-import BribeeUnion from "./pages/BribeeUnion";
-import PartnerProgram from "./pages/PartnerProgram";
-import D3AISite from "./pages/D3AISite";
-import FakeToken from "./pages/FakeToken";
-import HbPreview from "./pages/HbPreview";
 import { ReferralBindGate } from "@/components/wallet/ReferralBindGate";
 import { ReferralLanding } from "@/components/wallet/ReferralLanding";
+
+// Route-level code splitting: each app (dapp / union / partner / AI site) is its
+// own chunk so visiting one page doesn't download the others' dependencies.
+const Portal = lazy(() => import("./pages/Portal"));
+const D3Fi = lazy(() => import("./pages/D3Fi"));
+const BribeeUnion = lazy(() => import("./pages/BribeeUnion"));
+const PartnerProgram = lazy(() => import("./pages/PartnerProgram"));
+const D3AISite = lazy(() => import("./pages/D3AISite"));
+const FakeToken = lazy(() => import("./pages/FakeToken"));
+const HbPreview = lazy(() => import("./pages/HbPreview"));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 
 function Router() {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Switch>
       {/* Production "/" is served the standalone marketing page (dist/public/index.html);
           the React landing lives at /app and stays reachable via client-side nav on "/". */}
@@ -37,6 +50,7 @@ function Router() {
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 
@@ -53,8 +67,12 @@ function App() {
           <Toaster />
           <Switch>
             {/* Test-token faucet: ungated so testers can claim before binding a referral. */}
-            <Route path="/faketoken" component={FakeToken} />
-            <Route path="/hb-preview" component={HbPreview} />
+            <Route path="/faketoken">
+              <Suspense fallback={<RouteFallback />}><FakeToken /></Suspense>
+            </Route>
+            <Route path="/hb-preview">
+              <Suspense fallback={<RouteFallback />}><HbPreview /></Suspense>
+            </Route>
             <Route>
               <ReferralBindGate>
                 <Router />

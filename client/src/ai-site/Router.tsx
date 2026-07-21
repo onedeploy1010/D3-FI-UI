@@ -1,16 +1,28 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { MainLayout } from "@ai/components/layout/MainLayout";
-import Market from "@ai/pages/Market";
-import AiHub from "@ai/pages/AiHub";
-import CopyTrade from "@ai/pages/CopyTrade";
-import Strategy from "@ai/pages/Strategy";
-import Settings from "@ai/pages/Settings";
-import Notifications from "@ai/pages/Notifications";
-import Projects from "@ai/pages/Projects";
-import ProjectDetail from "@ai/pages/Projects/ProjectDetail";
-import Hyperliquid from "@ai/pages/Projects/Hyperliquid";
-import LegendATM from "@ai/pages/Projects/LegendATM";
-import Tools from "@ai/pages/Tools";
+
+// Route-level code splitting: each page (and its heavy deps like recharts /
+// lightweight-charts) loads only when navigated to.
+const Market = lazy(() => import("@ai/pages/Market"));
+const AiHub = lazy(() => import("@ai/pages/AiHub"));
+const CopyTrade = lazy(() => import("@ai/pages/CopyTrade"));
+const Strategy = lazy(() => import("@ai/pages/Strategy"));
+const Settings = lazy(() => import("@ai/pages/Settings"));
+const Notifications = lazy(() => import("@ai/pages/Notifications"));
+const Projects = lazy(() => import("@ai/pages/Projects"));
+const ProjectDetail = lazy(() => import("@ai/pages/Projects/ProjectDetail"));
+const Hyperliquid = lazy(() => import("@ai/pages/Projects/Hyperliquid"));
+const LegendATM = lazy(() => import("@ai/pages/Projects/LegendATM"));
+const Tools = lazy(() => import("@ai/pages/Tools"));
+
+function PageFallback() {
+  return (
+    <div className="flex h-[50vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 function NotFound() {
   return (
@@ -29,6 +41,7 @@ function NotFound() {
 export function Router() {
   return (
     <MainLayout>
+      <Suspense fallback={<PageFallback />}>
       <Switch>
         <Route path="/"><Redirect to="/market" /></Route>
         <Route path="/market" component={Market} />
@@ -44,6 +57,7 @@ export function Router() {
         <Route path="/notifications" component={Notifications} />
         <Route component={NotFound} />
       </Switch>
+      </Suspense>
     </MainLayout>
   );
 }

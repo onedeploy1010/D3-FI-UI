@@ -208,15 +208,24 @@ export async function getPlatformAgentsWithStatus(type: 'fleet' | 'copytrade' = 
   const agents = await listPlatformAgents(type);
   const sb = requireSupabase();
 
-  const enriched = await Promise.all(
-    agents.map(async (a) => {
-      const { data: status } = await sb
-        .from('platform_agent_status')
-        .select('*')
-        .eq('agent_id', a.id)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  // One query for every agent's recent status rows (newest first), then keep the
+  // first row seen per agent — replaces the per-agent round-trip.
+  // deno-lint-ignore no-explicit-any
+  const statusByAgent = new Map<string, any>();
+  if (agents.length > 0) {
+    const { data: statusRows } = await sb
+      .from('platform_agent_status')
+      .select('*')
+      .in('agent_id', agents.map((a) => a.id))
+      .order('recorded_at', { ascending: false })
+      .limit(Math.max(200, agents.length * 5));
+    for (const row of statusRows ?? []) {
+      if (!statusByAgent.has(row.agent_id)) statusByAgent.set(row.agent_id, row);
+    }
+  }
+
+  const enriched = agents.map((a) => {
+      const status = statusByAgent.get(a.id) ?? null;
 
       if (type === 'copytrade') {
         return {
@@ -247,8 +256,7 @@ export async function getPlatformAgentsWithStatus(type: 'fleet' | 'copytrade' = 
         epoch: status?.epoch ?? 500,
         insight: status?.insight ?? '',
       };
-    }),
-  );
+  });
 
   return enriched;
 }
