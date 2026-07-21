@@ -80,7 +80,7 @@ Netlify 只需静态构建 `pnpm run build`，**不需要** Node API。所有股
 | GET | `/profile/:wallet` | 用户完整 bundle |
 | POST | `/profile` | 创建/更新 profile |
 | POST | `/shareholders/join` | 加入股东 |
-| POST | `/usd3/claim` | 领取 USD3 |
+| POST | `/usd3/claim` | 领取 UD3 |
 | POST | `/referrals/bind` | 绑定推荐人 |
 | GET | `/notifications` | 通知列表 |
 | POST | `/notifications/:id/read` | 标记已读 |
@@ -112,7 +112,7 @@ supabase secrets set \
 - `PRIVY_TREASURY_AUTH_PRIVATE_KEY`：创建 authorization key 时 **一次性下载的私钥**（`wallet-auth:` 前缀）。你贴的 `MIGHAgEA...` 是**公钥**，不能用来签名
 - 线长成为股东后，Edge Function 会自动用 quorum 创建 **Privy 金库钱包**（`multisig_wallets.privy_wallet_id`）
 - 发起提案 → 委员签名 → 凑够 threshold 个 **Privy authorization signature** → `eth_sendTransaction` 广播到 BSC
-- 应用层仍会解锁 USD3 分红状态；链上 tx 为分红发放 attestation（后续可扩展为 ERC20 批量转账）
+- 应用层仍会解锁 UD3 分红状态；链上 tx 为分红发放 attestation（后续可扩展为 ERC20 批量转账）
 
 ## 8. 验证
 

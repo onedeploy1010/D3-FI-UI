@@ -44,7 +44,7 @@ const sections: { id: Section; icon: typeof Home; zh: string; en: string; descZh
 const subTabLabels = {
   assets: {
     holdings: { zh: '持仓', en: 'Holdings' },
-    dusd: { zh: 'USD3', en: 'USD3' },
+    dusd: { zh: 'UD3', en: 'UD3' },
     enter: { zh: '入场', en: 'Enter' },
   },
   govern: {
@@ -544,7 +544,7 @@ function AssetsTab({
         </div>
       </div>
 
-      {/* USD3 quick access */}
+      {/* UD3 quick access */}
       <button
         type="button"
         onClick={() => onNavigate('assets', 'dusd')}
@@ -555,7 +555,7 @@ function AssetsTab({
             <div className="ios-glass-inset w-10 h-10 flex items-center justify-center text-xs font-bold text-[#E0568F]">d$</div>
             <div>
               <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                {fmtNum(vm?.usd3.total ?? 0)} USD3
+                {fmtNum(vm?.usd3.total ?? 0)} UD3
               </div>
               <div className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{t ? '质押专用 · 可充值/转让' : 'For staking · Deposit/Transfer'}</div>
             </div>
@@ -801,14 +801,14 @@ function EnterTab({ lang, isDark, vm }: { lang: Lang; isDark: boolean; vm: D3FiV
         <p className={`text-[10px] mb-3 ${isDark ? 'text-[#E0568F]/70' : 'text-[#8A2B57]/70'}`}>
           {method === 'swap'
             ? (t ? '现货 Swap 使用 USDT 直接购买 D3' : 'Spot swap uses USDT to buy D3 directly')
-            : (t ? '使用 USD3 质押入场，请确保 USD3 余额充足' : 'Entry uses USD3 staking — ensure sufficient USD3 balance')}
+            : (t ? '使用 UD3 质押入场，请确保 UD3 余额充足' : 'Entry uses UD3 staking — ensure sufficient UD3 balance')}
         </p>
         <div className="flex items-center gap-3 mb-4">
           <input type="text" placeholder="0.00" className={`flex-1 bg-transparent text-2xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`} />
-          <span className={`text-sm font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{method === 'swap' ? 'USDT' : 'USD3'}</span>
+          <span className={`text-sm font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{method === 'swap' ? 'USDT' : 'UD3'}</span>
         </div>
         <div className={`flex items-center justify-between text-[10px] mb-5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
-          <span>{t ? '余额' : 'Balance'}: {method === 'swap' ? (t ? '链上 USDT' : 'On-chain USDT') : `${fmtNum(vm?.usd3.available ?? 0)} USD3`}</span>
+          <span>{t ? '余额' : 'Balance'}: {method === 'swap' ? (t ? '链上 USDT' : 'On-chain USDT') : `${fmtNum(vm?.usd3.available ?? 0)} UD3`}</span>
           <button className="text-[#E0568F] font-medium">{t ? '最大' : 'MAX'}</button>
         </div>
 
@@ -932,8 +932,8 @@ function NetworkTab({
         <AddressBlock value={referralLink} isDark={isDark} />
         <p className="site-stat-label mt-3 text-pretty leading-relaxed">
           {t
-            ? '成员 / 合伙人推荐入口，与股东联盟 USD3 入金奖励无关；团队动态奖励见下方。'
-            : 'Member/partner referral link — separate from Shareholder Alliance USD3 entry rewards; team dynamic rewards below.'}
+            ? '成员 / 合伙人推荐入口，与股东联盟 UD3 入金奖励无关；团队动态奖励见下方。'
+            : 'Member/partner referral link — separate from Shareholder Alliance UD3 entry rewards; team dynamic rewards below.'}
         </p>
       </motion.div>
 
@@ -1039,14 +1039,14 @@ function HelpTab({ lang, isDark }: { lang: Lang; isDark: boolean }) {
     { q: '权重分红怎么算？', a: 'DT 分红按持有占比分配贿赂池 D3；veD3 投票收益按 (个人票数÷Gauge总票)×(贿赂+排放+LP费) 分配。' },
     { q: 'PoC 分数是什么？', a: 'PoC = 0.15H + 0.15C + 0.30A + 0.30R + 0.10E，五维加权得分决定级差收益比例。详见"我的→分数"页。' },
     { q: '大区小区业绩是什么？', a: 'V5 及以上需考核大区与小区业绩，小区=大区×30%。团队推荐树和业绩进度见"我的→团队"页。' },
-    { q: '分红多久发放一次？', a: '每个 Epoch（30天）结算一次，治理分红以 USDT 在「收益」页直接领取到钱包。推荐奖励为 USD3，在「资产 → USD3」入账用于质押。' },
+    { q: '分红多久发放一次？', a: '每个 Epoch（30天）结算一次，治理分红以 USDT 在「收益」页直接领取到钱包。推荐奖励为 UD3，在「资产 → UD3」入账用于质押。' },
   ] : [
     { q: 'How to enter?', a: 'Connect wallet, choose Spot Swap / LP Bond / Burn Bond on Enter page, select lock period and confirm.' },
     { q: 'How does staking rate affect yield?', a: 'Growth phase: higher rate = higher daily yield. Sustain phase: higher rate = lower yield. See Earn tab.' },
     { q: 'How are weight dividends calculated?', a: 'DT dividends by DT share of pool; veD3 rewards by vote weight × (bribe + emission + LP fees).' },
     { q: 'What is PoC score?', a: 'PoC = 0.15H + 0.15C + 0.30A + 0.30R + 0.10E. Weighted score determines level-diff rate. See Me → Score.' },
     { q: 'Large/small area performance?', a: 'V5+ requires both areas; small = large × 30%. See Me → Team for tree and progress.' },
-    { q: 'How often are dividends?', a: 'Every Epoch (30 days). Governance dividends are claimed as USDT to your wallet on Earn. Referral rewards are USD3 on Assets → USD3 for staking.' },
+    { q: 'How often are dividends?', a: 'Every Epoch (30 days). Governance dividends are claimed as USDT to your wallet on Earn. Referral rewards are UD3 on Assets → UD3 for staking.' },
   ];
 
   return (

@@ -25,8 +25,8 @@ export const DEMO_PROFILE = {
   short: '0x1234…5678',
   tagZh: '演示',
   tagEn: 'Demo',
-  descZh: '已预置股东资格、线长多签、团队树、USD3/D3 分红、协议 Epoch 与通知等 Seed 数据，可直接浏览各门户。',
-  descEn: 'Preloaded shareholder status, line-leader multisig, team tree, USD3/D3 dividends, protocol epoch & notifications.',
+  descZh: '已预置股东资格、线长多签、团队树、UD3/D3 分红、协议 Epoch 与通知等 Seed 数据，可直接浏览各门户。',
+  descEn: 'Preloaded shareholder status, line-leader multisig, team tree, UD3/D3 dividends, protocol epoch & notifications.',
 };
 
 export function readDemoWalletFromSession(): string | null {

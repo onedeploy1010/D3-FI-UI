@@ -344,7 +344,7 @@ function HomeTab({
           member.isShareholder
             ? { label: t ? '创世 DT' : 'Genesis DT', value: String(member.genesisDt), unit: t ? '凭证' : 'cert', action: onGovernance }
             : { label: t ? '入股门槛' : 'Join fee', value: `${(UNION_JOIN_FEE_USDT / 1000).toFixed(0)}K`, unit: 'USDT', action: scrollToJoin },
-          { label: t ? '待领 USD3' : 'USD3 pending', value: usd3Pending.toFixed(0), unit: 'USD3', action: onAssets, locked: !member.isShareholder },
+          { label: t ? '待领 UD3' : 'UD3 pending', value: usd3Pending.toFixed(0), unit: 'UD3', action: onAssets, locked: !member.isShareholder },
           { label: t ? '待领 D3' : 'D3 pending', value: String(ud.d3PerformanceDividend.pending), unit: 'D3', action: onAssets, locked: !member.isShareholder },
           { label: t ? '待签提案' : 'Pending sig.', value: String(pendingMultisig), unit: '', action: onGovernance, locked: !member.isShareholder },
         ].map((item) => (
@@ -667,7 +667,7 @@ function GovernanceTab({
 
         <div className="grid grid-cols-2 gap-2 text-xs font-semibold mb-3">
           <div className="ios-glass-inset p-2 rounded-xl">
-            <div className={muted}>USD3</div>
+            <div className={muted}>UD3</div>
             <div className="font-bold font-stat text-emerald-500 mt-0.5">{p.usd3Amount.toLocaleString()}</div>
           </div>
           <div className="ios-glass-inset p-2 rounded-xl">
@@ -758,7 +758,7 @@ function GovernanceTab({
 
         <div className="grid grid-cols-2 gap-2 mt-3 text-xs font-semibold">
           <div className="ios-glass-inset p-3 rounded-xl">
-            <div className={muted}>{t ? '金库 USD3' : 'USD3 balance'}</div>
+            <div className={muted}>{t ? '金库 UD3' : 'UD3 balance'}</div>
             <div className="font-bold font-stat text-emerald-500 mt-0.5 text-base">{lineMultisigWallet.balanceUsd3.toLocaleString()}</div>
           </div>
           <div className="ios-glass-inset p-3 rounded-xl">
@@ -778,7 +778,7 @@ function GovernanceTab({
           </p>
           <div className="flex flex-wrap gap-3 text-xs font-semibold mb-3">
             {usd3PerformanceDividend.multisigPending > 0 && (
-              <span className="text-emerald-500">{usd3PerformanceDividend.multisigPending} USD3</span>
+              <span className="text-emerald-500">{usd3PerformanceDividend.multisigPending} UD3</span>
             )}
             {d3PerformanceDividend.multisigPending > 0 && (
               <span style={{ color: accent }}>{d3PerformanceDividend.multisigPending} D3</span>
@@ -847,7 +847,7 @@ function GovernanceTab({
           <div className="ios-glass-inset p-3 space-y-2 text-xs font-semibold">
             <div className="flex justify-between"><span className={muted}>{t ? '结算周期' : 'Period'}</span><span>{t ? performanceDividend.currentMonthZh : performanceDividend.currentMonthEn}</span></div>
             <div className="flex justify-between"><span className={muted}>{t ? '本线业绩' : 'Line perf.'}</span><span>${performanceDividend.linePerformanceUsd.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className={muted}>{t ? '月度待多签 USD3' : 'Monthly USD3 (multisig)'}</span><span className="text-amber-500">{usd3PerformanceDividend.multisigPending || '—'}</span></div>
+            <div className="flex justify-between"><span className={muted}>{t ? '月度待多签 UD3' : 'Monthly UD3 (multisig)'}</span><span className="text-amber-500">{usd3PerformanceDividend.multisigPending || '—'}</span></div>
             <div className="flex justify-between"><span className={muted}>{t ? '月度待多签 D3' : 'Monthly D3 (multisig)'}</span><span className="text-amber-500">{d3PerformanceDividend.multisigPending || '—'}</span></div>
           </div>
           <GlassButton variant="primary" className="w-full !py-3 !text-sm" disabled={busy} onClick={() => void createProposal()}>
@@ -915,7 +915,7 @@ function GovernanceTab({
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
             <div className="ios-glass-inset p-2 rounded-xl">
-              <div className={muted}>USD3</div>
+              <div className={muted}>UD3</div>
               <div className="font-bold font-stat text-emerald-500/80 mt-0.5">{(daoMultisigWallet.balanceUsd3 / 1000).toFixed(0)}K</div>
             </div>
             <div className="ios-glass-inset p-2 rounded-xl">
@@ -967,14 +967,14 @@ function AssetsTab({
         <div className={glassCardClass('accent', 'p-4')}>
           <div className={`text-sm font-medium leading-relaxed ${isDark ? 'text-[#E0568F]/85' : 'text-[#8A2B57]/80'}`}>
             {t
-              ? '可转让额度来自 USD3 收益的 50%，转入伞下成员的 D3-Fi 账户用于投资质押。'
-              : 'Transferable quota is 50% of USD3 revenue, credited to downline D3-Fi accounts for staking.'}
+              ? '可转让额度来自 UD3 收益的 50%，转入伞下成员的 D3-Fi 账户用于投资质押。'
+              : 'Transferable quota is 50% of UD3 revenue, credited to downline D3-Fi accounts for staking.'}
           </div>
         </div>
         <div className={glassCardClass('default', 'p-5')}>
           <div className="ios-glass-inset p-3 mb-4 flex justify-between text-xs">
             <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>{t ? '剩余可转让' : 'Remaining quota'}</span>
-            <span className="font-bold text-emerald-500">{left} USD3</span>
+            <span className="font-bold text-emerald-500">{left} UD3</span>
           </div>
           <div className={`text-xs font-semibold mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{t ? '伞下 D3-Fi 地址' : 'Downline D3-Fi address'}</div>
           <input
@@ -991,7 +991,7 @@ function AssetsTab({
               placeholder="0.00"
               className={`flex-1 bg-transparent text-xl font-bold font-stat outline-none ${isDark ? 'text-white placeholder:text-white/20' : 'text-[#160510] placeholder:text-[#160510]/20'}`}
             />
-            <span className={`text-sm ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>USD3</span>
+            <span className={`text-sm ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>UD3</span>
           </div>
           <GlassButton variant="primary" className="w-full !py-3.5 !text-sm flex items-center justify-center gap-2">
             <Send size={14} /> {t ? '确认转入伞下 D3-Fi' : 'Transfer to Downline D3-Fi'}
@@ -1012,11 +1012,11 @@ function AssetsTab({
             {t ? '转入 D3-Fi 投资' : 'Move to D3-Fi'}
           </div>
           <p className={`text-sm font-medium mb-4 leading-relaxed ${isDark ? 'text-white/55' : 'text-[#160510]/45'}`}>
-            {t ? '将 USD3 转入自己的 D3-Fi 账户，用于 LP / 销毁债券质押。' : 'Move USD3 into your D3-Fi account for LP / burn-bond staking.'}
+            {t ? '将 UD3 转入自己的 D3-Fi 账户，用于 LP / 销毁债券质押。' : 'Move UD3 into your D3-Fi account for LP / burn-bond staking.'}
           </p>
           <div className="ios-glass-inset p-3 mb-4 flex justify-between text-xs">
             <span className={isDark ? 'text-white/55' : 'text-[#160510]/55'}>{t ? '可转入' : 'Available'}</span>
-            <span className="font-bold">{usd3State.extractableToFi} USD3</span>
+            <span className="font-bold">{usd3State.extractableToFi} UD3</span>
           </div>
           <div className={`text-xs font-semibold mb-2 ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{t ? '转入数量' : 'Amount'}</div>
           <div className="flex items-center gap-3 mb-5">
@@ -1042,7 +1042,7 @@ function AssetsTab({
     <div className="space-y-5">
       <div className="ios-glass-tab-bar flex gap-1">
         {([
-          { id: 'usd3' as const, zh: 'USD3 分红', en: 'USD3' },
+          { id: 'usd3' as const, zh: 'UD3 分红', en: 'UD3' },
           { id: 'd3' as const, zh: 'D3 分红', en: 'D3' },
         ]).map((item) => (
           <button
@@ -1073,8 +1073,8 @@ function AssetsTab({
               </div>
               <p className={`text-xs leading-relaxed mb-2 ${muted}`}>
                 {t
-                  ? `${usd3PerformanceDividend.multisigPending} USD3 已关联待签提案，委员签名通过后可在本页领取。`
-                  : `${usd3PerformanceDividend.multisigPending} USD3 is locked until the line multisig proposal is signed.`}
+                  ? `${usd3PerformanceDividend.multisigPending} UD3 已关联待签提案，委员签名通过后可在本页领取。`
+                  : `${usd3PerformanceDividend.multisigPending} UD3 is locked until the line multisig proposal is signed.`}
               </p>
             </div>
           )}
@@ -1083,7 +1083,7 @@ function AssetsTab({
             <div className="flex items-start justify-between gap-2 mb-3">
               <div>
                 <div className="text-sm font-bold uppercase tracking-wider text-emerald-600">
-                  {t ? 'USD3 待领取' : 'USD3 pending'}
+                  {t ? 'UD3 待领取' : 'UD3 pending'}
                 </div>
                 <div className={`text-xs font-semibold mt-1 ${isDark ? 'text-white/55' : 'text-[#160510]/45'}`}>
                   {t ? usd3PerformanceDividend.settlementZh : usd3PerformanceDividend.settlementEn}
@@ -1108,21 +1108,21 @@ function AssetsTab({
 
             <div className="ios-glass-inset p-4 mb-3">
               <div className={`text-xs font-semibold ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{t ? '待领取（三路收益合计）' : 'Pending (3 streams)'}</div>
-              <div className="text-3xl font-bold font-stat text-emerald-500 mt-1">{usd3State.pending.toFixed(1)} USD3</div>
+              <div className="text-3xl font-bold font-stat text-emerald-500 mt-1">{usd3State.pending.toFixed(1)} UD3</div>
               <div className={`text-sm font-medium mt-1.5 ${isDark ? 'text-white/25' : 'text-[#160510]/45'}`}>
-                {t ? '累计已领' : 'Lifetime'} {usd3State.claimedLifetime.toLocaleString()} USD3
+                {t ? '累计已领' : 'Lifetime'} {usd3State.claimedLifetime.toLocaleString()} UD3
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-semibold">
               <div className="ios-glass-inset p-2.5 text-center">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '领取后自留' : 'Self after claim'}</div>
-                <div className="font-bold mt-0.5">{pendingSplit.self} USD3</div>
+                <div className="font-bold mt-0.5">{pendingSplit.self} UD3</div>
                 <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{UNION_SELF_SHARE * 100}% → D3-Fi</div>
               </div>
               <div className="ios-glass-inset p-2.5 text-center">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '领取后可转伞下' : 'Downline after claim'}</div>
-                <div className="font-bold mt-0.5 text-emerald-500">{pendingSplit.transferable} USD3</div>
+                <div className="font-bold mt-0.5 text-emerald-500">{pendingSplit.transferable} UD3</div>
                 <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>{UNION_TRANSFERABLE_SHARE * 100}% → D3-Fi</div>
               </div>
             </div>
@@ -1134,7 +1134,7 @@ function AssetsTab({
               disabled={usd3State.pending <= 0}
             >
               {usd3State.pending > 0
-                ? (t ? `领取 ${usd3State.pending.toFixed(1)} USD3 到资产账户` : `Claim ${usd3State.pending.toFixed(1)} USD3`)
+                ? (t ? `领取 ${usd3State.pending.toFixed(1)} UD3 到资产账户` : `Claim ${usd3State.pending.toFixed(1)} UD3`)
                 : (t ? '本期已领取' : 'Nothing to claim')}
             </GlassButton>
 
@@ -1155,7 +1155,7 @@ function AssetsTab({
 
           <div className={glassCardClass('default', 'p-5')}>
             <div className={`text-sm font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-              {t ? 'USD3 资产账户' : 'USD3 balance'}
+              {t ? 'UD3 资产账户' : 'UD3 balance'}
             </div>
             <div className={`text-xs font-medium mb-3 ${muted}`}>
               {t ? '已领取余额（= 累计已领 − 已转出）' : 'Claimed balance (= lifetime − moved out)'}
@@ -1163,11 +1163,11 @@ function AssetsTab({
             <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-semibold">
               <div className="ios-glass-inset p-3">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '账户余额' : 'Balance'}</div>
-                <div className="font-bold font-stat text-base mt-0.5">{usd3State.total.toLocaleString()} USD3</div>
+                <div className="font-bold font-stat text-base mt-0.5">{usd3State.total.toLocaleString()} UD3</div>
               </div>
               <div className="ios-glass-inset p-3">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '可操作' : 'Actionable'}</div>
-                <div className="font-bold font-stat text-base mt-0.5 text-emerald-500">{usd3State.available.toLocaleString()} USD3</div>
+                <div className="font-bold font-stat text-base mt-0.5 text-emerald-500">{usd3State.available.toLocaleString()} UD3</div>
               </div>
             </div>
             <div className={`text-xs font-medium mb-3 leading-relaxed ios-glass-inset p-2.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
@@ -1182,14 +1182,14 @@ function AssetsTab({
             <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-semibold">
               <div className="ios-glass-inset p-2.5 text-center">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '可转 D3-Fi' : 'To D3-Fi'}</div>
-                <div className="font-bold mt-0.5">{usd3State.extractableToFi} USD3</div>
+                <div className="font-bold mt-0.5">{usd3State.extractableToFi} UD3</div>
                 <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
                   {t ? `自留池 ${usd3State.selfQuota}（余 ${usd3State.selfPoolRemaining}）` : `Self pool ${usd3State.selfQuota} (${usd3State.selfPoolRemaining} left)`}
                 </div>
               </div>
               <div className="ios-glass-inset p-2.5 text-center ring-1 ring-emerald-500/20">
                 <div className={isDark ? 'text-white/45' : 'text-[#160510]/45'}>{t ? '可转伞下' : 'To downline'}</div>
-                <div className="font-bold mt-0.5 text-emerald-500">{left} USD3</div>
+                <div className="font-bold mt-0.5 text-emerald-500">{left} UD3</div>
                 <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
                   {t ? `已用 ${usd3State.transferredToDownline} / ${usd3State.downlineQuota}` : `Used ${usd3State.transferredToDownline} / ${usd3State.downlineQuota}`}
                 </div>
@@ -1208,7 +1208,7 @@ function AssetsTab({
 
           <div className={glassCardClass('default', 'p-5')}>
             <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-              {t ? 'USD3 构成' : 'USD3 breakdown'}
+              {t ? 'UD3 构成' : 'UD3 breakdown'}
             </div>
             <UnionRevenueStreams lang={lang} isDark={isDark} compact />
             <div className="mt-3 space-y-2">
@@ -1218,12 +1218,12 @@ function AssetsTab({
                   <div key={row.streamId} className="ios-glass-inset px-3 py-2 rounded-xl space-y-1">
                     <div className="flex justify-between items-center">
                       <span className={`text-xs font-semibold ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>{t ? stream.zh : stream.en}</span>
-                      <span className="font-bold font-stat text-emerald-500">{row.amount} USD3</span>
+                      <span className="font-bold font-stat text-emerald-500">{row.amount} UD3</span>
                     </div>
                     {row.multisigPending > 0 && (
                       <div className="flex justify-between text-[10px] font-semibold text-amber-500">
                         <span>{t ? '多签待签' : 'Multisig pending'}</span>
-                        <span>{row.multisigPending} USD3</span>
+                        <span>{row.multisigPending} UD3</span>
                       </div>
                     )}
                   </div>
@@ -1234,7 +1234,7 @@ function AssetsTab({
 
           <div className={glassCardClass('default', 'p-5')}>
             <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-              {t ? 'USD3 分红记录' : 'USD3 history'}
+              {t ? 'UD3 分红记录' : 'UD3 history'}
             </div>
             <div className="space-y-2">
               {recentUsd3Dividends.map((r) => (
@@ -1246,7 +1246,7 @@ function AssetsTab({
                   <div className="text-right text-xs font-semibold">
                     {r.amount > 0 ? (
                       <>
-                        <div className="font-bold font-stat text-emerald-500">+{r.amount} USD3</div>
+                        <div className="font-bold font-stat text-emerald-500">+{r.amount} UD3</div>
                         <div className={`text-sm font-medium mt-0.5 ${r.status === 'claimed' ? 'text-emerald-500/70' : r.status === 'multisig_pending' ? 'text-amber-500/80' : ''}`}>
                           {r.status === 'claimed'
                             ? (t ? '已领取' : 'Claimed')
@@ -1377,8 +1377,8 @@ function AssetsTab({
 
       <p className={`text-[11px] sm:text-xs font-semibold text-center leading-relaxed px-2 text-pretty ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
         {t
-          ? '三路收益结算，无推荐通道。USD3 协议内使用，D3 链上领取。月度部分需多签通过后到账。'
-          : 'Three revenue streams, no referral channel. USD3 in-app, D3 on-chain. Monthly portions require multisig approval.'}
+          ? '三路收益结算，无推荐通道。UD3 协议内使用，D3 链上领取。月度部分需多签通过后到账。'
+          : 'Three revenue streams, no referral channel. UD3 in-app, D3 on-chain. Monthly portions require multisig approval.'}
       </p>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Clock, ExternalLink, Users, Vote, HelpCircle, Search, ArrowUpDown, CalendarDays } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassIconButton } from '@/components/ui/GlassSurface';
 import { cn } from '@/lib/utils';
@@ -7,18 +8,62 @@ import { RulesSheet } from '@/components/d3fi/RulesSheet';
 
 type Lang = 'zh' | 'en';
 
+function DemoNoticeDialog({
+  open,
+  onClose,
+  lang,
+  isDark,
+}: {
+  open: boolean;
+  onClose: () => void;
+  lang: Lang;
+  isDark: boolean;
+}) {
+  const t = lang === 'zh';
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+            className="ios-glass-card w-full max-w-xs rounded-3xl p-5 sm:p-6 relative text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+            <p className={`relative z-10 text-sm leading-relaxed text-pretty-wrap ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              {t ? '当前是演示系统，功能尚未开通' : 'This is a demo system — this feature is not yet available.'}
+            </p>
+            <GlassButton variant="secondary" className="relative z-10 mt-4 w-full !py-2.5 !text-xs" onClick={onClose}>
+              {t ? '知道了' : 'Got it'}
+            </GlassButton>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function BribeProjectDetail({
   project,
   lang,
   isDark,
   onBack,
-  onGoVote,
+  onDemoAction,
 }: {
   project: BribeProjectView;
   lang: Lang;
   isDark: boolean;
   onBack: () => void;
-  onGoVote: (projectId: string) => void;
+  onDemoAction: () => void;
 }) {
   const t = lang === 'zh';
   return (
@@ -74,14 +119,13 @@ function BribeProjectDetail({
             </div>
           ))}
         </div>
-        <a
-          href={project.website}
-          target="_blank"
-          rel="noreferrer"
-          className={`mt-4 flex items-center justify-center gap-1.5 text-[11px] font-medium ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}
+        <button
+          type="button"
+          onClick={onDemoAction}
+          className={`mt-4 w-full flex items-center justify-center gap-1.5 text-[11px] font-medium ios-glass-pressable ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}
         >
           {t ? '访问项目官网' : 'Visit Website'} <ExternalLink size={12} />
-        </a>
+        </button>
       </div>
 
       <div className={glassCardClass('default', 'p-5')}>
@@ -109,7 +153,7 @@ function BribeProjectDetail({
         <GlassButton
           variant="secondary"
           className="mt-4 w-full !py-2.5 !text-xs flex items-center gap-1.5"
-          onClick={() => onGoVote(project.id)}
+          onClick={onDemoAction}
         >
           <Vote size={14} /> {t ? '前往投票' : 'Go to Vote'}
         </GlassButton>
@@ -121,14 +165,14 @@ function BribeProjectDetail({
 export function BribeMarketTab({
   lang,
   isDark,
-  onGoVote,
   epoch,
   projects = [],
   isLoading = false,
 }: {
   lang: Lang;
   isDark: boolean;
-  onGoVote: (projectId: string) => void;
+  /** Demo mode: actions open a notice dialog instead of navigating to vote. */
+  onGoVote?: (projectId: string) => void;
   epoch?: ProtocolEpochView | null;
   projects?: BribeProjectView[];
   isLoading?: boolean;
@@ -137,6 +181,7 @@ export function BribeMarketTab({
   const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
   const [q, setQ] = useState('');
   const [range, setRange] = useState<'7d' | '30d' | 'all'>('30d');
   const [sort, setSort] = useState<'amountDesc' | 'perVoteDesc' | 'votersDesc'>('amountDesc');
@@ -149,13 +194,16 @@ export function BribeMarketTab({
   const selected = projects.find((p) => p.id === selectedId);
   if (selected) {
     return (
-      <BribeProjectDetail
-        project={selected}
-        lang={lang}
-        isDark={isDark}
-        onBack={() => setSelectedId(null)}
-        onGoVote={onGoVote}
-      />
+      <>
+        <BribeProjectDetail
+          project={selected}
+          lang={lang}
+          isDark={isDark}
+          onBack={() => setSelectedId(null)}
+          onDemoAction={() => setDemoOpen(true)}
+        />
+        <DemoNoticeDialog open={demoOpen} onClose={() => setDemoOpen(false)} lang={lang} isDark={isDark} />
+      </>
     );
   }
 

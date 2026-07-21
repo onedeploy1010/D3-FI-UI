@@ -305,13 +305,13 @@ export function UnionRevenueStreams({
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                   style={{ background: `${activeMeta.color}14`, color: activeMeta.color }}
                 >
-                  USD3 + D3
+                  UD3 + D3
                 </span>
               </div>
 
               <div className={`mt-3 pt-3 border-t text-[11px] font-medium leading-relaxed grid sm:grid-cols-2 gap-2 ${isDark ? 'border-white/[0.06] text-white/40' : 'border-[#8A2B57]/[0.06] text-[#160510]/45'}`}>
                 <div>
-                  <span className="font-bold text-emerald-500">USD3</span>
+                  <span className="font-bold text-emerald-500">UD3</span>
                   <span className="ml-1">{t ? activeStream.usd3Zh : activeStream.usd3En}</span>
                 </div>
                 <div>

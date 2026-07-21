@@ -178,7 +178,7 @@ insert into public.multisig_proposals (
     '00000000-0000-4000-8000-000000000201',
     '00000000-0000-4000-8000-000000000020', 'line',
     '2026年7月本线分红发放', 'Jul 2026 line dividend distribution',
-    '按本线业绩向 52 名成员分配 USD3 + D3', 'Distribute USD3 + D3 to 52 line members',
+    '按本线业绩向 52 名成员分配 UD3 + D3', 'Distribute UD3 + D3 to 52 line members',
     '2026年7月', 'Jul 2026', 186.4, 12.8, 52,
     '0x1234567890abcdef1234567890abcdef12345678', 'pending',
     '2026-07-28', '2026-08-02'
@@ -231,6 +231,6 @@ on conflict (id) do nothing;
 insert into public.user_notifications (
   id, wallet_address, title_zh, title_en, message_zh, message_en, category, link_path, is_read
 ) values
-  ('00000000-0000-4000-8000-000000000502', '0x1234567890abcdef1234567890abcdef12345678', 'USD3 分红待领取', 'USD3 dividend claimable', '本 Epoch 有 186.4 USD3 待入账。', '186.4 USD3 pending this Epoch.', 'dividend', '/union', false),
+  ('00000000-0000-4000-8000-000000000502', '0x1234567890abcdef1234567890abcdef12345678', 'UD3 分红待领取', 'UD3 dividend claimable', '本 Epoch 有 186.4 UD3 待入账。', '186.4 UD3 pending this Epoch.', 'dividend', '/union', false),
   ('00000000-0000-4000-8000-000000000503', '0x1234567890abcdef1234567890abcdef12345678', '多签提案待签名', 'Multisig pending', '7月本线分红提案等待委员签名。', 'Jul line dividend awaits committee signatures.', 'multisig', '/union', false)
 on conflict (id) do nothing;

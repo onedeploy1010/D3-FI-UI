@@ -199,7 +199,7 @@ export function DividendsTabContent({
     () =>
       (vm?.breakdownItems ?? []).map((item) => ({
         ...item,
-        asset: item.asset === 'USD3' ? 'USDT' : item.asset,
+        asset: item.asset === 'UD3' ? 'USDT' : item.asset,
       })),
     [vm],
   );
@@ -449,7 +449,7 @@ export function DividendsTabContent({
         </div>
 
         <div className={`text-[10px] mb-2 px-1 ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
-          {t ? '推荐奖励为 USD3，用于质押投资，请在「我的 → 推荐」或「资产 → USD3」入账' : 'Referral rewards are USD3 for staking — credit on Me → Refer or Assets → USD3'}
+          {t ? '推荐奖励为 UD3，用于质押投资，请在「我的 → 推荐」或「资产 → UD3」入账' : 'Referral rewards are UD3 for staking — credit on Me → Refer or Assets → UD3'}
         </div>
 
         <button

@@ -31,7 +31,7 @@ export type D3FiBreakdownItem = {
   category: 'bribe' | 'lp' | 'emission' | 'dt';
   sourceZh: string;
   sourceEn: string;
-  asset: 'USDT' | 'D3' | 'USD3';
+  asset: 'USDT' | 'D3' | 'UD3';
   amount: number;
   status: 'claimable' | 'pending';
 };
@@ -130,7 +130,7 @@ function streamToCategory(stream: string): D3FiBreakdownItem['category'] {
 }
 
 function assetLabel(assetType: string): D3FiBreakdownItem['asset'] {
-  if (assetType === 'usd3') return 'USD3';
+  if (assetType === 'usd3') return 'UD3';
   if (assetType === 'd3') return 'D3';
   return 'USDT';
 }
@@ -151,7 +151,7 @@ function mapDividend(d: DividendAccrual): D3FiBreakdownItem {
 
 function mapPosition(p: FiPosition, lang: 'zh' | 'en'): D3FiActivePosition {
   const labels: Record<string, [string, string]> = {
-    lp: ['USD3 → LP 债券', 'USD3 → LP Bond'],
+    lp: ['UD3 → LP 债券', 'UD3 → LP Bond'],
     ve_lock: ['veD3 锁仓', 'veD3 Lock'],
     burn_bond: ['销毁债券', 'Burn Bond'],
     spot: ['现货', 'Spot'],
@@ -160,7 +160,7 @@ function mapPosition(p: FiPosition, lang: 'zh' | 'en'): D3FiActivePosition {
   const [typeZh, typeEn] = labels[p.position_type] ?? [p.position_type, p.position_type];
   const amount =
     p.principal_usd3 != null
-      ? `${num(p.principal_usd3).toLocaleString()} USD3`
+      ? `${num(p.principal_usd3).toLocaleString()} UD3`
       : p.principal_d3 != null
         ? `${num(p.principal_d3).toLocaleString()} D3`
         : p.principal_usdt != null

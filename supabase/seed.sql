@@ -166,8 +166,8 @@ insert into public.protocol_config (key, value_json, label_zh, label_en) values
   ('referral_dusd_self_rate', '0.15', '推荐自留比例', 'Referral self rate'),
   ('referral_dusd_transferable_rate', '0.15', '推荐可转让比例', 'Referral transferable rate'),
   ('union_join_fee_usdt', '5000', '股东入盟费用', 'Shareholder join fee'),
-  ('union_self_share', '0.5', 'USD3 自留份额', 'USD3 self share'),
-  ('union_transferable_share', '0.5', 'USD3 可转让份额', 'USD3 transferable share')
+  ('union_self_share', '0.5', 'UD3 自留份额', 'UD3 self share'),
+  ('union_transferable_share', '0.5', 'UD3 可转让份额', 'UD3 transferable share')
 on conflict (key) do update set value_json = excluded.value_json;
 
 insert into public.reward_stream_docs (id, title_zh, title_en, asset_zh, asset_en, where_zh, where_en, desc_zh, desc_en, sort_order) values
@@ -175,8 +175,8 @@ insert into public.reward_stream_docs (id, title_zh, title_en, asset_zh, asset_e
   ('static', '静态质押收益', 'Static yield', 'D3', 'D3', '收益 → 总览', 'Earn → Overview', '按锁仓期限与全网质押率计算日化；30 天线性释放。', 'Daily yield by lock period & network stake rate; 30d linear vesting.', 1),
   ('poc', '动态 · PoC 级差', 'Dynamic · PoC diff.', 'D3 / USDT', 'D3 / USDT', '我的 → 推荐 / 收益', 'Me → Refer / Earn', '下级动态收益 × 你的实际级差（V 级门槛 + PoC 决定）。180 天线性释放。', 'Downline dynamic × your rate (V level + PoC). 180d linear vesting.', 2),
   ('pon', '动态 · PoN 算力奖', 'Dynamic · PoN bonus', 'D3 / USDT', 'D3 / USDT', '我的 → 推荐 / 收益', 'Me → Refer / Earn', '(个人小区算力 ÷ 全网算力) × 递减系数 × PoN 池；与级差叠加。', '(Your small-area hashpower ÷ network) × decay × PoN pool; stacks with PoC diff.', 3),
-  ('referral', '推荐奖励（入金 30%）', 'Referral (30% of entry)', '100% USD3', '100% USD3', '推荐页 + 资产 → USD3', 'Refer tab + Assets → USD3', '下级入金的 30% 全部以 USD3 入账，用于质押投资，不可提现。其中 15% 自留 + 15% 可转让直推下线。', '30% of downline entry paid entirely in USD3 for staking/investment — not withdrawable. 15% self + 15% transferable to direct downline.', 4),
-  ('dusd', 'USD3 推荐份额', 'USD3 referral share', 'USD3（入金 30%）', 'USD3 (30% of entry)', '资产 → USD3', 'Assets → USD3', '推荐奖励全部记入 USD3 余额；可转让额度仅来自其中 15%，且只能转给直推下线用于质押。', 'All referral rewards credit as USD3; transferable quota is the 15% slice only, to direct downline for staking.', 5)
+  ('referral', '推荐奖励（入金 30%）', 'Referral (30% of entry)', '100% UD3', '100% UD3', '推荐页 + 资产 → UD3', 'Refer tab + Assets → UD3', '下级入金的 30% 全部以 UD3 入账，用于质押投资，不可提现。其中 15% 自留 + 15% 可转让直推下线。', '30% of downline entry paid entirely in UD3 for staking/investment — not withdrawable. 15% self + 15% transferable to direct downline.', 4),
+  ('dusd', 'UD3 推荐份额', 'UD3 referral share', 'UD3（入金 30%）', 'UD3 (30% of entry)', '资产 → UD3', 'Assets → UD3', '推荐奖励全部记入 UD3 余额；可转让额度仅来自其中 15%，且只能转给直推下线用于质押。', 'All referral rewards credit as UD3; transferable quota is the 15% slice only, to direct downline for staking.', 5)
 on conflict (id) do nothing;
 
 insert into public.union_equity_items (key, pct, zh, en, rule_zh, rule_en, sort_order) values
@@ -188,16 +188,16 @@ insert into public.union_equity_items (key, pct, zh, en, rule_zh, rule_en, sort_
 on conflict (key) do nothing;
 
 insert into public.union_revenue_items (id, zh, en, source_zh, source_en, cycle_zh, cycle_en, usd3_zh, usd3_en, d3_zh, d3_en, sort_order) values
-  ('fees', '手续费收入', 'Trading fees', '买入 3% + 卖出 3% 滑点，按权益比例分配', '3% buy + 3% sell slippage, by equity share', '每 Epoch（30 天）结算', 'Per Epoch (30 days)', '结算为 USD3 资产', 'Settled as USD3', '同期权益折算 D3 份额', 'D3 share by equity weight', 0),
-  ('treasury', '市值管理收入', 'Treasury yield', '国库自营做市套利 + 贿赂佣金 10% 分配部分', 'Treasury MM arb + 10% bribe commission share', '每月多签分配', 'Monthly multisig', '套利与佣金 · 结算为 USD3', 'Arb & commission · settled as USD3', '排放层 / 国库 D3 结算', 'Emission / treasury D3 settlement', 1),
-  ('line', '分线收益', 'Line revenue', '本线 Gauge 运营 + 贿赂抽成 + 本线手续费', 'Line Gauge ops + bribe cut + line fees', '每月线长多签发放', 'Monthly line-leader multisig', '本线手续费与贿赂 · 结算为 USD3', 'Line fees & bribe · settled as USD3', '本线排放引导 D3', 'Line-guided D3 emission', 2)
+  ('fees', '手续费收入', 'Trading fees', '买入 3% + 卖出 3% 滑点，按权益比例分配', '3% buy + 3% sell slippage, by equity share', '每 Epoch（30 天）结算', 'Per Epoch (30 days)', '结算为 UD3 资产', 'Settled as UD3', '同期权益折算 D3 份额', 'D3 share by equity weight', 0),
+  ('treasury', '市值管理收入', 'Treasury yield', '国库自营做市套利 + 贿赂佣金 10% 分配部分', 'Treasury MM arb + 10% bribe commission share', '每月多签分配', 'Monthly multisig', '套利与佣金 · 结算为 UD3', 'Arb & commission · settled as UD3', '排放层 / 国库 D3 结算', 'Emission / treasury D3 settlement', 1),
+  ('line', '分线收益', 'Line revenue', '本线 Gauge 运营 + 贿赂抽成 + 本线手续费', 'Line Gauge ops + bribe cut + line fees', '每月线长多签发放', 'Monthly line-leader multisig', '本线手续费与贿赂 · 结算为 UD3', 'Line fees & bribe · settled as UD3', '本线排放引导 D3', 'Line-guided D3 emission', 2)
 on conflict (id) do nothing;
 
 insert into public.union_rule_cards (id, title_zh, title_en, body_zh, body_en, tag_zh, tag_en, accent, sort_order) values
   ('qualify', '股东资格', 'Qualification', '支付 5,000 USDT 认购创世 DT，成为发起人股东，解锁资产与团队。', 'Pay 5,000 USDT for Genesis DT to become a founding shareholder and unlock Assets & Team.', '入盟门槛', 'Entry', '#E0568F', 0),
-  ('channels', '业绩分红', 'Performance dividends', 'USD3 协议内资产 + D3 链上代币，两条独立结算通道，分别入账。', 'USD3 in-app asset and D3 on-chain token — two separate settlement channels.', '双通道', 'Dual channel', '#6366f1', 1),
-  ('usd3-source', 'USD3 来源', 'USD3 sources', '手续费滑点（每 Epoch 30 天）+ 市值管理 + 分线收益，统一结算为 USD3 协议资产。', 'Trading fees (per 30-day Epoch) + treasury yield + line revenue — settled as USD3.', '协议内', 'In-app', '#22c55e', 2),
-  ('usd3-use', 'USD3 用途', 'USD3 usage', '50% 转入 D3-Fi 投资质押，50% 可转给伞下线的 D3-Fi 账户；不可提现到钱包。', '50% to D3-Fi staking, 50% transferable to downline D3-Fi — not withdrawable to wallet.', '50 / 50', '50 / 50', '#f59e0b', 3),
+  ('channels', '业绩分红', 'Performance dividends', 'UD3 协议内资产 + D3 链上代币，两条独立结算通道，分别入账。', 'UD3 in-app asset and D3 on-chain token — two separate settlement channels.', '双通道', 'Dual channel', '#6366f1', 1),
+  ('usd3-source', 'UD3 来源', 'UD3 sources', '手续费滑点（每 Epoch 30 天）+ 市值管理 + 分线收益，统一结算为 UD3 协议资产。', 'Trading fees (per 30-day Epoch) + treasury yield + line revenue — settled as UD3.', '协议内', 'In-app', '#22c55e', 2),
+  ('usd3-use', 'UD3 用途', 'UD3 usage', '50% 转入 D3-Fi 投资质押，50% 可转给伞下线的 D3-Fi 账户；不可提现到钱包。', '50% to D3-Fi staking, 50% transferable to downline D3-Fi — not withdrawable to wallet.', '50 / 50', '50 / 50', '#f59e0b', 3),
   ('d3', 'D3 分红', 'D3 dividends', '按权益占比折算的代币分红，链上透明结算，每月由多签 / 线长复核发放。', 'Equity-weighted token dividends — on-chain, distributed monthly via multisig.', '链上', 'On-chain', '#B23A6E', 4),
   ('principle', '分红原则', 'Core rule', '有业绩才有分红，无业绩不保底。所有分配与全网真实业绩挂钩。', 'Performance required — no floor guarantee. All payouts tied to real network results.', '底线', 'No floor', '#8A2B57', 5)
 on conflict (id) do nothing;
@@ -278,7 +278,7 @@ insert into public.multisig_proposals (
     '00000000-0000-4000-8000-000000000020',
     'line',
     '2026年7月本线分红发放', 'Jul 2026 line dividend distribution',
-    '按本线业绩向 48 名股东分配 USD3 + D3', 'Distribute USD3 + D3 to 48 line shareholders by performance',
+    '按本线业绩向 48 名股东分配 UD3 + D3', 'Distribute UD3 + D3 to 48 line shareholders by performance',
     '2026年7月', 'Jul 2026', 186.4, 12.8, 48,
     '0x1234567890abcdef1234567890abcdef12345678', 'pending',
     '2026-07-28', '2026-08-02', null, null
@@ -362,10 +362,10 @@ insert into public.user_notifications (
   (
     '00000000-0000-4000-8000-000000000502',
     '0x1234567890abcdef1234567890abcdef12345678',
-    'USD3 分红待领取',
-    'USD3 dividend claimable',
-    '本 Epoch 手续费通道有 186.4 USD3 待入账，可在资产页领取。',
-    '186.4 USD3 from fee channel is pending — claim in Assets.',
+    'UD3 分红待领取',
+    'UD3 dividend claimable',
+    '本 Epoch 手续费通道有 186.4 UD3 待入账，可在资产页领取。',
+    '186.4 UD3 from fee channel is pending — claim in Assets.',
     'dividend', '/union', false
   ),
   (
@@ -382,8 +382,8 @@ insert into public.user_notifications (
     '0x1234567890abcdef1234567890abcdef12345678',
     '推荐奖励已入账',
     'Referral reward credited',
-    '下级入金产生 150 USD3 推荐奖励，已记入账户余额。',
-    '150 USD3 referral reward from downline entry credited to your balance.',
+    '下级入金产生 150 UD3 推荐奖励，已记入账户余额。',
+    '150 UD3 referral reward from downline entry credited to your balance.',
     'referral', '/d3fi', true
   )
 on conflict (id) do nothing;

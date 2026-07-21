@@ -21,8 +21,8 @@ export const unionRevenueStreams = [
     sourceEn: '3% buy + 3% sell slippage, by equity share',
     cycleZh: '每 Epoch（30 天）结算',
     cycleEn: 'Per Epoch (30 days)',
-    usd3Zh: '结算为 USD3 资产',
-    usd3En: 'Settled as USD3',
+    usd3Zh: '结算为 UD3 资产',
+    usd3En: 'Settled as UD3',
     d3Zh: '同期权益折算 D3 份额',
     d3En: 'D3 share by equity weight',
   },
@@ -34,8 +34,8 @@ export const unionRevenueStreams = [
     sourceEn: 'Treasury MM arb + 10% bribe commission share',
     cycleZh: '每月多签分配',
     cycleEn: 'Monthly multisig',
-    usd3Zh: '套利与佣金 · 结算为 USD3',
-    usd3En: 'Arb & commission · settled as USD3',
+    usd3Zh: '套利与佣金 · 结算为 UD3',
+    usd3En: 'Arb & commission · settled as UD3',
     d3Zh: '排放层 / 国库 D3 结算',
     d3En: 'Emission / treasury D3 settlement',
   },
@@ -47,8 +47,8 @@ export const unionRevenueStreams = [
     sourceEn: 'Line Gauge ops + bribe cut + line fees',
     cycleZh: '每月线长多签发放',
     cycleEn: 'Monthly line-leader multisig',
-    usd3Zh: '本线手续费与贿赂 · 结算为 USD3',
-    usd3En: 'Line fees & bribe · settled as USD3',
+    usd3Zh: '本线手续费与贿赂 · 结算为 UD3',
+    usd3En: 'Line fees & bribe · settled as UD3',
     d3Zh: '本线排放引导 D3',
     d3En: 'Line-guided D3 emission',
   },
@@ -67,12 +67,12 @@ export const performanceDividend = {
   hasPerformance: true,
 };
 
-/** USD3 业绩分红 — 协议内资产，可转 D3-Fi 或转伞下 */
+/** UD3 业绩分红 — 协议内资产，可转 D3-Fi 或转伞下 */
 export const usd3PerformanceDividend = {
   pending: 186.4,
   claimedLifetime: 1240,
-  settlementZh: 'USD3 资产 · 不可提现到钱包',
-  settlementEn: 'USD3 balance · not withdrawable to wallet',
+  settlementZh: 'UD3 资产 · 不可提现到钱包',
+  settlementEn: 'UD3 balance · not withdrawable to wallet',
   nextEpochSettlementZh: 'Epoch #43 · 2026-08-06',
   nextEpochSettlementEn: 'Epoch #43 · Aug 6, 2026',
   nextMonthlySettlementZh: '2026-08-01（多签复核后发放）',
@@ -104,19 +104,19 @@ export const d3PerformanceDividend = {
 
 export const usd3DividendFormula = {
   zh: [
-    '个人 USD3 = 本线权益占比 × 当期可分配业绩份额',
-    '手续费：买入/卖出 3% 滑点，每 Epoch（30天）按权益比例结算为 USD3',
-    '市值管理：国库套利 + 贿赂佣金 10% 部分，每月多签结算为 USD3',
-    '分线：本线手续费 + 贿赂抽成，每月线长多签发放 USD3',
-    'USD3 用途：转 D3-Fi 投资质押，或转给伞下线的 D3-Fi 账户',
+    '个人 UD3 = 本线权益占比 × 当期可分配业绩份额',
+    '手续费：买入/卖出 3% 滑点，每 Epoch（30天）按权益比例结算为 UD3',
+    '市值管理：国库套利 + 贿赂佣金 10% 部分，每月多签结算为 UD3',
+    '分线：本线手续费 + 贿赂抽成，每月线长多签发放 UD3',
+    'UD3 用途：转 D3-Fi 投资质押，或转给伞下线的 D3-Fi 账户',
     '原则：有业绩才有分红，无业绩不保底',
   ],
   en: [
-    'Your USD3 = equity share × distributable performance pool',
-    'Fees: 3% buy/sell slippage, settled per Epoch (30d) as USD3',
-    'Treasury: MM arb + 10% bribe commission, monthly multisig as USD3',
-    'Line: line fees + bribe cut, monthly line-leader multisig as USD3',
-    'USD3 use: move to D3-Fi for staking, or transfer to downline D3-Fi',
+    'Your UD3 = equity share × distributable performance pool',
+    'Fees: 3% buy/sell slippage, settled per Epoch (30d) as UD3',
+    'Treasury: MM arb + 10% bribe commission, monthly multisig as UD3',
+    'Line: line fees + bribe cut, monthly line-leader multisig as UD3',
+    'UD3 use: move to D3-Fi for staking, or transfer to downline D3-Fi',
     'Rule: performance required — no floor guarantee',
   ],
 };
@@ -150,7 +150,7 @@ export const recentD3Dividends = [
   { id: 'd3', period: '2026年5月', date: '2026-06-01', amount: 0, sourceZh: '本期无业绩 — 无保底', sourceEn: 'No performance — no floor', status: 'none' as const },
 ];
 
-/** Within performance USD3: 50% for self D3-Fi, 50% transferable to umbrella downline D3-Fi */
+/** Within performance UD3: 50% for self D3-Fi, 50% transferable to umbrella downline D3-Fi */
 export const UNION_SELF_SHARE = 0.5;
 export const UNION_TRANSFERABLE_SHARE = 0.5;
 
@@ -160,7 +160,7 @@ export function splitPerformanceUsd3(total: number) {
   return { total, self, transferable };
 }
 
-/** Already moved out of USD3 account from claimed dividends */
+/** Already moved out of UD3 account from claimed dividends */
 export const usd3AccountUsage = {
   movedToFi: 500,
   transferredToDownline: 420,
@@ -241,26 +241,26 @@ export const unionRuleCards = [
     id: 'channels',
     titleZh: '业绩分红',
     titleEn: 'Performance dividends',
-    bodyZh: 'USD3 协议内资产 + D3 链上代币，两条独立结算通道，分别入账。',
-    bodyEn: 'USD3 in-app asset and D3 on-chain token — two separate settlement channels.',
+    bodyZh: 'UD3 协议内资产 + D3 链上代币，两条独立结算通道，分别入账。',
+    bodyEn: 'UD3 in-app asset and D3 on-chain token — two separate settlement channels.',
     tagZh: '双通道',
     tagEn: 'Dual channel',
     accent: '#6366f1',
   },
   {
     id: 'usd3-source',
-    titleZh: 'USD3 来源',
-    titleEn: 'USD3 sources',
-    bodyZh: '手续费滑点（每 Epoch 30 天）+ 市值管理 + 分线收益，统一结算为 USD3 协议资产。',
-    bodyEn: 'Trading fees (per 30-day Epoch) + treasury yield + line revenue — settled as USD3.',
+    titleZh: 'UD3 来源',
+    titleEn: 'UD3 sources',
+    bodyZh: '手续费滑点（每 Epoch 30 天）+ 市值管理 + 分线收益，统一结算为 UD3 协议资产。',
+    bodyEn: 'Trading fees (per 30-day Epoch) + treasury yield + line revenue — settled as UD3.',
     tagZh: '协议内',
     tagEn: 'In-app',
     accent: '#22c55e',
   },
   {
     id: 'usd3-use',
-    titleZh: 'USD3 用途',
-    titleEn: 'USD3 usage',
+    titleZh: 'UD3 用途',
+    titleEn: 'UD3 usage',
     bodyZh: '50% 转入 D3-Fi 投资质押，50% 可转给伞下线的 D3-Fi 账户；不可提现到钱包。',
     bodyEn: '50% to D3-Fi staking, 50% transferable to downline D3-Fi — not withdrawable to wallet.',
     tagZh: '50 / 50',
@@ -600,8 +600,8 @@ export const multisigProposals: MultisigProposal[] = [
     walletType: 'line',
     titleZh: '2026年7月本线分红发放',
     titleEn: 'Jul 2026 line dividend distribution',
-    descZh: '按本线业绩向 48 名股东分配 USD3 + D3',
-    descEn: 'Distribute USD3 + D3 to 48 line shareholders by performance',
+    descZh: '按本线业绩向 48 名股东分配 UD3 + D3',
+    descEn: 'Distribute UD3 + D3 to 48 line shareholders by performance',
     periodZh: '2026年7月',
     periodEn: 'Jul 2026',
     usd3Amount: 186.4,
@@ -644,8 +644,8 @@ export const multisigProposals: MultisigProposal[] = [
   {
     id: 'p3',
     walletType: 'dao',
-    titleZh: '2026年7月国库 USD3 分配',
-    titleEn: 'Jul 2026 treasury USD3 allocation',
+    titleZh: '2026年7月国库 UD3 分配',
+    titleEn: 'Jul 2026 treasury UD3 allocation',
     descZh: '市值管理套利收益按权益池分配',
     descEn: 'Treasury arb yield allocated to equity pool',
     periodZh: '2026年7月',
