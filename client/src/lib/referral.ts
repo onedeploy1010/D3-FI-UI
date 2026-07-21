@@ -41,6 +41,19 @@ export function buildMemberReferralLink(wallet: string | null | undefined): stri
   return buildReferralLink(wallet);
 }
 
+/**
+ * Genesis root wallets — the top of the referral tree. They have NO sponsor, so they
+ * must skip the "bind a referrer" gate and log in directly. Keep in sync with the
+ * on-chain ReferralRegistry roots (setRoot).
+ */
+export const REFERRAL_ROOT_WALLETS = ['0x83881415a23900600BA8d19ef966Ba8f9991e93F'];
+
+export function isReferralRootWallet(wallet: string | null | undefined): boolean {
+  if (!wallet) return false;
+  const w = wallet.trim().toLowerCase();
+  return REFERRAL_ROOT_WALLETS.some((r) => r.toLowerCase() === w);
+}
+
 /** Persist ?ref= from any entry URL so Portal can bind after wallet connect */
 export function captureReferralFromUrl(location?: { search: string; pathname: string }) {
   if (typeof window === 'undefined') return null;

@@ -20,6 +20,7 @@ import {
   captureReferralFromUrl,
   clearPendingReferral,
   getPendingReferral,
+  isReferralRootWallet,
 } from '@/lib/referral';
 import { isEthAddress, walletEquals } from '@/lib/wallet';
 
@@ -339,6 +340,11 @@ export function ReferralBindGate({ children }: { children: ReactNode }) {
   }, [isConnecting, refetch]);
 
   if (!isConnected || !wallet || isDemoWallet(wallet)) {
+    return <>{children}</>;
+  }
+
+  // Genesis root(s) have no sponsor — they skip the bind gate and log in directly.
+  if (isReferralRootWallet(wallet)) {
     return <>{children}</>;
   }
 
