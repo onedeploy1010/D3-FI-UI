@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Sparkles, Zap } from 'lucide-react';
 import { glassCardClass, GlassButton, GlassChip } from '@/components/ui/GlassSurface';
 import { PartnerModal } from '@/components/partner/PartnerModal';
+import { ComingSoonModal } from '@/components/partner/ComingSoonModal';
+import { STAKING_ENABLED } from '@/lib/launchConfig';
 import { PartnerPaymentConfirmSection } from '@/components/partner/PartnerPaymentConfirmSection';
 import { PartnerReferralLoading } from '@/components/partner/PartnerReferralLoading';
 import { PartnerTagChip } from '@/components/partner/partnerUiKit';
@@ -66,6 +68,8 @@ export function PartnerHomeTab({
   const [becomePartner, setBecomePartner] = useState(true);
   const [useUd3, setUseUd3] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Pre-launch: staking is gated behind a countdown popup until STAKING_ENABLED.
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
   const [paySuccessOpen, setPaySuccessOpen] = useState(false);
   const [staking, setStaking] = useState(false);
 
@@ -153,6 +157,12 @@ export function PartnerHomeTab({
   const busy = paying || staking;
 
   const confirmStake = async () => {
+    // Pre-launch guard: never create an order while staking is disabled.
+    if (!STAKING_ENABLED) {
+      setConfirmOpen(false);
+      setComingSoonOpen(true);
+      return;
+    }
     if (!isValidAmount || busy) return;
     setStaking(true);
     try {
@@ -345,8 +355,8 @@ export function PartnerHomeTab({
           <motion.div whileTap={{ scale: 0.98 }}>
             <GlassButton
               className="w-full !py-4 !text-base font-bold flex items-center justify-center gap-2"
-              disabled={!isValidAmount}
-              onClick={() => setConfirmOpen(true)}
+              disabled={STAKING_ENABLED && !isValidAmount}
+              onClick={() => (STAKING_ENABLED ? setConfirmOpen(true) : setComingSoonOpen(true))}
             >
               <Zap size={18} />
               {p('home.stakeOneClick')}
@@ -550,6 +560,13 @@ export function PartnerHomeTab({
           {p('stake.confirm')}
         </GlassButton>
       </PartnerModal>
+
+      <ComingSoonModal
+        open={comingSoonOpen}
+        onClose={() => setComingSoonOpen(false)}
+        lang={lang}
+        isDark={isDark}
+      />
     </div>
   );
 }

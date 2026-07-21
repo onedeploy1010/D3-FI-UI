@@ -387,5 +387,8 @@
   "heartbeat.viewInPortal": "포털에서 보기",
   "stake.paySuccessTitle": "스테이킹 완료",
   "stake.paySuccessBody": "「주문」 페이지에서 확인하세요. 아직 표시되지 않으면 온체인 검증에 1~5분이 걸립니다. 잠시 후 새로고침하세요.",
-  "assets.receivedFrom": "보낸 사람"
+  "assets.receivedFrom": "보낸 사람",
+  "home.stakeComingSoonTitle": "출시 카운트다운 진행 중",
+  "home.stakeComingSoonBody": "기대해 주세요",
+  "home.stakeComingSoonOk": "확인"
 }

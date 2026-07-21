@@ -387,5 +387,8 @@
   "heartbeat.viewInPortal": "ดูในพอร์ทัล",
   "stake.paySuccessTitle": "สเตกสำเร็จ",
   "stake.paySuccessBody": "ตรวจสอบที่หน้า「คำสั่งซื้อ」หากยังไม่แสดง การยืนยันบนเชนใช้เวลา 1–5 นาที โปรดรีเฟรชภายหลัง",
-  "assets.receivedFrom": "จาก"
+  "assets.receivedFrom": "จาก",
+  "home.stakeComingSoonTitle": "กำลังนับถอยหลังสู่การเปิดตัว",
+  "home.stakeComingSoonBody": "โปรดติดตาม",
+  "home.stakeComingSoonOk": "รับทราบ"
 }

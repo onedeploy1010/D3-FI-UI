@@ -409,5 +409,8 @@
   "heartbeat.viewInPortal": "门户查看",
   "stake.paySuccessTitle": "质押成功",
   "stake.paySuccessBody": "请到「订单」页面查看。若未显示，链上验证约需 1–5 分钟，请稍后刷新页面。",
-  "assets.receivedFrom": "收到来自"
+  "assets.receivedFrom": "收到来自",
+  "home.stakeComingSoonTitle": "上线时间正在倒计时",
+  "home.stakeComingSoonBody": "敬请关注",
+  "home.stakeComingSoonOk": "我知道了"
 }

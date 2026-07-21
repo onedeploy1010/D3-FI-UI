@@ -387,5 +387,8 @@
   "heartbeat.viewInPortal": "ポータルで見る",
   "stake.paySuccessTitle": "ステーク完了",
   "stake.paySuccessBody": "「注文」ページでご確認ください。表示されない場合、オンチェーン検証に1〜5分かかります。後で更新してください。",
-  "assets.receivedFrom": "送信元"
+  "assets.receivedFrom": "送信元",
+  "home.stakeComingSoonTitle": "ローンチまでカウントダウン中",
+  "home.stakeComingSoonBody": "お楽しみに",
+  "home.stakeComingSoonOk": "OK"
 }

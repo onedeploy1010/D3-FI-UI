@@ -409,5 +409,8 @@
   "heartbeat.viewInPortal": "View in portal",
   "stake.paySuccessTitle": "Stake submitted",
   "stake.paySuccessBody": "Check the Orders page. If it is not shown yet, on-chain verification takes 1–5 minutes — please refresh later.",
-  "assets.receivedFrom": "From"
+  "assets.receivedFrom": "From",
+  "home.stakeComingSoonTitle": "Launch countdown in progress",
+  "home.stakeComingSoonBody": "Stay tuned",
+  "home.stakeComingSoonOk": "Got it"
 }
