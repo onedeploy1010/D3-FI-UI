@@ -18,10 +18,9 @@ const BASE = `${env.SUPABASE_URL}/storage/v1/object/public/documents/`;
 
 // dl-name text -> storage key
 const MAP = {
-  '白皮书 · 中文完整版': 'd3-finance-whitepaper-cn-v1.pdf',
-  '附录 · 关键参数总表': 'd3-key-params.pdf',
+  '白皮书': 'd3-finance-whitepaper-cn-v1.pdf',
+  '百问百答体系': 'd3-faq-handbook.pdf',
   '项目路演 Deck': 'd3-finance-pitch-deck.pptx',
-  'RWA 合作提案 Deck': 'd3-rwa-proposal.pdf',
   '品牌手册': 'd3-brand-manual.pdf',
   '徽记素材包': 'd3-emblem-assets.pdf',
   '品牌色板与字体规范': 'd3-brand-colors-fonts.pdf',
@@ -42,7 +41,6 @@ const MAP = {
   '读懂双代币': 'd3-dual-token.pdf',
   '六重守护详解': 'd3-six-guardians.pdf',
   'OHM 启示录': 'd3-ohm-lessons.pdf',
-  'FAQ 新人手册': 'd3-faq-handbook.pdf',
 };
 
 let html = readFileSync(HTML, 'utf8');
