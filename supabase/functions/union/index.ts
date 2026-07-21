@@ -501,7 +501,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     sb.from('shareholders').select('*').eq('wallet_address', pk).maybeSingle(),
     sb.from('usd3_accounts').select('*').eq('wallet_address', pk).maybeSingle(),
     sb.from('d3_accounts').select('*').eq('wallet_address', pk).maybeSingle(),
-    sb.from('referrals').select('*').eq('wallet_address', pk),
+    sb.from('referrals').select('*').ilike('wallet_address', pk),
     sb
       .from('dividend_accruals')
       .select('*')
@@ -519,7 +519,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     sb
       .from('referrals')
       .select('wallet_address, referred_at, status, referral_type, performance_weight')
-      .eq('sponsor_wallet_address', pk)
+      .ilike('sponsor_wallet_address', pk)
       .eq('status', 'active'),
     sb.from('poc_scores').select('*').eq('wallet_address', pk).maybeSingle(),
   ]);
