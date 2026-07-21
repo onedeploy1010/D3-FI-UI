@@ -65,7 +65,9 @@ export function useDepositPayment(wallet: string | null) {
           await reportDepositTx(w, intent.intentId, txHash);
         }
 
-        await waitForDepositCredited(w, intent.intentId);
+        // Pass txHash so the poll actively re-verifies on-chain each tick and
+        // credits as soon as confirmations land (instead of waiting for cron).
+        await waitForDepositCredited(w, intent.intentId, txHash ? { txHash } : undefined);
         return { intent, txHash };
       } finally {
         setPaying(false);

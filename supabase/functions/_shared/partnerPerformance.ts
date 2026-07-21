@@ -80,7 +80,21 @@ export type PartnerTeamStats = {
   largeAreaNewPerformanceUsd: number;
 };
 
+/**
+ * Full partner downline of `wallet` (all depths). Uses a single recursive-CTE
+ * DB function (migration 060) — ONE round-trip instead of one query per node.
+ * Falls back to the iterative BFS if the RPC is unavailable.
+ */
 export async function collectPartnerDownlineWallets(sb: Sb, wallet: string): Promise<string[]> {
+  const { data, error } = await sb.rpc('partner_downline_wallets', { root_wallet: wallet });
+  if (!error && Array.isArray(data)) {
+    return data.map((r) => (r as { wallet_address: string }).wallet_address);
+  }
+  return collectPartnerDownlineWalletsBfs(sb, wallet);
+}
+
+/** Legacy per-node BFS fallback (one query per node). */
+async function collectPartnerDownlineWalletsBfs(sb: Sb, wallet: string): Promise<string[]> {
   const out: string[] = [];
   const queue = [wallet];
   const seen = new Set<string>();
@@ -258,6 +272,77 @@ export async function fetchPartnerTeamStats(sb: Sb, wallet: string): Promise<Par
     largeAreaPerformanceUsd: areas.largeAreaUsd,
     largeAreaNewPerformanceUsd: areas.largeAreaNewUsd,
   };
+}
+
+export type PartnerNodeStat = {
+  personalPerformanceUsd: number;
+  teamPerformanceUsd: number;
+  teamCount: number;
+};
+
+/**
+ * Batched per-node stats for a set of wallets (used for a partner's direct
+ * referrals). Avoids the N+1 full-team-stats recompute per child:
+ *   - one batched read of cached `team_perf_usdt` (materialized by settlement),
+ *   - one batched read of personal credited stake,
+ *   - one downline CTE per wallet (for team_count and the cache-miss fallback).
+ */
+export async function fetchPartnerReferralNodeStatsBatch(
+  sb: Sb,
+  wallets: string[],
+): Promise<Map<string, PartnerNodeStat>> {
+  const result = new Map<string, PartnerNodeStat>();
+  const unique = [...new Set(wallets.map((w) => String(w).trim()).filter(Boolean))];
+  if (!unique.length) return result;
+
+  const [acctRes, stakeRes] = await Promise.all([
+    sb.from('partner_accounts').select('wallet_address, team_perf_usdt').in('wallet_address', unique),
+    sb
+      .from('stake_intents')
+      .select('wallet_address, amount_usdt')
+      .in('wallet_address', unique)
+      .in('status', CREDITED_STATUSES),
+  ]);
+
+  const cachedTeam = new Map<string, number | null>();
+  for (const a of acctRes.data ?? []) {
+    const t = (a as { team_perf_usdt?: number | null }).team_perf_usdt;
+    cachedTeam.set(String(a.wallet_address).toLowerCase(), t == null ? null : Number(t));
+  }
+  const personal = new Map<string, number>();
+  for (const s of stakeRes.data ?? []) {
+    const w = String(s.wallet_address).toLowerCase();
+    personal.set(w, (personal.get(w) ?? 0) + Number(s.amount_usdt ?? 0));
+  }
+
+  await Promise.all(
+    unique.map(async (w) => {
+      const wl = w.toLowerCase();
+      const downline = await collectPartnerDownlineWallets(sb, w);
+      let teamPerf = cachedTeam.get(wl) ?? null;
+      if (teamPerf == null) {
+        // Cache miss (never settled): compute from downline performance_weight.
+        if (downline.length) {
+          const { data: refs } = await sb
+            .from('referrals')
+            .select('performance_weight')
+            .in('wallet_address', downline)
+            .eq('referral_type', 'partner')
+            .eq('status', 'active');
+          teamPerf = Math.round((refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0) * 100) / 100;
+        } else {
+          teamPerf = 0;
+        }
+      }
+      result.set(w, {
+        personalPerformanceUsd: Math.round((personal.get(wl) ?? 0) * 100) / 100,
+        teamPerformanceUsd: teamPerf,
+        teamCount: downline.length,
+      });
+    }),
+  );
+
+  return result;
 }
 
 /** Per-wallet stats for referral tree nodes (personal stake vs downline team volume). */

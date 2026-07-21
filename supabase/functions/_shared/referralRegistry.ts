@@ -69,16 +69,19 @@ export async function verifyOnchainBinding(opts: {
   expectedUpline: string;
   txHash?: string;
 }): Promise<{ ok: boolean; upline: string | null }> {
-  if (opts.txHash) {
-    const client = getBscPublicClient();
-    try {
-      const receipt = await client.getTransactionReceipt({ hash: opts.txHash as Hash });
-      if (!receipt || receipt.status !== 'success') return { ok: false, upline: null };
-    } catch {
-      return { ok: false, upline: null };
-    }
-  }
-  const upline = await readUplineOnchain(opts.user);
+  const client = getBscPublicClient();
+  // The tx-receipt check and the upline read are independent — run concurrently
+  // to halve the on-chain round-trip latency of the bind confirmation.
+  const [receiptOk, upline] = await Promise.all([
+    opts.txHash
+      ? client
+          .getTransactionReceipt({ hash: opts.txHash as Hash })
+          .then((r) => Boolean(r && r.status === 'success'))
+          .catch(() => false)
+      : Promise.resolve(true),
+    readUplineOnchain(opts.user),
+  ]);
+  if (!receiptOk) return { ok: false, upline: null };
   const ok = Boolean(upline && upline.toLowerCase() === opts.expectedUpline.toLowerCase());
   return { ok, upline };
 }

@@ -26,7 +26,7 @@ import {
   collectPartnerDownlineWallets,
   fetchPartnerDirectLineStats,
   fetchPartnerMemberWallets,
-  fetchPartnerReferralNodeStats,
+  fetchPartnerReferralNodeStatsBatch,
   fetchPartnerTeamStats,
 } from '../_shared/partnerPerformance.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
@@ -572,38 +572,10 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     ? await sb.from('multisig_signatures').select('*').in('proposal_id', proposalIds)
     : { data: [] };
 
-  const partnerTeamStats = await fetchPartnerTeamStats(sb, pk).catch(() => ({
-    personalPerformanceUsd: 0,
-    teamPerformanceUsd: 0,
-    dailyNewPerformanceUsd: 0,
-    smallAreaPerformanceUsd: 0,
-    smallAreaNewPerformanceUsd: 0,
-    largeAreaPerformanceUsd: 0,
-    largeAreaNewPerformanceUsd: 0,
-  }));
-
-  const partnerDirectLineStats = await fetchPartnerDirectLineStats(sb, pk).catch(() => []);
-
   const partnerDirectReferrals = (directReferrals.data ?? []).filter(
     (r) => r.referral_type === 'partner' && r.status === 'active',
   );
-  const enrichedDirectReferrals = await Promise.all(
-    partnerDirectReferrals.map(async (ref) => {
-      const nodeStats = await fetchPartnerReferralNodeStats(sb, ref.wallet_address as string).catch(
-        () => ({
-          personalPerformanceUsd: Number(ref.performance_weight ?? 0),
-          teamPerformanceUsd: 0,
-          teamCount: 0,
-        }),
-      );
-      return {
-        ...ref,
-        personal_performance_usd: nodeStats.personalPerformanceUsd,
-        team_performance_usd: nodeStats.teamPerformanceUsd,
-        team_count: nodeStats.teamCount,
-      };
-    }),
-  );
+  const directReferralWallets = partnerDirectReferrals.map((r) => String(r.wallet_address));
 
   const profileWallets = new Set<string>([pk]);
   for (const row of lineTeamNodes.data ?? []) {
@@ -612,19 +584,57 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
   for (const ref of directReferrals.data ?? []) {
     profileWallets.add(String(ref.wallet_address));
   }
-  const partnerMemberWallets = await fetchPartnerMemberWallets(sb, [...profileWallets]).catch(
-    () => [] as string[],
-  );
-  const partnerBundle = await fetchPartnerAccountBundle(sb, pk).catch(() => ({
-    account: null,
-    stakePositions: [],
-    ud3Settlements: [],
-    ud3Allocations: [],
-    yieldSettlements: [],
-    ud3Transfers: [],
-    yieldWithdrawals: [],
-  }));
-  const partnerDownlineWallets = await collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]);
+
+  // These partner-tree reads are independent — run them concurrently instead of
+  // serially. Each downline walk is now a single recursive-CTE query (migration
+  // 060), and direct-referral node stats are batched (no per-child recompute).
+  const [
+    partnerTeamStats,
+    partnerDirectLineStats,
+    directNodeStats,
+    partnerMemberWallets,
+    partnerBundle,
+    partnerDownlineWallets,
+  ] = await Promise.all([
+    fetchPartnerTeamStats(sb, pk).catch(() => ({
+      personalPerformanceUsd: 0,
+      teamPerformanceUsd: 0,
+      dailyNewPerformanceUsd: 0,
+      smallAreaPerformanceUsd: 0,
+      smallAreaNewPerformanceUsd: 0,
+      largeAreaPerformanceUsd: 0,
+      largeAreaNewPerformanceUsd: 0,
+    })),
+    fetchPartnerDirectLineStats(sb, pk).catch(() => []),
+    fetchPartnerReferralNodeStatsBatch(sb, directReferralWallets).catch(
+      () => new Map<string, { personalPerformanceUsd: number; teamPerformanceUsd: number; teamCount: number }>(),
+    ),
+    fetchPartnerMemberWallets(sb, [...profileWallets]).catch(() => [] as string[]),
+    fetchPartnerAccountBundle(sb, pk).catch(() => ({
+      account: null,
+      stakePositions: [],
+      ud3Settlements: [],
+      ud3Allocations: [],
+      yieldSettlements: [],
+      ud3Transfers: [],
+      yieldWithdrawals: [],
+    })),
+    collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]),
+  ]);
+
+  const enrichedDirectReferrals = partnerDirectReferrals.map((ref) => {
+    const nodeStats = directNodeStats.get(String(ref.wallet_address)) ?? {
+      personalPerformanceUsd: Number(ref.performance_weight ?? 0),
+      teamPerformanceUsd: 0,
+      teamCount: 0,
+    };
+    return {
+      ...ref,
+      personal_performance_usd: nodeStats.personalPerformanceUsd,
+      team_performance_usd: nodeStats.teamPerformanceUsd,
+      team_count: nodeStats.teamCount,
+    };
+  });
 
   // Full multi-level downline edges (wallet -> sponsor) so the client can nest the
   // referral tree beyond direct referrals (下下线 and deeper), even when team_nodes

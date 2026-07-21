@@ -131,14 +131,21 @@ export async function scanPendingDeposits(sb: Sb, limit = 20): Promise<number> {
   return credited;
 }
 
-/** Re-verify detected deposits (tx reported but confirmations were low) and credit when ready. */
+/**
+ * Re-verify reported-but-uncredited deposits (tx reported while confirmations
+ * were still low) and credit them once they reach the confirmation floor.
+ * Includes both `detected` AND `pending` rows that have a tx_hash: a deposit
+ * reported at 0 confirmations is written as `pending` with a tx_hash, which the
+ * `tx_hash IS NULL` auto-scan skips — so without this it would never re-verify
+ * and the client would sit until its poll timeout.
+ */
 export async function promoteDetectedDeposits(sb: Sb, limit = 20): Promise<number> {
   const { data: deposits, error } = await sb
     .from('deposit_records')
     .select('*')
-    .eq('status', 'detected')
+    .in('status', ['detected', 'pending'])
     .not('tx_hash', 'is', null)
-    .order('detected_at', { ascending: true })
+    .order('created_at', { ascending: true })
     .limit(limit);
 
   if (error) throw error;

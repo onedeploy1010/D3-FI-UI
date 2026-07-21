@@ -151,18 +151,32 @@ export function stakePartnerUd3(wallet: string, amountUd3: number) {
 export async function waitForDepositCredited(
   wallet: string,
   intentId: string,
-  opts?: { maxAttempts?: number; intervalMs?: number },
+  opts?: { maxAttempts?: number; intervalMs?: number; txHash?: string },
 ): Promise<DepositStatus> {
   const maxAttempts = opts?.maxAttempts ?? 60;
   const intervalMs = opts?.intervalMs ?? 3000;
+  const txHash = opts?.txHash;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const status = await fetchDepositStatus(wallet, intentId);
+    // When we know the tx hash, re-report it: reportDepositTx re-runs on-chain
+    // verification server-side (and is idempotent once credited), so the deposit
+    // is credited as soon as it reaches the confirmation floor — instead of
+    // waiting for the next treasury-cron tick. Falls back to the read-only
+    // status poll if re-verification errors out.
+    let status: DepositStatus;
+    try {
+      status = txHash
+        ? await reportDepositTx(wallet, intentId, txHash)
+        : await fetchDepositStatus(wallet, intentId);
+    } catch {
+      status = await fetchDepositStatus(wallet, intentId).catch(() => null as unknown as DepositStatus);
+    }
     if (
-      status.credited ||
-      status.status === 'credited' ||
-      status.depositStatus === 'credited' ||
-      status.depositStatus === 'detected'
+      status &&
+      (status.credited ||
+        status.status === 'credited' ||
+        status.depositStatus === 'credited' ||
+        status.depositStatus === 'detected')
     ) {
       return status;
     }
