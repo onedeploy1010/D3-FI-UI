@@ -190,7 +190,7 @@ export default function PartnerProgram() {
         }`}
       >
         <SiteTopBar
-          logoTo="/portal"
+          logoTo="/"
           logoSize={48}
           isDark={isDark}
           onDisconnect={() => navigate('/portal')}

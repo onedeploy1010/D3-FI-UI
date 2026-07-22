@@ -137,6 +137,21 @@ export function D3Logo({
 
   if (!to) return content;
 
+  // "/" is the static marketing homepage installed over the SPA entry at
+  // deploy time — it lives outside the SPA router, so it needs a full page
+  // navigation instead of a wouter Link.
+  if (to === '/') {
+    return (
+      <a
+        href="/"
+        className="inline-flex transition-opacity hover:opacity-85"
+        aria-label="D³ Finance Home"
+      >
+        {content}
+      </a>
+    );
+  }
+
   return (
     <Link
       href={to}
