@@ -458,8 +458,11 @@ h1,h2,h3,h4,p,li,.card,.dl-name,.dl-meta{overflow-wrap:break-word}
 <div class="nav-links">
 <a data-i18n="t2" href="#whitepaper">白皮书</a><a data-i18n="t3" href="#ppt">PPT资料</a><a data-i18n="t4" href="#brand">品牌哲学</a><a data-i18n="t5" href="#tokenomics">代币经济学</a><a data-i18n="t6" href="#bribe">贿赂方法论</a><a data-i18n="t7" href="#eco">生态发展观</a><a data-i18n="t448" href="#alliance">受贿者联盟</a><a data-i18n="t8" href="#onepager">一页图</a><a data-i18n="t9" href="#video">视频</a><a data-i18n="t10" href="#article">深度解析</a>
 </div>
-<div class="lang-sw" id="langSw">
+<div class="lang-sw lang-dd" id="langSw">
+<button type="button" class="lang-dd-btn" id="langDdBtn" aria-haspopup="listbox" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a17 17 0 0 1 0 18M12 3a17 17 0 0 0 0 18"/></svg><span id="langDdCur">中</span><svg class="lang-dd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+<div class="lang-dd-menu" id="langDdMenu" role="listbox">
 <a class="on" data-lang="zh" href="#lang-zh" data-i18n="t12" onclick="return LSW('zh')">中</a><a data-lang="en" href="#lang-en" onclick="return LSW('en')">EN</a><a data-lang="ko" href="#lang-ko" onclick="return LSW('ko')">한</a><a data-lang="ja" href="#lang-ja" data-i18n="t13" onclick="return LSW('ja')">日</a><a data-lang="vi" href="#lang-vi" onclick="return LSW('vi')">VI</a><a data-lang="ru" href="#lang-ru" onclick="return LSW('ru')">RU</a><a data-lang="fr" href="#lang-fr" onclick="return LSW('fr')">FR</a><a data-lang="de" href="#lang-de" onclick="return LSW('de')">DE</a><a data-lang="es" href="#lang-es" onclick="return LSW('es')">ES</a><a data-lang="th" href="#lang-th" onclick="return LSW('th')">TH</a>
+</div>
 </div><script>function LSW(l){try{if(window.setLang){window.setLang(l);}else{window.__pendingLang=l;}if(window.location){window.location.hash="lang-"+l;}}catch(e){}return false;}</script>
 <a class="nav-cta" href="/portal"><span data-i18n="ctaStart">进入应用</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
 </div>
@@ -1050,5 +1053,28 @@ var I18N = {"th": {"ctaStart": "เริ่มต้นใช้งาน", "L1
   }
 })();
 </script>
+<style id="lang-dd-style">
+#langSw.lang-dd{position:relative;flex-wrap:nowrap!important;max-width:none!important;background:none;border:none;padding:0;gap:0;overflow:visible}
+.lang-dd-btn{display:inline-flex;align-items:center;gap:6px;background:var(--rose-faint);border:1px solid var(--rose-line);border-radius:999px;padding:7px 12px;font:inherit;font-weight:600;font-size:.86rem;color:inherit;cursor:pointer;line-height:1;min-height:34px}
+.lang-dd-btn svg{width:15px;height:15px;flex:none}
+.lang-dd-btn .lang-dd-chev{width:12px;height:12px;transition:transform .18s}
+#langSw.open .lang-dd-chev{transform:rotate(180deg)}
+.lang-dd-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:200;flex-direction:column;gap:2px;min-width:104px;max-height:min(60vh,420px);overflow:auto;background:rgba(255,252,250,.96);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--rose-line);border-radius:16px;padding:6px;box-shadow:0 14px 40px rgba(124,38,78,.16)}
+#langSw.open .lang-dd-menu{display:flex}
+#langSw .lang-dd-menu a{display:block;min-width:0!important;min-height:0!important;padding:8px 14px!important;border-radius:10px;text-align:center;font-size:.88rem!important;white-space:nowrap}
+@media (max-width:640px){#langSw.lang-dd{flex-wrap:nowrap!important;max-width:none!important;row-gap:0}.lang-dd-menu{position:fixed;top:auto;right:12px}}
+</style>
+<script id="lang-dd-js">(function(){
+var sw=document.getElementById('langSw'),btn=document.getElementById('langDdBtn'),cur=document.getElementById('langDdCur');
+if(!sw||!btn)return;
+function sync(){var on=sw.querySelector('.lang-dd-menu a.on');if(on&&cur)cur.textContent=on.textContent;}
+function close(){sw.classList.remove('open');btn.setAttribute('aria-expanded','false');}
+sync();
+btn.addEventListener('click',function(e){e.stopPropagation();var o=sw.classList.toggle('open');btn.setAttribute('aria-expanded',o?'true':'false');if(o){var m=document.getElementById('langDdMenu'),r=btn.getBoundingClientRect();if(getComputedStyle(m).position==='fixed'){m.style.top=(r.bottom+8)+'px';}}});
+sw.querySelectorAll('.lang-dd-menu a').forEach(function(a){a.addEventListener('click',function(){close();setTimeout(sync,0);});});
+document.addEventListener('click',function(e){if(!sw.contains(e.target))close();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+window.addEventListener('hashchange',function(){setTimeout(sync,0);});
+})();</script>
 </body>
 </html>
