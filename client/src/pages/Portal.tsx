@@ -65,7 +65,7 @@ export default function Portal() {
       buildingDesc: 'D³-Fi 贿赂金融正在建设中，敬请期待。',
     },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · UD3 / D3', badge: '节点站点', cta: '进入联盟' },
-    partner: { title: '合伙人计划', desc: '推荐绑定 · 私募质押 · UD3', badge: '已上线', cta: '进入' },
+    partner: { title: '受贿者联盟', desc: '推荐绑定 · 私募质押 · UD3', badge: '已上线', cta: '进入' },
     announcements: '协议公告',
     protocolPublic: '协议公共',
     epoch: '当前 Epoch',
@@ -95,7 +95,7 @@ export default function Portal() {
       buildingDesc: 'D³-Fi is under construction. Stay tuned.',
     },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · UD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
-    partner: { title: 'Partner Program', desc: 'Referral · Private Sale · UD3', badge: 'Live', cta: 'Enter' },
+    partner: { title: 'Bribee Union', desc: 'Referral · Private Sale · UD3', badge: 'Live', cta: 'Enter' },
     announcements: 'Protocol Updates',
     protocolPublic: 'Protocol Public',
     epoch: 'Current Epoch',
@@ -215,7 +215,8 @@ export default function Portal() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
-            <GlassCard variant="highlight" onClick={() => setBuildingOpen(true)} className="p-5 h-full group">
+            {/* Not launched yet: washed-out look + under-construction dialog on click. */}
+            <GlassCard variant="highlight" onClick={() => setBuildingOpen(true)} className="p-5 h-full group opacity-55 saturate-50">
               <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-3">
