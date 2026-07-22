@@ -9,6 +9,7 @@ import { SiteFooter } from '@/components/layout/SiteFooter';
 import { SitePageHeader } from '@/components/layout/SitePageHeader';
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassCard, GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { WalletGate } from '@/components/wallet/WalletGate';
 import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat';
 import { useWallet } from '@/contexts/wallet-context';
@@ -23,6 +24,7 @@ export default function Portal() {
   const [lang, setLang] = useState<Lang>('zh');
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
+  const [buildingOpen, setBuildingOpen] = useState(false);
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -59,6 +61,8 @@ export default function Portal() {
       badgeDemo: 'Demo数据',
       incompleteHint: '功能未完整，陆续完善中',
       cta: '进入应用',
+      buildingTitle: '正在建设中',
+      buildingDesc: 'D³-Fi 贿赂金融正在建设中，敬请期待。',
     },
     union: { title: '股东联盟', desc: '5,000 USDT 入股 · 三路收益 · UD3 / D3', badge: '节点站点', cta: '进入联盟' },
     partner: { title: '合伙人计划', desc: '推荐绑定 · 私募质押 · UD3', badge: '已上线', cta: '进入' },
@@ -87,6 +91,8 @@ export default function Portal() {
       badgeDemo: 'Demo data',
       incompleteHint: 'Features still being completed',
       cta: 'Enter App',
+      buildingTitle: 'Under Construction',
+      buildingDesc: 'D³-Fi is under construction. Stay tuned.',
     },
     union: { title: 'Shareholder Alliance', desc: '5,000 USDT join · performance dividends · UD3 referral', badge: 'Node App', cta: 'Enter Alliance' },
     partner: { title: 'Partner Program', desc: 'Referral · Private Sale · UD3', badge: 'Live', cta: 'Enter' },
@@ -209,7 +215,7 @@ export default function Portal() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
-            <GlassCard variant="highlight" onClick={() => navigate('/d3fi')} className="p-5 h-full group">
+            <GlassCard variant="highlight" onClick={() => setBuildingOpen(true)} className="p-5 h-full group">
               <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-3">
@@ -275,6 +281,18 @@ export default function Portal() {
       </div>
 
       <SiteFooter lang={lang} variant="compact" showCta={false} />
+
+      <Dialog open={buildingOpen} onOpenChange={setBuildingOpen}>
+        <DialogContent className="max-w-xs rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles size={16} className="text-[#E0568F]" />
+              {t.fi.buildingTitle}
+            </DialogTitle>
+            <DialogDescription className="pt-1">{t.fi.buildingDesc}</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
     </WalletGate>
   );
