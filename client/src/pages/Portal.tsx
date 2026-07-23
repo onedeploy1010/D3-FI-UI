@@ -15,6 +15,7 @@ import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat'
 import { useWallet } from '@/contexts/wallet-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { captureReferralFromUrl } from '@/lib/referral';
+import { isDemoWallet } from '@/lib/demoWallet';
 import { buildReferralLink } from '@/lib/referral';
 import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
 
@@ -248,6 +249,9 @@ export default function Portal() {
           </motion.div>
         </div>
 
+        {/* Protocol announcements are seeded demo numbers for the not-yet-live
+            bribe market — only the demo line-leader session should see them. */}
+        {isDemoWallet(wallet) && (
         <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.4 }}>
           <GlassCard className="p-5">
             <div className="flex items-start justify-between gap-2 mb-4">
@@ -279,6 +283,7 @@ export default function Portal() {
             </div>
           </GlassCard>
         </motion.div>
+        )}
       </div>
 
       <SiteFooter lang={lang} variant="compact" showCta={false} />
