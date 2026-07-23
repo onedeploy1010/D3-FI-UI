@@ -103,12 +103,17 @@ function finalizeDemoPartnerState(
       merged.lifetimeUd3Earned > 0
         ? merged.lifetimeUd3Earned
         : DEMO_PARTNER_BASELINE.lifetimeUd3Earned,
-    isPartner: false,
-    joinedAt: null,
-    stakeOrders: [],
-    transfers: [],
-    yieldWithdrawals: [],
-    dtPreorderEligible: false,
+    // The demo is always a browsable joined partner with seeded orders — the
+    // demo wallet's server row (is_partner=false, no positions) must not
+    // downgrade it back to the empty "join first" experience.
+    isPartner: true,
+    joinedAt: merged.joinedAt ?? DEMO_PARTNER_BASELINE.joinedAt,
+    stakeOrders: merged.stakeOrders.length
+      ? merged.stakeOrders
+      : DEMO_PARTNER_BASELINE.stakeOrders,
+    yieldWithdrawals: merged.yieldWithdrawals.length
+      ? merged.yieldWithdrawals
+      : DEMO_PARTNER_BASELINE.yieldWithdrawals,
   };
   return applyDemoSessionOverlay(baseline, session);
 }
