@@ -96,11 +96,8 @@ export function applyDemoSessionOverlay(
   const available = Math.max(0, round2(settledBase - mockTransferred - staked));
   const today = new Date().toISOString().slice(0, 10);
 
-  const stakeOrders = session.mockStakeOrders.length
-    ? mergeMockStakeOrders([], session)
-    : session.mockPartnerJoined
-      ? mergeMockStakeOrders(base.stakeOrders, session)
-      : [];
+  // Seeded baseline orders always show; session-mock stakes stack on top.
+  const stakeOrders = mergeMockStakeOrders(base.stakeOrders, session);
 
   return {
     ...base,
