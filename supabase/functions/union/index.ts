@@ -23,11 +23,9 @@ import {
   getUnitPriceUsdt,
 } from '../_shared/systemParams.ts';
 import {
-  collectPartnerDownlineWallets,
-  fetchPartnerDirectLineStats,
+  emptyPartnerTreeOverview,
   fetchPartnerMemberWallets,
-  fetchPartnerReferralNodeStatsBatch,
-  fetchPartnerTeamStats,
+  fetchPartnerTreeOverview,
 } from '../_shared/partnerPerformance.ts';
 import { fetchPartnerAccountBundle } from '../_shared/partnerSettlement.ts';
 import {
@@ -524,6 +522,27 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     sb.from('poc_scores').select('*').eq('wallet_address', pk).maybeSingle(),
   ]);
 
+  const partnerDirectReferrals = (directReferrals.data ?? []).filter(
+    (r) => r.referral_type === 'partner' && r.status === 'active',
+  );
+  const directReferralWallets = partnerDirectReferrals.map((r) => String(r.wallet_address));
+
+  // The partner-tree rollup (one downline-edge CTE + batched stake/account reads)
+  // only needs pk + the direct list, so it runs concurrently with the whole
+  // union-line/multisig section below instead of after it.
+  const treeOverviewPromise = fetchPartnerTreeOverview(sb, pk, directReferralWallets).catch(
+    () => emptyPartnerTreeOverview(),
+  );
+  const partnerBundlePromise = fetchPartnerAccountBundle(sb, pk).catch(() => ({
+    account: null,
+    stakePositions: [],
+    ud3Settlements: [],
+    ud3Allocations: [],
+    yieldSettlements: [],
+    ud3Transfers: [],
+    yieldWithdrawals: [],
+  }));
+
   if (shareholder.data?.is_shareholder && shareholder.data.status === 'active') {
     try {
       await ensureShareholderLineInfraWithPrivy(sb, pk);
@@ -572,11 +591,6 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     ? await sb.from('multisig_signatures').select('*').in('proposal_id', proposalIds)
     : { data: [] };
 
-  const partnerDirectReferrals = (directReferrals.data ?? []).filter(
-    (r) => r.referral_type === 'partner' && r.status === 'active',
-  );
-  const directReferralWallets = partnerDirectReferrals.map((r) => String(r.wallet_address));
-
   const profileWallets = new Set<string>([pk]);
   for (const row of lineTeamNodes.data ?? []) {
     profileWallets.add(String(row.wallet_address));
@@ -585,45 +599,23 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     profileWallets.add(String(ref.wallet_address));
   }
 
-  // These partner-tree reads are independent — run them concurrently instead of
-  // serially. Each downline walk is now a single recursive-CTE query (migration
-  // 060), and direct-referral node stats are batched (no per-child recompute).
-  const [
-    partnerTeamStats,
-    partnerDirectLineStats,
-    directNodeStats,
-    partnerMemberWallets,
-    partnerBundle,
-    partnerDownlineWallets,
-  ] = await Promise.all([
-    fetchPartnerTeamStats(sb, pk).catch(() => ({
-      personalPerformanceUsd: 0,
-      teamPerformanceUsd: 0,
-      dailyNewPerformanceUsd: 0,
-      smallAreaPerformanceUsd: 0,
-      smallAreaNewPerformanceUsd: 0,
-      largeAreaPerformanceUsd: 0,
-      largeAreaNewPerformanceUsd: 0,
-    })),
-    fetchPartnerDirectLineStats(sb, pk).catch(() => []),
-    fetchPartnerReferralNodeStatsBatch(sb, directReferralWallets).catch(
-      () => new Map<string, { personalPerformanceUsd: number; teamPerformanceUsd: number; teamCount: number }>(),
-    ),
+  // Join the early-started partner-tree work (team stats, line stats, node stats
+  // and the multi-level downline edges all come from one edge-CTE rollup).
+  const [treeOverview, partnerBundle, partnerMemberWallets] = await Promise.all([
+    treeOverviewPromise,
+    partnerBundlePromise,
     fetchPartnerMemberWallets(sb, [...profileWallets]).catch(() => [] as string[]),
-    fetchPartnerAccountBundle(sb, pk).catch(() => ({
-      account: null,
-      stakePositions: [],
-      ud3Settlements: [],
-      ud3Allocations: [],
-      yieldSettlements: [],
-      ud3Transfers: [],
-      yieldWithdrawals: [],
-    })),
-    collectPartnerDownlineWallets(sb, pk).catch(() => [] as string[]),
   ]);
+  const {
+    teamStats: partnerTeamStats,
+    directLineStats: partnerDirectLineStats,
+    nodeStats: directNodeStats,
+    edges: partnerDownlineTree,
+    downlineWallets: partnerDownlineWallets,
+  } = treeOverview;
 
   const enrichedDirectReferrals = partnerDirectReferrals.map((ref) => {
-    const nodeStats = directNodeStats.get(String(ref.wallet_address)) ?? {
+    const nodeStats = directNodeStats.get(String(ref.wallet_address).trim()) ?? {
       personalPerformanceUsd: Number(ref.performance_weight ?? 0),
       teamPerformanceUsd: 0,
       teamCount: 0,
@@ -635,18 +627,6 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
       team_count: nodeStats.teamCount,
     };
   });
-
-  // Full multi-level downline edges (wallet -> sponsor) so the client can nest the
-  // referral tree beyond direct referrals (下下线 and deeper), even when team_nodes
-  // has no rows for these wallets.
-  const partnerDownlineTree = partnerDownlineWallets.length > 0
-    ? ((await sb
-        .from('referrals')
-        .select('wallet_address, sponsor_wallet_address, performance_weight')
-        .in('wallet_address', partnerDownlineWallets)
-        .eq('referral_type', 'partner')
-        .eq('status', 'active')).data ?? [])
-    : [];
 
   const isPartner = Boolean(partnerBundle.account?.is_partner);
   // Daily UD3 (贿赂金) is abolished; the reward is now UD3 credited per deposit.
@@ -761,15 +741,18 @@ Deno.serve(async (req) => {
       // the siwe_nonces table from being spammed unbounded. Generous limits so
       // real users/testers are never blocked; keyed by client IP AND address.
       const ip = clientIpFromRequest(req);
-      await enforceRateLimit(sb, { key: `union:/auth/nonce:ip:${ip}`, limit: 30, windowSec: 60 });
       const body = await req.json().catch(() => ({}));
       const { address } = body as { address?: string };
       if (!address || !isEthAddress(address)) throw new HttpError(400, 'Invalid address');
-      await enforceRateLimit(sb, {
-        key: `union:/auth/nonce:addr:${address.toLowerCase()}`,
-        limit: 30,
-        windowSec: 60,
-      });
+      // Independent throttle keys — check concurrently (one DB round trip, not two).
+      await Promise.all([
+        enforceRateLimit(sb, { key: `union:/auth/nonce:ip:${ip}`, limit: 30, windowSec: 60 }),
+        enforceRateLimit(sb, {
+          key: `union:/auth/nonce:addr:${address.toLowerCase()}`,
+          limit: 30,
+          windowSec: 60,
+        }),
+      ]);
       return jsonResponse(await issueNonce(sb, address));
     }
 

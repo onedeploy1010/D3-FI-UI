@@ -121,19 +121,41 @@ async function collectPartnerDownlineWalletsBfs(sb: Sb, wallet: string): Promise
   return out;
 }
 
+/**
+ * `.in()` filters serialize every value into the request URL; past ~350 wallets the
+ * URL exceeds the HTTP client's 16KB header cap and the request dies with
+ * HeadersOverflowError — which `.data ?? []` silently turns into "no rows". Chunk
+ * large lists into multiple requests and merge.
+ */
+const IN_CHUNK_SIZE = 100;
+
+export async function selectInChunks<Row>(
+  values: string[],
+  run: (part: string[]) => PromiseLike<{ data: Row[] | null }>,
+): Promise<Row[]> {
+  const out: Row[] = [];
+  for (let i = 0; i < values.length; i += IN_CHUNK_SIZE) {
+    const { data } = await run(values.slice(i, i + IN_CHUNK_SIZE));
+    if (data) out.push(...data);
+  }
+  return out;
+}
+
 /** Umbrella total performance (downline referral performance_weight sum). */
 export async function sumReferralTreePerformance(sb: Sb, wallet: string): Promise<number> {
   const downline = await collectPartnerDownlineWallets(sb, wallet);
   if (!downline.length) return 0;
 
-  const { data: refs } = await sb
-    .from('referrals')
-    .select('performance_weight')
-    .in('wallet_address', downline)
-    .eq('referral_type', 'partner')
-    .eq('status', 'active');
+  const refs = await selectInChunks(downline, (part) =>
+    sb
+      .from('referrals')
+      .select('performance_weight')
+      .in('wallet_address', part)
+      .eq('referral_type', 'partner')
+      .eq('status', 'active'),
+  );
 
-  return Math.round((refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0) * 100) / 100;
+  return Math.round(refs.reduce((s, r) => s + Number((r as { performance_weight?: number }).performance_weight ?? 0), 0) * 100) / 100;
 }
 
 async function sumPersonalPerformance(sb: Sb, wallet: string): Promise<number> {
@@ -192,15 +214,17 @@ export async function loadEffectiveCustomerSet(sb: Sb): Promise<Set<string>> {
 async function sumBranchDailyNew(sb: Sb, rootWallet: string, dayStartIso: string, endIso?: string): Promise<number> {
   const wallets = await collectPartnerDownlineWallets(sb, rootWallet);
   wallets.push(rootWallet);
-  let q = sb
-    .from('stake_intents')
-    .select('amount_usdt')
-    .in('wallet_address', wallets)
-    .in('status', CREDITED_STATUSES)
-    .gte('updated_at', dayStartIso);
-  if (endIso) q = q.lte('updated_at', endIso);
-  const { data } = await q;
-  return Math.round((data ?? []).reduce((s, r) => s + Number(r.amount_usdt ?? 0), 0) * 100) / 100;
+  const data = await selectInChunks(wallets, (part) => {
+    let q = sb
+      .from('stake_intents')
+      .select('amount_usdt')
+      .in('wallet_address', part)
+      .in('status', CREDITED_STATUSES)
+      .gte('updated_at', dayStartIso);
+    if (endIso) q = q.lte('updated_at', endIso);
+    return q;
+  });
+  return Math.round(data.reduce((s, r) => s + Number((r as { amount_usdt?: number }).amount_usdt ?? 0), 0) * 100) / 100;
 }
 
 export async function fetchDirectPartnerReferrals(sb: Sb, wallet: string): Promise<string[]> {
@@ -252,14 +276,16 @@ export async function fetchPartnerTeamStats(sb: Sb, wallet: string): Promise<Par
 
   let dailyNewPerformanceUsd = 0;
   if (downlineWallets.length) {
-    const { data: todayIntents } = await sb
-      .from('stake_intents')
-      .select('amount_usdt')
-      .in('wallet_address', downlineWallets)
-      .in('status', CREDITED_STATUSES)
-      .gte('updated_at', dayStart);
+    const todayIntents = await selectInChunks(downlineWallets, (part) =>
+      sb
+        .from('stake_intents')
+        .select('amount_usdt')
+        .in('wallet_address', part)
+        .in('status', CREDITED_STATUSES)
+        .gte('updated_at', dayStart),
+    );
     dailyNewPerformanceUsd = Math.round(
-      (todayIntents ?? []).reduce((s, r) => s + Number(r.amount_usdt ?? 0), 0) * 100,
+      todayIntents.reduce((s, r) => s + Number((r as { amount_usdt?: number }).amount_usdt ?? 0), 0) * 100,
     ) / 100;
   }
 
@@ -323,13 +349,15 @@ export async function fetchPartnerReferralNodeStatsBatch(
       if (teamPerf == null) {
         // Cache miss (never settled): compute from downline performance_weight.
         if (downline.length) {
-          const { data: refs } = await sb
-            .from('referrals')
-            .select('performance_weight')
-            .in('wallet_address', downline)
-            .eq('referral_type', 'partner')
-            .eq('status', 'active');
-          teamPerf = Math.round((refs ?? []).reduce((s, r) => s + Number(r.performance_weight ?? 0), 0) * 100) / 100;
+          const refs = await selectInChunks(downline, (part) =>
+            sb
+              .from('referrals')
+              .select('performance_weight')
+              .in('wallet_address', part)
+              .eq('referral_type', 'partner')
+              .eq('status', 'active'),
+          );
+          teamPerf = Math.round(refs.reduce((s, r) => s + Number((r as { performance_weight?: number }).performance_weight ?? 0), 0) * 100) / 100;
         } else {
           teamPerf = 0;
         }
@@ -484,3 +512,205 @@ export async function fetchPartnerDirectLineStats(
   );
 }
 
+
+export type PartnerTreeEdgeRow = {
+  wallet_address: string;
+  sponsor_wallet_address: string;
+  performance_weight: number | null;
+};
+
+/**
+ * Full partner downline of `rootWallet` as (wallet -> sponsor, weight) edges in
+ * ONE recursive-CTE round trip (migration 062). Fallback when the fn is missing:
+ * wallet-list CTE + chunked .in() reads (stays under the request-URL header cap).
+ */
+export async function fetchPartnerDownlineTreeEdges(
+  sb: Sb,
+  rootWallet: string,
+): Promise<PartnerTreeEdgeRow[]> {
+  const { data, error } = await sb.rpc('partner_downline_tree', { root_wallet: rootWallet });
+  if (!error && Array.isArray(data)) return data as PartnerTreeEdgeRow[];
+  const wallets = await collectPartnerDownlineWallets(sb, rootWallet);
+  if (!wallets.length) return [];
+  return selectInChunks<PartnerTreeEdgeRow>(wallets, (part) =>
+    sb
+      .from('referrals')
+      .select('wallet_address, sponsor_wallet_address, performance_weight')
+      .in('wallet_address', part)
+      .eq('referral_type', 'partner')
+      .eq('status', 'active'),
+  );
+}
+
+export type PartnerTreeOverview = {
+  /** Downline edges, same shape the profile bundle's partnerDownlineTree exposes. */
+  edges: PartnerTreeEdgeRow[];
+  /** Every downline wallet (all depths), original casing, deduped. */
+  downlineWallets: string[];
+  teamStats: PartnerTeamStats;
+  directLineStats: PartnerDirectLineStat[];
+  /** Keyed by the trimmed direct-referral wallet strings passed in. */
+  nodeStats: Map<string, PartnerNodeStat>;
+};
+
+export function emptyPartnerTreeOverview(): PartnerTreeOverview {
+  return {
+    edges: [],
+    downlineWallets: [],
+    teamStats: {
+      personalPerformanceUsd: 0,
+      teamPerformanceUsd: 0,
+      dailyNewPerformanceUsd: 0,
+      smallAreaPerformanceUsd: 0,
+      smallAreaNewPerformanceUsd: 0,
+      largeAreaPerformanceUsd: 0,
+      largeAreaNewPerformanceUsd: 0,
+    },
+    directLineStats: [],
+    nodeStats: new Map(),
+  };
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Everything the profile bundle needs from the partner referral tree, computed
+ * from ONE downline-edge CTE plus three batched reads. Replaces the old combo of
+ * fetchPartnerTeamStats + fetchPartnerDirectLineStats +
+ * fetchPartnerReferralNodeStatsBatch + collectPartnerDownlineWallets + the tree
+ * query, which re-walked the same tree with a recursive CTE 2-3× per direct line.
+ * Subtree membership / weight sums / daily-new sums are derived in memory from
+ * the edge list, preserving each legacy helper's semantics:
+ *   - teamPerformanceUsd    = Σ performance_weight over all downline referral rows
+ *   - line teamUsd          = personal credited stake + strict-subtree weight sum
+ *   - line dailyNewUsd      = today's credited stake over branch root + subtree
+ *   - node teamPerformance  = cached partner_accounts.team_perf_usdt, else subtree sum
+ */
+export async function fetchPartnerTreeOverview(
+  sb: Sb,
+  wallet: string,
+  directWallets: string[],
+  dayStartIso = startOfSgtDayIso(),
+): Promise<PartnerTreeOverview> {
+  const edges = await fetchPartnerDownlineTreeEdges(sb, wallet);
+
+  const lc = (w: string) => w.trim().toLowerCase();
+  const childrenBySponsor = new Map<string, string[]>();
+  const weightByWallet = new Map<string, number>();
+  const downlineSeen = new Set<string>();
+  const downlineWallets: string[] = [];
+  for (const e of edges) {
+    const w = lc(String(e.wallet_address));
+    const s = lc(String(e.sponsor_wallet_address));
+    if (!downlineSeen.has(w)) {
+      downlineSeen.add(w);
+      downlineWallets.push(String(e.wallet_address));
+    }
+    const kids = childrenBySponsor.get(s);
+    if (kids) kids.push(w);
+    else childrenBySponsor.set(s, [w]);
+    weightByWallet.set(w, (weightByWallet.get(w) ?? 0) + Number(e.performance_weight ?? 0));
+  }
+
+  /** Strict descendants of `node` (lowercased keys), cycle-safe. */
+  const descendantsOf = (node: string): Set<string> => {
+    const out = new Set<string>();
+    const queue = [...(childrenBySponsor.get(node) ?? [])];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      if (out.has(cur)) continue;
+      out.add(cur);
+      for (const kid of childrenBySponsor.get(cur) ?? []) queue.push(kid);
+    }
+    return out;
+  };
+
+  const directs = [...new Set(directWallets.map((w) => String(w).trim()).filter(Boolean))];
+
+  const [allTimeRows, todayRows, acctRes] = await Promise.all([
+    // All-time credited stake for root + direct children (personal volumes).
+    selectInChunks<{ wallet_address: string; amount_usdt: number }>([wallet, ...directs], (part) =>
+      sb
+        .from('stake_intents')
+        .select('wallet_address, amount_usdt')
+        .in('wallet_address', part)
+        .in('status', CREDITED_STATUSES),
+    ),
+    // Today's credited stake across the whole downline (daily-new volumes).
+    downlineWallets.length
+      ? selectInChunks<{ wallet_address: string; amount_usdt: number }>(downlineWallets, (part) =>
+          sb
+            .from('stake_intents')
+            .select('wallet_address, amount_usdt')
+            .in('wallet_address', part)
+            .in('status', CREDITED_STATUSES)
+            .gte('updated_at', dayStartIso),
+        )
+      : Promise.resolve([]),
+    // Materialized team volume cache for the direct children.
+    directs.length
+      ? sb.from('partner_accounts').select('wallet_address, team_perf_usdt').in('wallet_address', directs)
+      : Promise.resolve({ data: [] as { wallet_address: string; team_perf_usdt: number | null }[] }),
+  ]);
+
+  const personalBy = new Map<string, number>();
+  for (const r of allTimeRows) {
+    const w = lc(String(r.wallet_address));
+    personalBy.set(w, (personalBy.get(w) ?? 0) + Number(r.amount_usdt ?? 0));
+  }
+  const todayBy = new Map<string, number>();
+  for (const r of todayRows) {
+    const w = lc(String(r.wallet_address));
+    todayBy.set(w, (todayBy.get(w) ?? 0) + Number(r.amount_usdt ?? 0));
+  }
+  const cachedTeam = new Map<string, number | null>();
+  for (const a of acctRes.data ?? []) {
+    const t = (a as { team_perf_usdt?: number | null }).team_perf_usdt;
+    cachedTeam.set(lc(String(a.wallet_address)), t == null ? null : Number(t));
+  }
+
+  const sumOver = (set: Set<string>, by: Map<string, number>) => {
+    let s = 0;
+    for (const w of set) s += by.get(w) ?? 0;
+    return s;
+  };
+
+  const nodeStats = new Map<string, PartnerNodeStat>();
+  const lines: PartnerDirectLineStat[] = directs.map((child) => {
+    const wl = lc(child);
+    const desc = descendantsOf(wl);
+    const subtreeWeight = round2(sumOver(desc, weightByWallet));
+    nodeStats.set(child, {
+      personalPerformanceUsd: round2(personalBy.get(wl) ?? 0),
+      teamPerformanceUsd: cachedTeam.get(wl) ?? subtreeWeight,
+      teamCount: desc.size,
+    });
+    return {
+      wallet: child,
+      teamUsd: round2((personalBy.get(wl) ?? 0) + subtreeWeight),
+      dailyNewUsd: round2(sumOver(desc, todayBy) + (todayBy.get(wl) ?? 0)),
+    };
+  });
+
+  const areas = computePartnerAreaStatsFromLines(lines);
+  let teamPerformanceUsd = 0;
+  for (const v of weightByWallet.values()) teamPerformanceUsd += v;
+  let dailyNewPerformanceUsd = 0;
+  for (const v of todayBy.values()) dailyNewPerformanceUsd += v;
+
+  return {
+    edges,
+    downlineWallets,
+    teamStats: {
+      personalPerformanceUsd: round2(personalBy.get(lc(wallet)) ?? 0),
+      teamPerformanceUsd: round2(teamPerformanceUsd),
+      dailyNewPerformanceUsd: round2(dailyNewPerformanceUsd),
+      smallAreaPerformanceUsd: areas.smallAreaUsd,
+      smallAreaNewPerformanceUsd: areas.smallAreaNewUsd,
+      largeAreaPerformanceUsd: areas.largeAreaUsd,
+      largeAreaNewPerformanceUsd: areas.largeAreaNewUsd,
+    },
+    directLineStats: lines,
+    nodeStats,
+  };
+}
