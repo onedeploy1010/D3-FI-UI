@@ -158,7 +158,8 @@ export function PartnerHomeTab({
 
   const confirmStake = async () => {
     // Pre-launch guard: never create an order while staking is disabled.
-    if (!STAKING_ENABLED) {
+    // The demo session is exempt — its "orders" are browser-session mocks.
+    if (!STAKING_ENABLED && !isDemo) {
       setConfirmOpen(false);
       setComingSoonOpen(true);
       return;
@@ -355,8 +356,8 @@ export function PartnerHomeTab({
           <motion.div whileTap={{ scale: 0.98 }}>
             <GlassButton
               className="w-full !py-4 !text-base font-bold flex items-center justify-center gap-2"
-              disabled={STAKING_ENABLED && !isValidAmount}
-              onClick={() => (STAKING_ENABLED ? setConfirmOpen(true) : setComingSoonOpen(true))}
+              disabled={(STAKING_ENABLED || isDemo) && !isValidAmount}
+              onClick={() => (STAKING_ENABLED || isDemo ? setConfirmOpen(true) : setComingSoonOpen(true))}
             >
               <Zap size={18} />
               {p('home.stakeOneClick')}
