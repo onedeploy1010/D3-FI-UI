@@ -861,21 +861,12 @@ export const DEMO_PARTNER_STATE: PartnerState = {
   yieldSettlementsByPosition: {},
 };
 
-/** Demo login baseline — performance/settlements only; partner/stake/transfer come from session mocks. */
+/** Demo login baseline — a joined partner with seeded stake orders/yield so the
+ * assets tab is browsable immediately; NEW stakes/transfers layer on top as
+ * session mocks (browser-only, never sent to the server). */
 export const DEMO_PARTNER_BASELINE: PartnerState = {
   ...DEMO_PARTNER_STATE,
-  isPartner: false,
-  joinedAt: null,
-  stakeOrders: [],
   transfers: [],
-  yieldWithdrawals: [],
-  dtPreorderEligible: false,
-  ud3Balance: DEMO_UD3_LIFETIME,
-  pendingUd3: 0,
-  ud3StakedFromRewards: 0,
-  lifetimeUsdtYield: 0,
-  pendingUsdtYield: 0,
-  pendingD3Yield: 0,
 };
 
 export const GUEST_PARTNER_STATE: PartnerState = {
