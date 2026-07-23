@@ -1,6 +1,8 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import type { UnionProfileBundle } from '@/lib/d3fiTypes';
 import { ensureUnionProfile, fetchUnionProfile } from '@/lib/unionApi';
+import { hasValidSession } from '@/lib/siwe';
+import { isDemoWallet } from '@/lib/demoWallet';
 
 /**
  * Single shared React Query cache for the Union profile bundle.
@@ -38,10 +40,25 @@ function isAuthError(msg: string) {
  * profile (`ensureUnionProfile`) then re-fetches; transient/auth errors bubble up
  * for React Query's `retry` to handle.
  */
+/**
+ * The authed /profile fetch is useless before the SIWE session exists — firing it
+ * during sign-in just burns 401s + retries and slows the referral gate. Briefly
+ * wait for the session token to land, then fetch once with it.
+ */
+async function waitForSiweSession(wallet: string, maxMs = 6000): Promise<void> {
+  if (isDemoWallet(wallet) || hasValidSession(wallet)) return;
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise((r) => setTimeout(r, 150));
+    if (hasValidSession(wallet)) return;
+  }
+}
+
 export async function loadUnionProfileResilient(
   wallet: string,
   lang: Lang = 'zh',
 ): Promise<UnionProfileBundle> {
+  await waitForSiweSession(wallet);
   try {
     return await fetchUnionProfile(wallet);
   } catch (e) {

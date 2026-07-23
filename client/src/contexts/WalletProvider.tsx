@@ -103,7 +103,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
         attemptedAddrRef.current = addrLc;
         if (!cancelled) setError(null);
-        await syncProfile(externalAddress);
+        // Off the critical path: the profile loader self-provisions on 404, so the
+        // referral gate shouldn't wait ~2s for this ensure round-trip on every login.
+        void syncProfile(externalAddress);
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : String(e);
