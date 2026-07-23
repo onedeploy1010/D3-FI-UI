@@ -48,6 +48,7 @@ import {
   type Ud3RewardConfig,
 } from '../_shared/ud3RewardConfig.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
+import { computeSolvency } from '../_shared/solvency.ts';
 import {
   getInfraWalletBalances,
   proposeTreasuryTransfer,
@@ -1392,16 +1393,53 @@ function requireSecurityWrite(admin: AdminProfile) {
   }
 }
 
+/** Paginated sum of a numeric column (PostgREST has no aggregate select). */
+async function sumTableColumn(
+  sb: Sb,
+  table: string,
+  column: string,
+  // deno-lint-ignore no-explicit-any
+  apply?: (q: any) => any,
+): Promise<number> {
+  let total = 0;
+  let from = 0;
+  const page = 1000;
+  for (;;) {
+    let q = sb.from(table).select(column).range(from, from + page - 1);
+    if (apply) q = apply(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data?.length) break;
+    for (const r of data) total += Number((r as Record<string, unknown>)[column] ?? 0);
+    if (data.length < page) break;
+    from += page;
+  }
+  return Math.round(total * 1e6) / 1e6;
+}
+
+const DASH_CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweeping'];
+
 async function dashboardStats(sb: Sb) {
+  const sgtDayStart = startOfSgtDayIso();
   const [
     partners,
     members,
+    membersToday,
     openTickets,
     pendingWithdrawals,
-    todayStakes,
+    activeStakes,
+    totalDepositedUsdt,
+    depositsTodayUsdt,
+    activePrincipalUsdt,
+    ud3TotalBalance,
+    ud3LifetimeEarned,
   ] = await Promise.all([
     sb.from('partner_accounts').select('id', { count: 'exact', head: true }).eq('is_partner', true),
     sb.from('partner_accounts').select('id', { count: 'exact', head: true }),
+    sb
+      .from('partner_accounts')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', sgtDayStart),
     sb
       .from('partner_subsidy_tickets')
       .select('id', { count: 'exact', head: true })
@@ -1414,14 +1452,43 @@ async function dashboardStats(sb: Sb) {
       .from('partner_stake_positions')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active'),
+    sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
+      q.in('status', DASH_CREDITED_STATUSES)),
+    sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
+      q.in('status', DASH_CREDITED_STATUSES).gte('created_at', sgtDayStart)),
+    sumTableColumn(sb, 'partner_stake_positions', 'principal_usdt', (q) =>
+      q.eq('status', 'active')),
+    sumTableColumn(sb, 'partner_accounts', 'ud3_balance'),
+    sumTableColumn(sb, 'partner_accounts', 'lifetime_ud3_earned'),
   ]);
+
+  // On-chain reserves + D3 liability; keep the dashboard usable when RPC is down.
+  let solvency: Awaited<ReturnType<typeof computeSolvency>> | null = null;
+  try {
+    solvency = await computeSolvency(sb);
+  } catch (_e) {
+    solvency = null;
+  }
 
   return {
     partnerCount: partners.count ?? 0,
     memberCount: members.count ?? 0,
+    newMembersToday: membersToday.count ?? 0,
     openSubsidyTickets: openTickets.count ?? 0,
     pendingYieldWithdrawals: pendingWithdrawals.count ?? 0,
-    activeStakePositions: todayStakes.count ?? 0,
+    activeStakePositions: activeStakes.count ?? 0,
+    totalDepositedUsdt,
+    depositsTodayUsdt,
+    activePrincipalUsdt,
+    ud3TotalBalance,
+    ud3LifetimeEarned,
+    d3Price: solvency?.d3Price ?? null,
+    pendingD3: solvency?.pendingD3 ?? null,
+    d3LiabilityUsdt: solvency?.liabilityUsdt ?? null,
+    flashSwapReserveUsdt: solvency?.flashSwapReserveUsdt ?? null,
+    treasuryReserveUsdt: solvency?.treasuryReserveUsdt ?? null,
+    solvencyRatio: solvency?.ratio ?? null,
+    solvencyHealthy: solvency?.healthy ?? null,
   };
 }
 
