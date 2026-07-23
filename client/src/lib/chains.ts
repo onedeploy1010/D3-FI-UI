@@ -12,4 +12,7 @@ export const d3SupportedChains = [d3DefaultChain];
 export const bscPublicClient = createPublicClient({
   chain: d3DefaultChain,
   transport: http(bscRpcUrl || undefined),
+  // BSC blocks land every ~1.5-3s; viem's default 4s poll makes
+  // waitForTransactionReceipt overshoot confirmation by a full tick.
+  pollingInterval: 1_000,
 });

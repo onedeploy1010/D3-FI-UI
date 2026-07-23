@@ -67,14 +67,15 @@ export async function readUplineOnchain(user: string): Promise<string | null> {
 }
 
 /**
- * Whether `sponsor` is a valid on-chain upline: either a genesis root or already
- * bound. This mirrors the contract's own `bind()` precondition
- * (`isRoot[upline] || isBound[upline]`), so a root that has no off-chain profile
- * yet is correctly treated as registered. On-chain is the source of truth.
+ * Whether `wallet` is bound on-chain (or is a genesis root, which has no upline
+ * but counts as bound). This mirrors the contract's own `bind()` precondition
+ * (`isRoot[x] || isBound[x]`), so it doubles as the sponsor-registered check —
+ * a root that has no off-chain profile yet is correctly treated as registered.
+ * On-chain is the source of truth.
  */
-export async function isSponsorRegisteredOnchain(sponsor: string): Promise<boolean> {
+export async function isBoundOrRootOnchain(wallet: string): Promise<boolean> {
   if (!REFERRAL_REGISTRY_ADDRESS) return false;
-  const addr = sponsor as Address;
+  const addr = wallet as Address;
   const [root, bound] = await Promise.all([
     bscPublicClient.readContract({
       address: REFERRAL_REGISTRY_ADDRESS,
@@ -91,6 +92,9 @@ export async function isSponsorRegisteredOnchain(sponsor: string): Promise<boole
   ]);
   return Boolean(root) || Boolean(bound);
 }
+
+/** A valid on-chain upline is exactly a bound-or-root wallet. */
+export const isSponsorRegisteredOnchain = isBoundOrRootOnchain;
 
 /**
  * Bind `upline` on-chain from the user's wallet (they pay gas). Returns the tx hash.
