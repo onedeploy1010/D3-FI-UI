@@ -50,6 +50,7 @@ import {
 } from '../_shared/ud3RewardConfig.ts';
 import type { AdminProfile } from '../_shared/adminAuth.ts';
 import { computeSolvency } from '../_shared/solvency.ts';
+import { DEMO_WALLET_ADDRESS } from '../_shared/demo.ts';
 import {
   getInfraWalletBalances,
   proposeTreasuryTransfer,
@@ -1422,6 +1423,11 @@ const DASH_CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweep
 
 async function dashboardStats(sb: Sb) {
   const sgtDayStart = startOfSgtDayIso();
+  // Ops numbers must reflect real users only — the demo wallet carries
+  // simulated balances refreshed by the demo cron. `ilike` (no wildcards)
+  // gives case-insensitive equality.
+  // deno-lint-ignore no-explicit-any
+  const noDemo = (q: any) => q.not('wallet_address', 'ilike', DEMO_WALLET_ADDRESS);
   const [
     partners,
     members,
@@ -1440,21 +1446,27 @@ async function dashboardStats(sb: Sb) {
   ] = await Promise.all([
     // partner_accounts has NO `id` column (PK = wallet_address) — selecting `id`
     // errors out and the count silently became 0.
-    sb
-      .from('partner_accounts')
-      .select('wallet_address', { count: 'exact', head: true })
-      .eq('is_partner', true),
-    sb.from('partner_accounts').select('wallet_address', { count: 'exact', head: true }),
-    sb.from('profiles').select('wallet_address', { count: 'exact', head: true }),
-    sb
-      .from('profiles')
-      .select('wallet_address', { count: 'exact', head: true })
-      .gte('created_at', sgtDayStart),
+    noDemo(
+      sb
+        .from('partner_accounts')
+        .select('wallet_address', { count: 'exact', head: true })
+        .eq('is_partner', true),
+    ),
+    noDemo(sb.from('partner_accounts').select('wallet_address', { count: 'exact', head: true })),
+    noDemo(sb.from('profiles').select('wallet_address', { count: 'exact', head: true })),
+    noDemo(
+      sb
+        .from('profiles')
+        .select('wallet_address', { count: 'exact', head: true })
+        .gte('created_at', sgtDayStart),
+    ),
     loadEffectiveCustomerSet(sb),
-    sb
-      .from('partner_accounts')
-      .select('wallet_address', { count: 'exact', head: true })
-      .gte('created_at', sgtDayStart),
+    noDemo(
+      sb
+        .from('partner_accounts')
+        .select('wallet_address', { count: 'exact', head: true })
+        .gte('created_at', sgtDayStart),
+    ),
     sb
       .from('partner_subsidy_tickets')
       .select('id', { count: 'exact', head: true })
@@ -1468,14 +1480,15 @@ async function dashboardStats(sb: Sb) {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active'),
     sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
-      q.in('status', DASH_CREDITED_STATUSES)),
+      noDemo(q.in('status', DASH_CREDITED_STATUSES))),
     sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
-      q.in('status', DASH_CREDITED_STATUSES).gte('created_at', sgtDayStart)),
+      noDemo(q.in('status', DASH_CREDITED_STATUSES).gte('created_at', sgtDayStart))),
     sumTableColumn(sb, 'partner_stake_positions', 'principal_usdt', (q) =>
-      q.eq('status', 'active')),
-    sumTableColumn(sb, 'partner_accounts', 'ud3_balance'),
-    sumTableColumn(sb, 'partner_accounts', 'lifetime_ud3_earned'),
+      noDemo(q.eq('status', 'active'))),
+    sumTableColumn(sb, 'partner_accounts', 'ud3_balance', noDemo),
+    sumTableColumn(sb, 'partner_accounts', 'lifetime_ud3_earned', noDemo),
   ]);
+  effectiveCustomers.delete(DEMO_WALLET_ADDRESS.toLowerCase());
 
   // On-chain reserves + D3 liability; keep the dashboard usable when RPC is down.
   let solvency: Awaited<ReturnType<typeof computeSolvency>> | null = null;

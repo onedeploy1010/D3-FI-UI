@@ -122,3 +122,4 @@ storybook-static
 # Storage, not committed. Only the marketing homepage index.html is tracked.
 /D3FinanceDocuments/*
 !/D3FinanceDocuments/index.html
+backups/
