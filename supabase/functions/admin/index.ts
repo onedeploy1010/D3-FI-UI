@@ -16,6 +16,7 @@ import {
   collectPartnerDownlineWallets,
   fetchDirectPartnerReferrals,
   fetchPartnerTeamStats,
+  loadEffectiveCustomerSet,
 } from '../_shared/partnerPerformance.ts';
 import { startOfSgtDayIso } from '../_shared/partnerTimezone.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
@@ -1424,6 +1425,9 @@ async function dashboardStats(sb: Sb) {
   const [
     partners,
     members,
+    registered,
+    registeredToday,
+    effectiveCustomers,
     membersToday,
     openTickets,
     pendingWithdrawals,
@@ -1434,11 +1438,22 @@ async function dashboardStats(sb: Sb) {
     ud3TotalBalance,
     ud3LifetimeEarned,
   ] = await Promise.all([
-    sb.from('partner_accounts').select('id', { count: 'exact', head: true }).eq('is_partner', true),
-    sb.from('partner_accounts').select('id', { count: 'exact', head: true }),
+    // partner_accounts has NO `id` column (PK = wallet_address) — selecting `id`
+    // errors out and the count silently became 0.
     sb
       .from('partner_accounts')
-      .select('id', { count: 'exact', head: true })
+      .select('wallet_address', { count: 'exact', head: true })
+      .eq('is_partner', true),
+    sb.from('partner_accounts').select('wallet_address', { count: 'exact', head: true }),
+    sb.from('profiles').select('wallet_address', { count: 'exact', head: true }),
+    sb
+      .from('profiles')
+      .select('wallet_address', { count: 'exact', head: true })
+      .gte('created_at', sgtDayStart),
+    loadEffectiveCustomerSet(sb),
+    sb
+      .from('partner_accounts')
+      .select('wallet_address', { count: 'exact', head: true })
       .gte('created_at', sgtDayStart),
     sb
       .from('partner_subsidy_tickets')
@@ -1473,6 +1488,9 @@ async function dashboardStats(sb: Sb) {
   return {
     partnerCount: partners.count ?? 0,
     memberCount: members.count ?? 0,
+    registeredMemberCount: registered.count ?? 0,
+    newRegisteredToday: registeredToday.count ?? 0,
+    effectiveMemberCount: effectiveCustomers.size,
     newMembersToday: membersToday.count ?? 0,
     openSubsidyTickets: openTickets.count ?? 0,
     pendingYieldWithdrawals: pendingWithdrawals.count ?? 0,

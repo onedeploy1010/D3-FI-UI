@@ -29,8 +29,9 @@ jobs:
       - name: Build
         run: pnpm exec vite build
         env:
-          VITE_BSC_USDT_ADDRESS: '0xE763F2dF7C8aDF28eAa34683245e3a6f82fC2512'
-          VITE_USDT_IS_FAUCET: 'true'
+          # LIVE: real BSC USDT (launch switch 2026-07-24; was the TestUSDT faucet token)
+          VITE_BSC_USDT_ADDRESS: '0x55d398326f99059fF775485246999027B3197955'
+          VITE_USDT_IS_FAUCET: 'false'
           VITE_REFERRAL_REGISTRY_ADDRESS: '0x17da7b78448D04cD6E72Bf819Abb9a0C10553fED'
           VITE_DEMO_WALLET_ADDRESS: '0x1234567890abcdef1234567890abcdef12345678'
           # Dedicated QuickNode BSC RPC (origin-allowlisted, incl. d3-fi.com). The

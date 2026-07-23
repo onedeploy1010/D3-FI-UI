@@ -6,6 +6,9 @@ import { Loader2 } from 'lucide-react';
 type Dash = {
   partnerCount: number;
   memberCount: number;
+  registeredMemberCount: number;
+  newRegisteredToday: number;
+  effectiveMemberCount: number;
   newMembersToday: number;
   openSubsidyTickets: number;
   pendingYieldWithdrawals: number;
@@ -111,9 +114,9 @@ export default function DashboardPage() {
           </Section>
 
           <Section title="运营">
-            <Kpi label="会员总数" value={String(data.memberCount)} accent="#E0568F" />
-            <Kpi label="合伙人" value={String(data.partnerCount)} accent="#8A2B57" />
-            <Kpi label="今日新增会员" value={String(data.newMembersToday)} />
+            <Kpi label="注册会员" value={String(data.registeredMemberCount)} accent="#E0568F" sub={`今日新增 ${data.newRegisteredToday}`} />
+            <Kpi label="正式会员" value={String(data.effectiveMemberCount)} accent="#8A2B57" sub="个人入金 ≥ 100U" />
+            <Kpi label="合伙人" value={String(data.partnerCount)} />
             <Kpi label="活跃质押笔数" value={String(data.activeStakePositions)} />
             <Kpi label="待处理工单" value={String(data.openSubsidyTickets)} accent="#E0568F" />
             <Kpi label="待提现" value={String(data.pendingYieldWithdrawals)} />
