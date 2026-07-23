@@ -36,7 +36,7 @@ export default function Landing() {
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
   const [, navigate] = useLocation();
   const { theme } = useTheme();
-  const { epoch: protocolEpoch, isLoading: protocolLoading } = useProtocolEpoch(toLegacyLang(lang));
+  const { epoch: protocolEpoch, isLoading: protocolLoading } = useProtocolEpoch(lang);
   const t = getLandingContent(lang);
   const isDark = theme === 'dark';
   const stats = useMemo(
@@ -450,7 +450,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <SiteFooter lang={toLegacyLang(lang)} />
+      <SiteFooter lang={lang} />
     </div>
   );
 }

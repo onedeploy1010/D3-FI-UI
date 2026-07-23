@@ -1,27 +1,8 @@
 import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { FlowDot } from './FlowDot';
-
-type Lang = 'zh' | 'en';
-
-const copy = {
-  zh: {
-    ai: 'AI 分析',
-    fi: '贿赂金融',
-    hub: '协议枢纽',
-    partner: '受贿者联盟',
-    live: '已上线',
-    offline: '未上线',
-  },
-  en: {
-    ai: 'AI Analytics',
-    fi: 'Bribe-Fi',
-    hub: 'Protocol Hub',
-    partner: 'Bribee Union',
-    live: 'Live',
-    offline: 'Not live',
-  },
-} as const;
+import { portalT } from '@/i18n/messages';
+import type { AppLang } from '@/i18n/types';
 
 const CX = 100;
 const CY = 100;
@@ -73,8 +54,15 @@ function OrbitRing({
   );
 }
 
-export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boolean }) {
-  const t = copy[lang];
+export function PortalOrbitalDiagram({ lang, isDark }: { lang: AppLang; isDark: boolean }) {
+  const t = {
+    ai: portalT(lang, 'orbital.ai'),
+    fi: portalT(lang, 'orbital.fi'),
+    hub: portalT(lang, 'orbital.hub'),
+    partner: portalT(lang, 'orbital.partner'),
+    live: portalT(lang, 'orbital.live'),
+    offline: portalT(lang, 'orbital.offline'),
+  };
   const gold = '#E0568F';
   const burgundy = isDark ? '#E8D5A3' : '#8A2B57';
   const arrow = isDark ? 'rgba(224,86,143,0.65)' : 'rgba(138,43,87,0.5)';
@@ -364,7 +352,7 @@ export function PortalOrbitalDiagram({ lang, isDark }: { lang: Lang; isDark: boo
               y={node.y + 20}
               textAnchor="middle"
               fill={node.text}
-              fontSize={lang === 'en' && node.label.length > 12 ? 7.5 : node.label.length > 5 ? 8.5 : 9.5}
+              fontSize={node.label.length > 12 ? 7.5 : node.label.length > 5 ? 8.5 : 9.5}
               fontWeight="700"
             >
               {node.label}

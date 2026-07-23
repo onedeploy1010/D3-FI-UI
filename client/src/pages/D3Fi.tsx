@@ -29,6 +29,7 @@ import { TeamDynamicRewardsPanel } from '@/components/d3fi/TeamDynamicRewardsPan
 import { fmtNum, fmtUsd } from '@/lib/d3fiViewModel';
 import { buildReferralLink } from '@/lib/referral';
 import type { ProtocolEpochView } from '@/lib/protocolTypes';
+import type { AppLang } from '@/i18n/types';
 
 type Lang = 'zh' | 'en';
 type Section = 'home' | 'assets' | 'govern' | 'earn' | 'me';
@@ -83,8 +84,11 @@ export default function D3Fi() {
   const [, navigate] = useLocation();
   const { theme } = useTheme();
   const { wallet, shortAddress } = useWallet();
+  // This page keeps its own local zh/en toggle; map it to the app-wide 6-lang
+  // type for shared components (WalletGate/SiteFooter/bell/connect/epoch).
+  const appLang: AppLang = lang === 'zh' ? 'zh-CN' : 'en';
   const { vm, isLoading, refetch } = useD3FiProfile(wallet, lang);
-  const { epoch: protocolEpoch, bribeProjects, activeProjects, isLoading: protocolLoading } = useProtocolEpoch(lang);
+  const { epoch: protocolEpoch, bribeProjects, activeProjects, isLoading: protocolLoading } = useProtocolEpoch(appLang);
   const isDark = theme === 'dark';
 
   const current = sections.find((s) => s.id === section)!;
@@ -111,7 +115,7 @@ export default function D3Fi() {
             : section;
 
   return (
-    <WalletGate lang={lang}>
+    <WalletGate lang={appLang}>
     <div className={`min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-64 flex flex-col transition-colors duration-300 ${
       isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-[#160510]'
     }`}>
@@ -217,11 +221,11 @@ export default function D3Fi() {
       <nav className="ios-glass-topbar sticky top-0 z-40 md:hidden page-px py-2.5 sm:py-3 flex items-center justify-between gap-2 safe-area-pt">
         <D3Logo size={32} showText to="/" className="min-w-0 shrink" textClassName={`text-sm ${isDark ? 'text-white' : 'text-[#8A2B57]'}`} />
         <div className="flex items-center gap-1.5 shrink-0">
-          <SiteNotificationBell lang={lang} isDark={isDark} />
+          <SiteNotificationBell lang={appLang} isDark={isDark} />
           <GlassIconButton onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} className="text-[10px] px-2 py-1.5 font-medium">
             {lang === 'zh' ? 'EN' : '中文'}
           </GlassIconButton>
-          <WalletConnectButton lang={lang} showDisconnect={false} />
+          <WalletConnectButton lang={appLang} showDisconnect={false} />
         </div>
       </nav>
 
@@ -236,7 +240,7 @@ export default function D3Fi() {
       }`}>
         <SitePageHeader title={pageTitle} subtitle={pageDesc} />
         <div className="flex items-center gap-3">
-          <SiteNotificationBell lang={lang} isDark={isDark} />
+          <SiteNotificationBell lang={appLang} isDark={isDark} />
           <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
             isDark ? 'bg-white/[0.06] text-white/60 hover:bg-white/[0.1]' : 'bg-[#8A2B57]/[0.06] text-[#8A2B57]/60 hover:bg-[#8A2B57]/[0.1]'
           }`}>
@@ -381,7 +385,7 @@ export default function D3Fi() {
       </main>
 
       <div className="hidden md:block mt-auto">
-        <SiteFooter lang={lang} variant="compact" showCta={false} />
+        <SiteFooter lang={appLang} variant="compact" showCta={false} />
       </div>
 
       {/* Mobile Bottom Tab Bar */}

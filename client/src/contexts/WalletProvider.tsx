@@ -6,10 +6,10 @@ import {
   clearDemoWalletSession,
   DEMO_LINE_LEADER_WALLET,
   DEMO_PARTNER_SPONSOR_WALLET,
-  DEMO_PROFILE,
   readDemoWalletFromSession,
   writeDemoWalletSession,
 } from '@/lib/demoWallet';
+import { portalT } from '@/i18n/messages';
 import { clearDemoPartnerLocalStorage } from '@/components/partner/partnerData';
 import { clearLocalDemoSim, resetLocalDemoSim } from '@/components/partner/ud3DemoDailyTick';
 import { clearDemoPartnerSession } from '@/lib/demoPartnerSession';
@@ -33,7 +33,7 @@ function useDemoWalletState() {
     try {
       await ensureUnionProfile(DEMO_LINE_LEADER_WALLET, {
         lang: 'zh',
-        displayName: DEMO_PROFILE.displayNameZh,
+        displayName: portalT('zh-CN', 'demo.displayName'),
       });
       try {
         await bindReferral(DEMO_LINE_LEADER_WALLET, DEMO_PARTNER_SPONSOR_WALLET, 'partner');

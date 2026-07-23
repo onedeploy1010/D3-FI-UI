@@ -10,55 +10,17 @@ import {
   Shield,
   Twitter,
 } from 'lucide-react';
+import { useContext } from 'react';
 import { D3Logo } from '@/components/D3Logo';
 import { BrandMotif } from '@/components/illustrations/BrandMotif';
 import { useTheme } from '@/contexts/ThemeContext';
-
-type Lang = 'zh' | 'en';
-
-const copy = {
-  zh: {
-    ctaTitle: '开启链上真实收益之旅',
-    ctaSub: '连接钱包，参与贿赂金融协议治理与分红',
-    ctaBtn: '进入协议门户',
-    tagline: '去中心化 · 数据驱动 · 可验证价值',
-    resources: '资源',
-    community: '社区',
-    legal: '法律',
-    links: {
-      whitepaper: '白皮书',
-      docs: '开发文档',
-      audit: '审计报告',
-      github: 'GitHub',
-    },
-    social: { twitter: 'Twitter', telegram: 'Telegram', discord: 'Discord', medium: 'Medium' },
-    legalLinks: { terms: '服务条款', privacy: '隐私政策', disclaimer: '免责声明' },
-    network: 'BSC Mainnet',
-    rights: '© 2026 D³ Finance. All rights reserved.',
-  },
-  en: {
-    ctaTitle: 'Begin Your On-Chain Yield Journey',
-    ctaSub: 'Connect wallet to participate in bribe finance governance & dividends',
-    ctaBtn: 'Enter Protocol Portal',
-    tagline: 'Decentralized · Data-Driven · Verifiable Value',
-    resources: 'Resources',
-    community: 'Community',
-    legal: 'Legal',
-    links: {
-      whitepaper: 'Whitepaper',
-      docs: 'Documentation',
-      audit: 'Audit Report',
-      github: 'GitHub',
-    },
-    social: { twitter: 'Twitter', telegram: 'Telegram', discord: 'Discord', medium: 'Medium' },
-    legalLinks: { terms: 'Terms of Service', privacy: 'Privacy Policy', disclaimer: 'Disclaimer' },
-    network: 'BSC Mainnet',
-    rights: '© 2026 D³ Finance. All rights reserved.',
-  },
-};
+import { LanguageContext } from '@/i18n/LanguageContext';
+import { usePortalTranslation } from '@/i18n/usePortalTranslation';
+import type { AppLang } from '@/i18n/types';
 
 type SiteFooterProps = {
-  lang?: Lang;
+  /** Overrides the global app language (pages with their own local zh/en toggle). */
+  lang?: AppLang;
   variant?: 'full' | 'compact';
   showCta?: boolean;
 };
@@ -111,38 +73,40 @@ function FooterLinkSection({
   );
 }
 
-export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: SiteFooterProps) {
+export function SiteFooter({ lang, variant = 'full', showCta = true }: SiteFooterProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [, navigate] = useLocation();
-  const t = copy[lang];
+  const langCtx = useContext(LanguageContext);
+  const appLang: AppLang = lang ?? langCtx?.lang ?? 'zh-CN';
+  const t = usePortalTranslation(appLang);
   const isCompact = variant === 'compact';
 
   const linkSections: { title: string; items: LinkItem[] }[] = [
     {
-      title: t.resources,
+      title: t('footer.resources'),
       items: [
-        { label: t.links.whitepaper, icon: BookOpen },
-        { label: t.links.docs, icon: FileText },
-        { label: t.links.audit, icon: Shield },
-        { label: t.links.github, icon: Github },
+        { label: t('footer.whitepaper'), icon: BookOpen },
+        { label: t('footer.docs'), icon: FileText },
+        { label: t('footer.audit'), icon: Shield },
+        { label: t('footer.github'), icon: Github },
       ],
     },
     {
-      title: t.community,
+      title: t('footer.community'),
       items: [
-        { label: t.social.twitter, icon: Twitter },
-        { label: t.social.telegram, icon: Send },
-        { label: t.social.discord, icon: MessageCircle },
-        { label: t.social.medium, icon: FileText },
+        { label: t('footer.twitter'), icon: Twitter },
+        { label: t('footer.telegram'), icon: Send },
+        { label: t('footer.discord'), icon: MessageCircle },
+        { label: t('footer.medium'), icon: FileText },
       ],
     },
     {
-      title: t.legal,
+      title: t('footer.legal'),
       items: [
-        { label: t.legalLinks.terms, icon: FileText },
-        { label: t.legalLinks.privacy, icon: Shield },
-        { label: t.legalLinks.disclaimer, icon: BookOpen },
+        { label: t('footer.terms'), icon: FileText },
+        { label: t('footer.privacy'), icon: Shield },
+        { label: t('footer.disclaimer'), icon: BookOpen },
       ],
     },
   ];
@@ -173,16 +137,16 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
             <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="max-w-md">
                 <h3 className={`text-xl md:text-2xl font-bold font-heading mb-2 ${isDark ? 'text-white' : 'text-[#8A2B57]'}`}>
-                  {t.ctaTitle}
+                  {t('footer.ctaTitle')}
                 </h3>
-                <p className={`text-sm leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{t.ctaSub}</p>
+                <p className={`text-sm leading-relaxed text-pretty-wrap ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{t('footer.ctaSub')}</p>
               </div>
               <button
                 onClick={() => navigate('/portal')}
                 className="group shrink-0 px-7 py-4 rounded-2xl font-semibold text-white text-sm shadow-xl active:scale-[0.97] transition-all flex items-center justify-center gap-2"
                 style={{ background: 'linear-gradient(135deg, #8A2B57, #5E1A3C)' }}
               >
-                {t.ctaBtn}
+                {t('footer.ctaBtn')}
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
               </button>
             </div>
@@ -221,7 +185,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
               {!isCompact && (
                 <>
                   <p className={`mt-3 text-xs leading-relaxed max-w-xs ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
-                    {t.tagline}
+                    {t('footer.tagline')}
                   </p>
                   <div
                     className={`inline-flex items-center gap-1.5 mt-3 px-2 py-1 rounded-full text-[9px] font-medium tracking-wide uppercase ${
@@ -229,7 +193,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
                     }`}
                   >
                     <span className="w-1 h-1 rounded-full bg-emerald-400/80" />
-                    {t.network}
+                    {t('footer.network')}
                   </div>
                 </>
               )}
@@ -253,7 +217,7 @@ export function SiteFooter({ lang = 'zh', variant = 'full', showCta = true }: Si
               isDark ? 'border-[#E0568F]/[0.05]' : 'border-[#8A2B57]/[0.05]'
             }`}
           >
-            <p className={`text-[10px] ${isDark ? 'text-white/20' : 'text-[#160510]/25'}`}>{t.rights}</p>
+            <p className={`text-[10px] ${isDark ? 'text-white/20' : 'text-[#160510]/25'}`}>{t('footer.rights')}</p>
             <div className="flex items-center gap-1.5">
               {[
                 { Icon: Twitter, label: 'Twitter' },

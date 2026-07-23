@@ -5,7 +5,7 @@ import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 import { SiteNotificationBell } from '@/components/layout/SiteNotificationBell';
 import { AppLanguageSwitcher } from '@/components/layout/AppLanguageSwitcher';
 import { LanguageContext } from '@/i18n/LanguageContext';
-import { toLegacyLang, type AppLang } from '@/i18n/types';
+import type { AppLang } from '@/i18n/types';
 import { cn } from '@/lib/utils';
 
 type SiteTopBarProps = {
@@ -37,7 +37,6 @@ export function SiteTopBar({
 }: SiteTopBarProps) {
   const langCtx = useContext(LanguageContext);
   const appLang: AppLang = langCtx?.lang ?? (legacyLang === 'en' ? 'en' : 'zh-CN');
-  const legacy = toLegacyLang(appLang);
 
   return (
     <header
@@ -54,7 +53,7 @@ export function SiteTopBar({
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {rightSlot}
-          {showNotifications && <SiteNotificationBell lang={legacy} isDark={isDark} />}
+          {showNotifications && <SiteNotificationBell lang={appLang} isDark={isDark} />}
           {langCtx ? (
             <AppLanguageSwitcher />
           ) : (
@@ -68,7 +67,7 @@ export function SiteTopBar({
               </button>
             )
           )}
-          <WalletConnectButton lang={legacy} onDisconnect={onDisconnect} />
+          <WalletConnectButton lang={appLang} onDisconnect={onDisconnect} />
         </div>
       </div>
     </header>

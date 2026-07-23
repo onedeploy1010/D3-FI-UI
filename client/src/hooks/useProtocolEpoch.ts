@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProtocolBundle, mapBribeProjects, mapEpochView } from '@/lib/protocolApi';
 import { formatCountdown } from '@/lib/protocolFormat';
 import type { BribeProjectView, ProtocolEpochView } from '@/lib/protocolTypes';
+import { toLegacyLang, type AppLang } from '@/i18n/types';
 
-type Lang = 'zh' | 'en';
-
-export function useProtocolEpoch(lang: Lang = 'zh') {
+export function useProtocolEpoch(appLang: AppLang = 'zh-CN') {
+  // Underlying epoch/bribe view mappers only support zh/en for now.
+  const lang = toLegacyLang(appLang);
   const [epochView, setEpochView] = useState<ProtocolEpochView | null>(null);
   const [bribeProjects, setBribeProjects] = useState<BribeProjectView[]>([]);
   const [isLoading, setIsLoading] = useState(true);

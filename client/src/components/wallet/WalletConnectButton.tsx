@@ -1,10 +1,14 @@
+import { useContext } from 'react';
 import { FlaskConical, LogOut, Wallet } from 'lucide-react';
 import { useWallet } from '@/contexts/wallet-context';
-import { DEMO_PROFILE } from '@/lib/demoWallet';
+import { LanguageContext } from '@/i18n/LanguageContext';
+import { usePortalTranslation } from '@/i18n/usePortalTranslation';
+import type { AppLang } from '@/i18n/types';
 import { cn } from '@/lib/utils';
 
 type WalletConnectButtonProps = {
-  lang?: 'zh' | 'en';
+  /** Overrides the global app language (pages with their own local zh/en toggle). */
+  lang?: AppLang;
   className?: string;
   showDisconnect?: boolean;
   showDemoConnect?: boolean;
@@ -12,7 +16,7 @@ type WalletConnectButtonProps = {
 };
 
 export function WalletConnectButton({
-  lang = 'zh',
+  lang,
   className,
   showDisconnect = true,
   showDemoConnect = true,
@@ -30,7 +34,9 @@ export function WalletConnectButton({
     connectDemo,
     disconnect,
   } = useWallet();
-  const t = lang === 'zh';
+  const langCtx = useContext(LanguageContext);
+  const appLang: AppLang = lang ?? langCtx?.lang ?? 'zh-CN';
+  const t = usePortalTranslation(appLang);
 
   const handleConnect = () => {
     connect();
@@ -53,31 +59,23 @@ export function WalletConnectButton({
           >
             <Wallet size={14} />
             {!isPrivyReady && !privyInitFailed
-              ? t
-                ? '加载中'
-                : '…'
+              ? t('connect.loading')
               : isConnecting
-                ? t
-                  ? '连接中'
-                  : '…'
+                ? t('connect.connecting')
                 : privyInitFailed
-                  ? t
-                    ? 'Privy 不可用'
-                    : 'Unavailable'
-                  : t
-                    ? '连接钱包'
-                    : 'Connect'}
+                  ? t('connect.privyUnavailable')
+                  : t('connect.connect')}
           </button>
           {showDemoConnect && (
             <button
               type="button"
               onClick={() => void connectDemo()}
               disabled={isConnecting}
-              title={t ? DEMO_PROFILE.descZh : DEMO_PROFILE.descEn}
+              title={t('demo.desc')}
               className="h-8 px-2 rounded-md text-[10px] font-semibold text-amber-600/90 hover:text-amber-600 hover:bg-amber-500/10 transition-colors inline-flex items-center gap-1 touch-manipulation disabled:opacity-50"
             >
               <FlaskConical size={12} />
-              {t ? '演示' : 'Demo'}
+              {t('demo.tag')}
             </button>
           )}
         </div>
@@ -92,7 +90,7 @@ export function WalletConnectButton({
     <div className={cn('flex items-center gap-1.5', className)}>
       {isDemo && (
         <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600">
-          {t ? DEMO_PROFILE.tagZh : DEMO_PROFILE.tagEn}
+          {t('demo.tag')}
         </span>
       )}
       <span className="hidden min-[380px]:inline text-[11px] font-mono font-semibold text-muted-foreground max-w-[9rem] truncate px-2 py-1 rounded-md bg-card border border-border/60">
@@ -103,7 +101,7 @@ export function WalletConnectButton({
           type="button"
           onClick={handleDisconnect}
           className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-          aria-label={t ? '断开钱包' : 'Disconnect'}
+          aria-label={t('connect.disconnect')}
         >
           <LogOut size={14} />
         </button>

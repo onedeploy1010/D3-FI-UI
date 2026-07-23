@@ -18,7 +18,6 @@ import { PartnerStakeTab } from '@/components/partner/PartnerStakeTab';
 import { PartnerAssetsTab } from '@/components/partner/PartnerAssetsTab';
 import { PartnerTeamTab } from '@/components/partner/PartnerTeamTab';
 import { useAppLang } from '@/i18n/LanguageContext';
-import { toLegacyLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 import {
   formatPartnerPaymentError,
@@ -40,7 +39,6 @@ const TAB_KEYS: Record<PartnerTab, string> = {
 export default function PartnerProgram() {
   const { lang } = useAppLang();
   const p = usePartnerTranslation(lang);
-  const legacyLang = toLegacyLang(lang);
   const [tab, setTab] = useState<PartnerTab>('home');
   const [teamTransferGuide, setTeamTransferGuide] = useState(false);
   const [, navigate] = useLocation();
@@ -183,7 +181,7 @@ export default function PartnerProgram() {
   }, []);
 
   return (
-    <WalletGate lang={legacyLang}>
+    <WalletGate lang={lang}>
       <div
         className={`min-h-screen flex flex-col antialiased transition-colors duration-300 ${
           isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-foreground'
@@ -342,7 +340,7 @@ export default function PartnerProgram() {
         </nav>
 
         <div className="hidden">
-          <SiteFooter lang={legacyLang} variant="compact" showCta={false} />
+          <SiteFooter lang={lang} variant="compact" showCta={false} />
         </div>
       </div>
     </WalletGate>

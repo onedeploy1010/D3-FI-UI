@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils';
 import { useWallet } from '@/contexts/wallet-context';
 import { useNotifications } from '@/hooks/useNotifications';
 import { LanguageContext } from '@/i18n/LanguageContext';
+import { portalT } from '@/i18n/messages';
+import { usePortalTranslation } from '@/i18n/usePortalTranslation';
+import type { AppLang } from '@/i18n/types';
 
 const categoryColors: Record<string, string> = {
   protocol: '#E0568F',
@@ -16,24 +19,25 @@ const categoryColors: Record<string, string> = {
   system: '#94a3b8',
 };
 
-function timeAgo(iso: string, lang: 'zh' | 'en') {
+function timeAgo(iso: string, lang: AppLang) {
   const diff = Date.now() - new Date(iso).getTime();
   const hours = Math.floor(diff / 3_600_000);
-  if (hours < 1) return lang === 'zh' ? '刚刚' : 'just now';
-  if (hours < 24) return lang === 'zh' ? `${hours} 小时前` : `${hours}h ago`;
+  if (hours < 1) return portalT(lang, 'time.justNow');
+  if (hours < 24) return portalT(lang, 'time.hoursAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  return lang === 'zh' ? `${days} 天前` : `${days}d ago`;
+  return portalT(lang, 'time.daysAgo', { n: days });
 }
 
-export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDark?: boolean }) {
-  const t = lang === 'zh';
+export function SiteNotificationBell({ lang, isDark }: { lang?: AppLang; isDark?: boolean }) {
   const { wallet } = useWallet();
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
-  // Prefer the full app language (6-lang) so DB-templated notifications render in
-  // the viewer's actual language; fall back to the legacy zh/en prop.
+  // Prefer the explicit prop (pages with their own local toggle), then the
+  // global app language so DB-templated notifications render in the viewer's
+  // actual language.
   const langCtx = useContext(LanguageContext);
-  const notifLang = langCtx?.lang ?? (lang === 'en' ? 'en' : 'zh-CN');
+  const notifLang: AppLang = lang ?? langCtx?.lang ?? 'zh-CN';
+  const t = usePortalTranslation(notifLang);
   const { items, unreadCount, isLoading, markRead, markAllRead } = useNotifications(wallet, notifLang);
 
   if (!wallet) return null;
@@ -45,7 +49,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
     <div className="relative">
       <GlassIconButton
         onClick={() => setOpen((v) => !v)}
-        aria-label={t ? '通知' : 'Notifications'}
+        aria-label={t('bell.title')}
         className="relative !h-8 !w-8"
       >
         <Bell size={16} className={muted} />
@@ -62,7 +66,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
             <button
               type="button"
               className="fixed inset-0 z-40"
-              aria-label={t ? '关闭' : 'Close'}
+              aria-label={t('bell.close')}
               onClick={() => setOpen(false)}
             />
             <motion.div
@@ -82,11 +86,11 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
               <div className={cn('flex items-center justify-between px-4 py-3 border-b', dark ? 'border-white/8' : 'border-[#8A2B57]/8')}>
                 <div>
                   <div className={cn('text-sm font-bold', dark ? 'text-white' : 'text-[#160510]')}>
-                    {t ? '通知' : 'Notifications'}
+                    {t('bell.title')}
                   </div>
                   {unreadCount > 0 && (
                     <div className={cn('text-[10px] mt-0.5', muted)}>
-                      {unreadCount} {t ? '条未读' : 'unread'}
+                      {t('bell.unreadCount', { n: unreadCount })}
                     </div>
                   )}
                 </div>
@@ -98,7 +102,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
                       className={cn('text-[10px] font-semibold px-2 py-1 rounded-lg ios-glass-pressable', muted)}
                     >
                       <Check size={12} className="inline mr-0.5" />
-                      {t ? '全部已读' : 'Mark all'}
+                      {t('bell.markAll')}
                     </button>
                   )}
                   <button type="button" onClick={() => setOpen(false)} className={cn('p-1 rounded-lg', muted)}>
@@ -109,9 +113,9 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
 
               <div className="max-h-80 overflow-y-auto">
                 {isLoading ? (
-                  <div className={cn('py-10 text-center text-xs', muted)}>{t ? '加载中…' : 'Loading…'}</div>
+                  <div className={cn('py-10 text-center text-xs', muted)}>{t('bell.loading')}</div>
                 ) : items.length === 0 ? (
-                  <div className={cn('py-10 text-center text-xs', muted)}>{t ? '暂无通知' : 'No notifications'}</div>
+                  <div className={cn('py-10 text-center text-xs', muted)}>{t('bell.empty')}</div>
                 ) : (
                   items.map((notif) => (
                     <button
@@ -146,7 +150,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang: 'zh' | 'en'; isDa
                           </div>
                           <p className={cn('text-[11px] mt-0.5 leading-relaxed line-clamp-2', muted)}>{notif.message}</p>
                           <div className={cn('text-[9px] mt-1.5', dark ? 'text-white/30' : 'text-[#160510]/30')}>
-                            {timeAgo(notif.createdAt, lang)}
+                            {timeAgo(notif.createdAt, notifLang)}
                           </div>
                         </div>
                       </div>

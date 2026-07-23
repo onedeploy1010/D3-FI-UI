@@ -54,6 +54,7 @@ import {
 import { UnionProfileContext, useUnionVm } from '@/contexts/UnionProfileContext';
 import { useUnionProfile } from '@/hooks/useUnionProfile';
 import { isSupabaseClientConfigured } from '@/lib/supabase';
+import type { AppLang } from '@/i18n/types';
 import { claimUsd3, joinShareholder, createMultisigProposal, signMultisigProposal, addCommitteeMember, updateCommitteeMember, removeCommitteeMember } from '@/lib/unionApi';
 
 type Lang = 'zh' | 'en';
@@ -85,6 +86,9 @@ export default function BribeeUnion() {
   const { theme } = useTheme();
   const { wallet } = useWallet();
   const { vm, fallbackVm, isLoading, error, refetch } = useUnionProfile(wallet, lang);
+  // This page keeps its own local zh/en toggle; map it to the app-wide 6-lang
+  // type for shared components (WalletGate/SiteFooter).
+  const appLang: AppLang = lang === 'zh' ? 'zh-CN' : 'en';
   const displayVm = vm ?? fallbackVm;
   const isDark = theme === 'dark';
   const t = lang === 'zh';
@@ -120,7 +124,7 @@ export default function BribeeUnion() {
   };
 
   return (
-    <WalletGate lang={lang}>
+    <WalletGate lang={appLang}>
     <div className={`min-h-screen flex flex-col antialiased transition-colors duration-300 ${isDark ? 'bg-dark-gradient text-[#F5F0EB]' : 'bg-light-gradient text-foreground'}`}>
       <SiteTopBar
         lang={lang}
@@ -229,7 +233,7 @@ export default function BribeeUnion() {
         )}
       </main>
 
-      <SiteFooter lang={lang} variant="compact" showCta={false} />
+      <SiteFooter lang={appLang} variant="compact" showCta={false} />
 
       <div className="fixed bottom-0 inset-x-0 z-50 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-md md:max-w-xl page-px">
