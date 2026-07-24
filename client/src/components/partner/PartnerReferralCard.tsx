@@ -3,6 +3,8 @@ import { Check, Copy, Link2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { glassCardClass } from '@/components/ui/GlassSurface';
 import { copyToClipboard } from '@/lib/copyToClipboard';
+import { ReferralShareButton } from '@/components/referral/ReferralPosterShare';
+import { portalT } from '@/i18n/messages';
 import type { AppLang } from '@/i18n/types';
 import { usePartnerTranslation } from '@/i18n/usePartnerTranslation';
 
@@ -75,26 +77,37 @@ export function PartnerReferralCard({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className={`partner-raised-btn partner-raised-btn-primary partner-referral-copy-btn w-full min-h-[48px] mt-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 ios-glass-pressable touch-manipulation ${
-            copied ? 'ring-2 ring-emerald-400/50' : ''
-          } ${isDark ? 'partner-referral-copy-btn-dark' : ''}`}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          {copied ? (
-            <>
-              <Check size={16} className="text-emerald-300" aria-hidden />
-              <span className="text-white">{p('team.copied')}</span>
-            </>
-          ) : (
-            <>
-              <Copy size={16} className="text-white/95" aria-hidden />
-              <span className="text-white">{p('team.copyLink')}</span>
-            </>
-          )}
-        </button>
+        <div className="flex gap-2.5 mt-3">
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            className={`partner-raised-btn partner-raised-btn-primary partner-referral-copy-btn flex-1 min-h-[48px] rounded-2xl text-sm font-bold flex items-center justify-center gap-2 ios-glass-pressable touch-manipulation ${
+              copied ? 'ring-2 ring-emerald-400/50' : ''
+            } ${isDark ? 'partner-referral-copy-btn-dark' : ''}`}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            {copied ? (
+              <>
+                <Check size={16} className="text-emerald-300" aria-hidden />
+                <span className="text-white">{p('team.copied')}</span>
+              </>
+            ) : (
+              <>
+                <Copy size={16} className="text-white/95" aria-hidden />
+                <span className="text-white">{p('team.copyLink')}</span>
+              </>
+            )}
+          </button>
+          <ReferralShareButton
+            link={referralLink}
+            lang={lang}
+            className={`partner-raised-btn shrink-0 min-h-[48px] px-4 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 ios-glass-pressable touch-manipulation ${
+              isDark ? 'text-[#f9a8d4]' : 'text-[#8A2B57]'
+            }`}
+          >
+            {portalT(lang, 'share.button')}
+          </ReferralShareButton>
+        </div>
       </div>
     </motion.div>
   );

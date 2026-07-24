@@ -86,5 +86,9 @@
   "time.daysAgo": "{n} 天前",
   "demo.displayName": "演示线长",
   "demo.tag": "演示",
-  "demo.desc": "使用 Demo 账户可以模拟质押、模拟 UD3 转账，并查看团队。"
+  "demo.desc": "使用 Demo 账户可以模拟质押、模拟 UD3 转账，并查看团队。",
+  "share.button": "分享海报",
+  "share.scanHint": "扫码加入我的团队",
+  "share.linkCopied": "推荐链接已复制",
+  "share.saved": "海报已保存，链接已复制"
 }

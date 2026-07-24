@@ -86,5 +86,9 @@
   "time.daysAgo": "{n} 日前",
   "demo.displayName": "デモライン長",
   "demo.tag": "デモ",
-  "demo.desc": "Demo アカウントでは、ステークや UD3 送金をシミュレーションし、チームを閲覧できます。"
+  "demo.desc": "Demo アカウントでは、ステークや UD3 送金をシミュレーションし、チームを閲覧できます。",
+  "share.button": "ポスターを共有",
+  "share.scanHint": "スキャンして私のチームに参加",
+  "share.linkCopied": "紹介リンクをコピーしました",
+  "share.saved": "ポスターを保存し、リンクをコピーしました"
 }

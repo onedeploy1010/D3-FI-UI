@@ -86,5 +86,9 @@
   "time.daysAgo": "vor {n} T.",
   "demo.displayName": "Demo-Linienleiter",
   "demo.tag": "Demo",
-  "demo.desc": "Nutze das Demo-Konto, um Staking und UD3-Transfers zu simulieren und das Team anzusehen."
+  "demo.desc": "Nutze das Demo-Konto, um Staking und UD3-Transfers zu simulieren und das Team anzusehen.",
+  "share.button": "Poster teilen",
+  "share.scanHint": "Scannen und meinem Team beitreten",
+  "share.linkCopied": "Empfehlungslink kopiert",
+  "share.saved": "Poster gespeichert, Link kopiert"
 }

@@ -86,5 +86,9 @@
   "time.daysAgo": "{n}d ago",
   "demo.displayName": "Demo line leader",
   "demo.tag": "Demo",
-  "demo.desc": "Use the demo account to simulate staking, simulate UD3 transfers, and view the team."
+  "demo.desc": "Use the demo account to simulate staking, simulate UD3 transfers, and view the team.",
+  "share.button": "Share poster",
+  "share.scanHint": "Scan to join my team",
+  "share.linkCopied": "Referral link copied",
+  "share.saved": "Poster saved, link copied"
 }

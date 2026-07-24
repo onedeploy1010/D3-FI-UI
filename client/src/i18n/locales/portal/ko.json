@@ -86,5 +86,9 @@
   "time.daysAgo": "{n}일 전",
   "demo.displayName": "데모 라인장",
   "demo.tag": "데모",
-  "demo.desc": "Demo 계정으로 스테이킹과 UD3 이체를 시뮬레이션하고 팀을 조회할 수 있습니다."
+  "demo.desc": "Demo 계정으로 스테이킹과 UD3 이체를 시뮬레이션하고 팀을 조회할 수 있습니다.",
+  "share.button": "포스터 공유",
+  "share.scanHint": "스캔하고 내 팀에 참여하세요",
+  "share.linkCopied": "추천 링크가 복사되었습니다",
+  "share.saved": "포스터 저장됨, 링크 복사됨"
 }

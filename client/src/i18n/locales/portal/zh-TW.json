@@ -86,5 +86,9 @@
   "time.daysAgo": "{n} 天前",
   "demo.displayName": "示範線長",
   "demo.tag": "示範",
-  "demo.desc": "使用 Demo 帳戶可以模擬質押、模擬 UD3 轉帳，並查看團隊。"
+  "demo.desc": "使用 Demo 帳戶可以模擬質押、模擬 UD3 轉帳，並查看團隊。",
+  "share.button": "分享海報",
+  "share.scanHint": "掃碼加入我的團隊",
+  "share.linkCopied": "推薦連結已複製",
+  "share.saved": "海報已儲存，連結已複製"
 }

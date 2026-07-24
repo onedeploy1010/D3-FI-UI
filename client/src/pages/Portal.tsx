@@ -11,6 +11,7 @@ import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassCard, GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { WalletGate } from '@/components/wallet/WalletGate';
+import { ReferralShareButton } from '@/components/referral/ReferralPosterShare';
 import { PrivateSaleHeartbeat } from '@/components/partner/PrivateSaleHeartbeat';
 import { useWallet } from '@/contexts/wallet-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -30,7 +31,6 @@ export default function Portal() {
   const t = usePortalTranslation(lang);
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
   // Collapsed by default so the heartbeat card gets the fold; remember the choice.
   const [profileOpen, setProfileOpen] = useState(() => {
@@ -163,17 +163,18 @@ export default function Portal() {
                       <div className={`text-xs font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
                         {t('page.referralLink')}
                       </div>
-                      <GlassIconButton
-                        onClick={() => {
-                          void navigator.clipboard.writeText(referralLink);
-                          setLinkCopied(true);
-                          setTimeout(() => setLinkCopied(false), 2000);
-                        }}
-                        aria-label="Copy referral link"
-                        className="shrink-0 tap-press"
+                      {/* AddressBlock below has its own copy — this one shares the poster. */}
+                      <ReferralShareButton
+                        link={referralLink}
+                        lang={lang}
+                        className={`tap-press inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                          isDark
+                            ? 'bg-[#E0568F]/18 text-[#f9a8d4] border border-[#E0568F]/25'
+                            : 'bg-[#E0568F]/10 text-[#8A2B57] border border-[#E0568F]/20'
+                        }`}
                       >
-                        {linkCopied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />}
-                      </GlassIconButton>
+                        {t('share.button')}
+                      </ReferralShareButton>
                     </div>
                     <div className="mt-1.5">
                       <AddressBlock value={referralLink} isDark={isDark} compact />

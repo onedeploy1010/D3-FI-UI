@@ -86,5 +86,9 @@
   "time.daysAgo": "{n} ngày trước",
   "demo.displayName": "Trưởng tuyến Demo",
   "demo.tag": "Demo",
-  "demo.desc": "Dùng tài khoản Demo để mô phỏng stake, mô phỏng chuyển UD3 và xem đội nhóm."
+  "demo.desc": "Dùng tài khoản Demo để mô phỏng stake, mô phỏng chuyển UD3 và xem đội nhóm.",
+  "share.button": "Chia sẻ áp phích",
+  "share.scanHint": "Quét mã để tham gia đội nhóm của tôi",
+  "share.linkCopied": "Đã sao chép liên kết giới thiệu",
+  "share.saved": "Đã lưu áp phích, đã sao chép liên kết"
 }

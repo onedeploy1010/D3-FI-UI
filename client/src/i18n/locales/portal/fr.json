@@ -86,5 +86,9 @@
   "time.daysAgo": "il y a {n} j",
   "demo.displayName": "Chef de ligne démo",
   "demo.tag": "Demo",
-  "demo.desc": "Utilisez le compte démo pour simuler le staking, simuler des transferts UD3 et consulter l'équipe."
+  "demo.desc": "Utilisez le compte démo pour simuler le staking, simuler des transferts UD3 et consulter l'équipe.",
+  "share.button": "Partager l'affiche",
+  "share.scanHint": "Scannez pour rejoindre mon équipe",
+  "share.linkCopied": "Lien de parrainage copié",
+  "share.saved": "Affiche enregistrée, lien copié"
 }
