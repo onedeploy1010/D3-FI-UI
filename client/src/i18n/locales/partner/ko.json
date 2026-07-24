@@ -390,5 +390,7 @@
   "assets.receivedFrom": "보낸 사람",
   "home.stakeComingSoonTitle": "출시 카운트다운 진행 중",
   "home.stakeComingSoonBody": "기대해 주세요",
-  "home.stakeComingSoonOk": "확인"
+  "home.stakeComingSoonOk": "확인",
+  "subsidy.entitlementOn": "보조금 권익 활성화 · 비율 {pct}%",
+  "subsidy.entitlementOff": "보조금이 개통되지 않았습니다. 관리자에게 문의하세요"
 }

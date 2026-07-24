@@ -3,11 +3,27 @@ import { PageShell } from './page-shell';
 import { DataList, type DataListColumn, type DataListFilter } from '@/components/data-list';
 import { AddressChip } from '@/components/address-chip';
 import { useMemberDialog } from '@/components/member-dialog-provider';
-import { adminFetch, type MemberRow } from '@/lib/adminApi';
+import { adminFetch, setMemberSubsidyRate, type MemberRow } from '@/lib/adminApi';
 import { fmtUsd } from '@/lib/supabase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Crown, Eye, RotateCw, ShieldCheck } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
+import { Crown, Eye, Pencil, RotateCw, ShieldCheck } from 'lucide-react';
+
+/** Effective subsidy %: explicit override wins; partners default 10%, others 0%. */
+function effectiveSubsidyPct(row: { subsidyRatePct: number | null; isPartner: boolean }): number {
+  return row.subsidyRatePct ?? (row.isPartner ? 10 : 0);
+}
 
 /**
  * The list endpoint may enrich rows with a display name / internal remark; the
@@ -76,6 +92,7 @@ export default function MembersPage() {
   const [rows, setRows] = useState<MemberListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rateEditing, setRateEditing] = useState<MemberListRow | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -97,6 +114,7 @@ export default function MembersPage() {
   const filters = useMemo<DataListFilter[]>(() => {
     const statuses = new Set<string>();
     for (const r of rows) statuses.add(r.marketLeaderStatus ?? '');
+    void statuses; // 市场领袖筛选已由补贴开关取代
     return [
       {
         key: 'isPartner',
@@ -105,13 +123,6 @@ export default function MembersPage() {
           { value: 'true', label: '合伙人' },
           { value: 'false', label: '普通会员' },
         ],
-      },
-      {
-        key: 'marketLeaderStatus',
-        label: '领导状态',
-        options: [...statuses]
-          .sort()
-          .map((s) => ({ value: s, label: leaderLabel(s) })),
       },
     ];
   }, [rows]);
@@ -136,6 +147,31 @@ export default function MembersPage() {
         key: 'identity',
         label: '身份',
         render: (row) => <IdentityCell row={row} />,
+      },
+      {
+        key: 'subsidyRatePct',
+        label: '补贴',
+        sortable: true,
+        className: 'text-right md:text-left tabular-nums',
+        render: (row) => (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRateEditing(row);
+            }}
+            title="调整补贴比例"
+          >
+            <span className={effectiveSubsidyPct(row) > 0 ? 'font-medium text-emerald-500' : 'text-muted-foreground'}>
+              {effectiveSubsidyPct(row)}%
+            </span>
+            {row.subsidyRatePct != null && (
+              <span className="text-[9px] text-muted-foreground">自定义</span>
+            )}
+            <Pencil className="h-3 w-3 text-muted-foreground" />
+          </button>
+        ),
       },
       {
         key: 'teamPerformanceUsd',
@@ -167,13 +203,6 @@ export default function MembersPage() {
         render: (row) => `${fmtUsd(row.sd3Balance, 4)} UD3`,
       },
       {
-        key: 'pendingUsdtYield',
-        label: '待提现',
-        sortable: true,
-        className: 'text-right md:text-left tabular-nums',
-        render: (row) => usd(row.pendingUsdtYield),
-      },
-      {
         key: 'registeredAt',
         label: '注册时间',
         sortable: true,
@@ -201,7 +230,7 @@ export default function MembersPage() {
           <SummaryStat label="伞下业绩" value={usd(row.teamPerformanceUsd)} />
           <SummaryStat label="日新增" value={usd(row.dailyNewPerformanceUsd)} />
           <SummaryStat label="UD3 余额" value={`${fmtUsd(row.sd3Balance, 4)} UD3`} />
-          <SummaryStat label="待提现" value={usd(row.pendingUsdtYield)} />
+          <SummaryStat label="补贴比例" value={`${effectiveSubsidyPct(row)}%`} />
           <SummaryStat label="领导状态" value={leaderLabel(row.marketLeaderStatus)} />
         </div>
         {row.sponsorWallet && (
@@ -270,6 +299,159 @@ export default function MembersPage() {
         loading={loading}
         emptyText="暂无会员数据"
       />
+
+      {rateEditing && (
+        <SubsidyRateDialog
+          row={rateEditing}
+          onClose={() => setRateEditing(null)}
+          onSaved={(wallet, ratePct) => {
+            setRows((prev) =>
+              prev.map((r) => (r.walletAddress === wallet ? { ...r, subsidyRatePct: ratePct } : r)),
+            );
+            setRateEditing(null);
+          }}
+        />
+      )}
     </PageShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 补贴比例编辑: 合伙人默认 10%、其他会员默认 0%,可为任何会员设置自定义比例
+// (>0 即获得补贴申请资格);恢复默认清除自定义值。Needs `subsidies.rates`.
+// ---------------------------------------------------------------------------
+function SubsidyRateDialog({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: MemberListRow;
+  onClose: () => void;
+  onSaved: (wallet: string, ratePct: number | null) => void;
+}) {
+  const defaultPct = row.isPartner ? 10 : 0;
+  const enabled = effectiveSubsidyPct(row) > 0;
+  const [value, setValue] = useState(String(enabled ? effectiveSubsidyPct(row) : 10));
+  const [saving, setSaving] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  async function save(ratePct: number | null, msg: string) {
+    setSaving(true);
+    try {
+      await setMemberSubsidyRate(row.walletAddress, ratePct);
+      toast.success(msg);
+      onSaved(row.walletAddress, ratePct);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function submit() {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0 || n > 100) {
+      toast.error('请输入 0-100 之间的比例(开通需大于 0)');
+      return;
+    }
+    void save(
+      n,
+      enabled ? `补贴比例已设为 ${n}%` : `已开通补贴,比例 ${n}%`,
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm gap-4">
+        <DialogHeader>
+          <DialogTitle>{enabled ? '调整补贴比例' : '开通会员补贴'}</DialogTitle>
+          <DialogDescription className="break-all">
+            {row.walletAddress}
+            <br />
+            当前:
+            {enabled ? (
+              <span className="text-emerald-500"> 已开通 {effectiveSubsidyPct(row)}%</span>
+            ) : (
+              <span> 未开通</span>
+            )}
+            {' · '}
+            {row.isPartner ? '合伙人默认 10%' : '普通/注册会员默认 0%'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!enabled && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-400">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              是否开通该会员补贴?开通后该会员即可在前台补贴页面申请补贴(按下方比例)。
+            </span>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">补贴比例 (%)</Label>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step={0.5}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoFocus
+          />
+          {row.subsidyRatePct != null && (
+            <p className="text-[11px] text-muted-foreground">
+              当前为自定义值 {row.subsidyRatePct}%;「恢复默认」将回到 {defaultPct}%。
+            </p>
+          )}
+        </div>
+
+        {confirmClose && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] leading-relaxed text-red-400">
+            确认关闭该会员的补贴?关闭后前台将无法申请补贴(比例记为 0%),可随时重新开通。
+          </div>
+        )}
+
+        <DialogFooter className="flex-row flex-wrap justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+            取消
+          </Button>
+          {row.subsidyRatePct != null && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void save(null, `已恢复默认(${defaultPct}%)`)}
+              disabled={saving}
+            >
+              恢复默认
+            </Button>
+          )}
+          {enabled &&
+            (confirmClose ? (
+              <Button
+                size="sm"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void save(0, '已关闭该会员补贴')}
+                disabled={saving}
+              >
+                {saving ? '处理中…' : '确认关闭'}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive"
+                onClick={() => setConfirmClose(true)}
+                disabled={saving}
+              >
+                关闭补贴
+              </Button>
+            ))}
+          <Button size="sm" onClick={submit} disabled={saving}>
+            {saving ? '保存中…' : enabled ? '保存比例' : '确认开通'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

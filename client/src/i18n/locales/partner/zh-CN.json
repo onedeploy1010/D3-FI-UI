@@ -412,5 +412,7 @@
   "assets.receivedFrom": "收到来自",
   "home.stakeComingSoonTitle": "上线时间正在倒计时",
   "home.stakeComingSoonBody": "敬请关注",
-  "home.stakeComingSoonOk": "我知道了"
+  "home.stakeComingSoonOk": "我知道了",
+  "subsidy.entitlementOn": "补贴权益已开通 · 比例 {pct}%",
+  "subsidy.entitlementOff": "补贴权益未开通，请联系管理员"
 }

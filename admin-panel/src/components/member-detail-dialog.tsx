@@ -14,12 +14,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { AddressChip } from './address-chip';
-import { getMember, setMemberLeader, setMemberRemark, setMemberSubsidyRate, type MemberDetail } from '@/lib/adminApi';
+import { getMember, setMemberRemark, setMemberSubsidyRate, type MemberDetail } from '@/lib/adminApi';
 import { useAdminAuth } from '@/contexts/admin-auth';
 import { useLocation } from 'wouter';
 import { fmtUsd } from '@/lib/supabase';
@@ -66,9 +65,6 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
   const [savingRemark, setSavingRemark] = useState(false);
 
   // Leader maker-checker prompt.
-  const [leaderTarget, setLeaderTarget] = useState<boolean | null>(null);
-  const [leaderReason, setLeaderReason] = useState('');
-  const [submittingLeader, setSubmittingLeader] = useState(false);
 
   const [, navigate] = useLocation();
   // Per-member subsidy-rate override (needs `subsidies.rates`).
@@ -127,24 +123,6 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
     }
   }
 
-  async function submitLeader() {
-    if (leaderTarget == null) return;
-    if (!leaderReason.trim()) {
-      toast.error('请填写理由');
-      return;
-    }
-    setSubmittingLeader(true);
-    try {
-      await setMemberLeader(wallet, leaderTarget, leaderReason.trim());
-      toast.success('已提交审批,需另一管理员批准');
-      setLeaderTarget(null);
-      setLeaderReason('');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '提交失败');
-    } finally {
-      setSubmittingLeader(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -166,7 +144,6 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
   if (!data) return null;
 
   const currentlyLeader = isLeaderStatus(data.marketLeaderStatus);
-  const pendingLeader = leaderTarget != null ? leaderTarget : currentlyLeader;
   const r = data.referral;
 
   return (
@@ -213,55 +190,7 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
         </div>
       </Section>
 
-      {/* Leader toggle (maker-checker) */}
-      <Section title="市场领袖 Leader">
-        <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card/40 p-3">
-          <div>
-            <p className="text-sm font-medium">设为市场领袖</p>
-            <p className="text-[11px] text-muted-foreground">变更需另一管理员审批</p>
-          </div>
-          <Switch
-            checked={pendingLeader}
-            onCheckedChange={(next) => {
-              if (next === currentlyLeader) {
-                setLeaderTarget(null);
-                setLeaderReason('');
-              } else {
-                setLeaderTarget(next);
-              }
-            }}
-          />
-        </div>
-        {leaderTarget != null && (
-          <div className="space-y-2 rounded-xl border border-[#E0568F]/30 bg-[#E0568F]/5 p-3">
-            <p className="text-xs font-medium">
-              {leaderTarget ? '申请设为市场领袖' : '申请取消市场领袖'} — 请填写理由
-            </p>
-            <Textarea
-              value={leaderReason}
-              onChange={(e) => setLeaderReason(e.target.value)}
-              placeholder="变更理由(将记录于审批流)"
-              rows={2}
-              className="resize-none"
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setLeaderTarget(null);
-                  setLeaderReason('');
-                }}
-              >
-                取消
-              </Button>
-              <Button size="sm" onClick={submitLeader} disabled={submittingLeader}>
-                {submittingLeader ? '提交中…' : '提交审批'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Section>
+      {/* 市场领袖开关已移除 — 补贴资格由会员列表的补贴开关(补贴比例)控制 */}
 
       {/* Subsidy overview: quota + ticket amounts by status + jump to tickets */}
       {data.subsidySummary && (

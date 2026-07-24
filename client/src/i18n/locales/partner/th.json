@@ -390,5 +390,7 @@
   "assets.receivedFrom": "จาก",
   "home.stakeComingSoonTitle": "กำลังนับถอยหลังสู่การเปิดตัว",
   "home.stakeComingSoonBody": "โปรดติดตาม",
-  "home.stakeComingSoonOk": "รับทราบ"
+  "home.stakeComingSoonOk": "รับทราบ",
+  "subsidy.entitlementOn": "สิทธิ์เงินอุดหนุนเปิดใช้งานแล้ว · {pct}%",
+  "subsidy.entitlementOff": "ยังไม่เปิดสิทธิ์เงินอุดหนุน กรุณาติดต่อผู้ดูแลระบบ"
 }

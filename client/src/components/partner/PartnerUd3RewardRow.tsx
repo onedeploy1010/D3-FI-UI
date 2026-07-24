@@ -28,7 +28,7 @@ function Metric({
       }`}
     >
       <div
-        className={`text-[9px] font-semibold tracking-[0.06em] uppercase mb-1 ${
+        className={`text-[10px] font-semibold tracking-[0.06em] uppercase mb-1 ${
           isDark ? 'text-white/35' : 'text-[#160510]/38'
         }`}
       >
@@ -41,7 +41,7 @@ function Metric({
       >
         {value}
         {hint ? (
-          <span className={`ml-1 text-[10px] font-medium ${isDark ? 'text-white/35' : 'text-[#160510]/38'}`}>
+          <span className={`ml-1 text-[11px] font-medium ${isDark ? 'text-white/35' : 'text-[#160510]/38'}`}>
             {hint}
           </span>
         ) : null}
@@ -112,7 +112,7 @@ export function PartnerUd3RewardRow({
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
-                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
                   isPending
                     ? isDark
                       ? 'text-amber-200 bg-amber-500/15'
@@ -128,7 +128,7 @@ export function PartnerUd3RewardRow({
                 {isPending ? p('team.unsettledBadge') : p('team.settledBadge')}
               </span>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                   isDirect
                     ? 'text-[#E0568F] bg-[#E0568F]/12'
                     : isDark
@@ -152,7 +152,7 @@ export function PartnerUd3RewardRow({
                 +{fmt(row.ud3Amount)}
               </div>
               <div
-                className={`mt-1 text-[10px] font-semibold tracking-[0.12em] ${
+                className={`mt-1 text-[11px] font-semibold tracking-[0.12em] ${
                   isDark ? 'text-white/30' : 'text-[#160510]/32'
                 }`}
               >

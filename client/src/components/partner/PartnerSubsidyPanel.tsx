@@ -67,7 +67,7 @@ function QuotaStatGrid({
   accentClass: string;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2 mb-4 text-center text-[10px]">
+    <div className="grid grid-cols-3 gap-2 mb-4 text-center text-[11px]">
       <div className="partner-depth-inset p-2.5 rounded-xl">
         <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('subsidy.calculablePerf')}</div>
         <div className={`font-bold mt-0.5 ${isDark ? 'text-white/85' : 'text-[#160510]/85'}`}>
@@ -113,21 +113,21 @@ function SubsidyHistoryList({
           <div key={row.id} className="partner-depth-inset p-3 rounded-xl">
             <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
                 {tLabel && (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/[0.06] text-white/55' : 'bg-[#160510]/5 text-[#160510]/55'}`}>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/[0.06] text-white/55' : 'bg-[#160510]/5 text-[#160510]/55'}`}>
                     {tLabel}
                   </span>
                 )}
               </div>
-              <span className={`text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{row.appliedAt}</span>
+              <span className={`text-[11px] ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>{row.appliedAt}</span>
             </div>
             <div className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
               ${row.amountUsd.toLocaleString()}
             </div>
             <div className={`text-[11px] mt-1 ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>{row.purpose}</div>
             {row.paidAt && (
-              <div className="text-[10px] mt-1 text-emerald-500">
+              <div className="text-[11px] mt-1 text-emerald-500">
                 {p('subsidy.paid')}: {row.paidAt}
               </div>
             )}
@@ -234,9 +234,27 @@ export function PartnerSubsidyPanel({
   );
 
   const isLeader = state.marketLeaderStatus === 'approved';
+  // 补贴权益 = 管理后台的补贴开关: per-member override 优先, 合伙人默认取全局
+  // 比例, 其他会员默认 0 (未开通)。
+  const effectivePct =
+    state.subsidyRatePct ?? (state.isPartner ? subsidySettings.partnerSubsidyRatePct : 0);
+  const subsidyEnabled = effectivePct > 0;
 
   return (
     <div className="space-y-3">
+      <div
+        className={`partner-elevated-card px-4 py-3 ${glassCardClass('default', '')} flex items-center gap-2.5`}
+      >
+        <span className="ios-glass-sheen pointer-events-none" aria-hidden />
+        <span
+          className={`inline-block h-2 w-2 shrink-0 rounded-full ${subsidyEnabled ? 'bg-emerald-500' : 'bg-white/25'}`}
+        />
+        <span className={`text-xs ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
+          {subsidyEnabled
+            ? p('subsidy.entitlementOn', { pct: effectivePct })
+            : p('subsidy.entitlementOff')}
+        </span>
+      </div>
       <div className={`partner-elevated-card p-5 ${glassCardClass('default', '')}`}>
         <span className="ios-glass-sheen pointer-events-none" aria-hidden />
         <div className="flex items-start gap-3 mb-4">
@@ -251,7 +269,7 @@ export function PartnerSubsidyPanel({
               {p('subsidy.partnerDesc', { pct: subsidySettings.partnerSubsidyRatePct })}
             </div>
             {(partnerQuota.marketDeductionUsd ?? 0) > 0 && (
-              <div className={`text-[10px] mt-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700/90'}`}>
+              <div className={`text-[11px] mt-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700/90'}`}>
                 {p('subsidy.marketDeductionHint', {
                   amount: (partnerQuota.marketDeductionUsd ?? 0).toLocaleString(),
                 })}
@@ -267,11 +285,11 @@ export function PartnerSubsidyPanel({
         />
         <GlassButton
           className="w-full !py-3 !text-xs"
-          disabled={partnerQuota.applicableRemainingUsd <= 0}
+          disabled={!subsidyEnabled || partnerQuota.applicableRemainingUsd <= 0}
           onClick={() => setPartnerOpen(true)}
         >
           <Gift size={14} className="inline mr-1.5" />
-          {p('subsidy.apply')}
+          {subsidyEnabled ? p('subsidy.apply') : p('subsidy.entitlementOff')}
         </GlassButton>
         {state.partnerSubsidyApplications.length > 0 && (
           <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/[0.06]' : 'border-[#160510]/10'}`}>

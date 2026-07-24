@@ -198,12 +198,12 @@ export function PartnerPrivateSaleIntro({
                       : 'border-[#160510]/[0.06] bg-[#160510]/[0.02]'
                 }`}
               >
-                <div className={`text-[9px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
+                <div className={`text-[10px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
                   {p('privateSale.roundLabel', { n: r.round })}
                 </div>
                 <div className="text-sm font-extrabold leading-tight" style={{ color: accent }}>
                   {r.priceUsdt}
-                  <span className="text-[10px] opacity-70">U</span>
+                  <span className="text-[11px] opacity-70">U</span>
                 </div>
               </motion.div>
             );

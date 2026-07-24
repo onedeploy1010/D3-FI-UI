@@ -41,11 +41,28 @@ export async function setMemberSubsidyRatePct(sb: Sb, wallet: string, ratePct: n
     if (!Number.isFinite(v) || v < 0 || v > 100) throw new HttpError(400, 'Invalid subsidy_rate_pct');
     ratePct = v;
   }
-  const { error } = await sb
+  const { data: updated, error } = await sb
     .from('partner_accounts')
     .update({ subsidy_rate_pct: ratePct, updated_at: new Date().toISOString() })
-    .ilike('wallet_address', wallet);
+    .ilike('wallet_address', wallet)
+    .select('wallet_address');
   if (error) throw new HttpError(500, error.message);
+
+  // Registered-only members (普通/注册会员) have no partner_accounts row yet —
+  // create one so the override sticks. Use the profiles row's exact casing to
+  // satisfy the FK.
+  if (!updated?.length) {
+    const { data: prof } = await sb
+      .from('profiles')
+      .select('wallet_address')
+      .ilike('wallet_address', wallet)
+      .maybeSingle();
+    if (!prof) throw new HttpError(404, 'Member not found');
+    const { error: insErr } = await sb
+      .from('partner_accounts')
+      .insert({ wallet_address: prof.wallet_address as string, subsidy_rate_pct: ratePct });
+    if (insErr) throw new HttpError(500, insErr.message);
+  }
   return { wallet, subsidyRatePct: ratePct };
 }
 

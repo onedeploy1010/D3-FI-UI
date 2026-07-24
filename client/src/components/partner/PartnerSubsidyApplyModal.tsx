@@ -162,7 +162,7 @@ export function PartnerSubsidyApplyModal({
     <PartnerModal open={open} onClose={onClose} title={title} isDark={isDark}>
       {wallet && (
         <div className={`mb-4 p-3.5 rounded-2xl ${ui.panel}`}>
-          <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${ui.labelMuted}`}>
+          <div className={`text-[11px] font-semibold uppercase tracking-widest mb-2 ${ui.labelMuted}`}>
             {p('subsidy.wallet')}
           </div>
           <AddressBlock value={wallet} isDark={isDark} compact surface={isDark ? 'default' : 'solid'} />
@@ -220,7 +220,7 @@ export function PartnerSubsidyApplyModal({
         </div>
         {overQuota && <p className="text-[11px] text-red-500 mt-1.5">{p('subsidy.err.quota')}</p>}
         {remainingUsd > 0 && (
-          <p className={`text-[10px] mt-1.5 ${ui.labelMuted}`}>{p('subsidy.amountMaxHint', { max: remainingUsd })}</p>
+          <p className={`text-[11px] mt-1.5 ${ui.labelMuted}`}>{p('subsidy.amountMaxHint', { max: remainingUsd })}</p>
         )}
       </div>
 

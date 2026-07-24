@@ -33,6 +33,8 @@ export type MemberRow = {
   isPartner: boolean;
   sd3Balance: number;
   pendingUsdtYield: number;
+  /** 补贴比例 override; null = 默认(合伙人 10%, 其他 0%). */
+  subsidyRatePct: number | null;
   marketLeaderStatus: string;
   joinedAt: string | null;
   /** 注册日期 (profile created / first referral bind). */

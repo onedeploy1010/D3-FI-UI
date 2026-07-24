@@ -145,12 +145,12 @@ function OrderRow({
   return (
     <div className="flex items-center gap-2.5 py-2">
       {typeof index === 'number' && (
-        <span className={`shrink-0 w-6 text-right text-[10px] tabular-nums ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
+        <span className={`shrink-0 w-6 text-right text-[11px] tabular-nums ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
           {index}
         </span>
       )}
       <span
-        className="shrink-0 grid place-items-center h-7 w-7 rounded-lg text-[10px] font-black"
+        className="shrink-0 grid place-items-center h-7 w-7 rounded-lg text-[11px] font-black"
         style={{ color: accent, background: `${accent}1f` }}
       >
         {order.round}
@@ -162,7 +162,7 @@ function OrderRow({
           </span>
         </div>
         {order.hash && (
-          <div className={`flex items-center gap-1 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+          <div className={`flex items-center gap-1 text-[11px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
             <span className="truncate font-mono">{shortenAddr(order.address)}</span>
           </div>
         )}
@@ -171,7 +171,7 @@ function OrderRow({
         <div className="text-[13px] font-extrabold leading-none text-emerald-500">
           +${order.amountUsdt.toLocaleString()}
         </div>
-        <div className={`mt-0.5 text-[10px] tabular-nums ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+        <div className={`mt-0.5 text-[11px] tabular-nums ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
           {order.d3.toLocaleString()} D3 · {timeAgo(order.at, now)}
         </div>
       </div>
@@ -225,7 +225,7 @@ function OrdersExplorer({
           transition={{ duration: 1.4, repeat: Infinity }}
         />
         <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-500">{p('heartbeat.live')}</span>
-        <span className={`ml-auto text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+        <span className={`ml-auto text-[11px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
           {p('heartbeat.streamHint')}
         </span>
       </div>
@@ -233,7 +233,7 @@ function OrdersExplorer({
       <div className="mb-3 grid grid-cols-3 gap-2">
         {stats.map((s) => (
           <div key={s.label} className="partner-depth-inset rounded-xl p-2.5 text-center">
-            <div className={`text-[9px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>{s.label}</div>
+            <div className={`text-[10px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>{s.label}</div>
             <div className={`mt-0.5 text-base font-extrabold leading-none ${s.accent ? 'text-[#E0568F]' : isDark ? 'text-white' : 'text-[#160510]'}`}>
               {s.value}
             </div>
@@ -367,7 +367,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
               <div className={`text-sm font-extrabold leading-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                 {p('heartbeat.title')}
               </div>
-              <div className={`text-[10px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+              <div className={`text-[11px] ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
                 {p('heartbeat.subtitle')}
               </div>
             </div>
@@ -378,7 +378,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
             </div>
             <div className="flex items-center justify-end gap-1 mt-0.5">
               <Radio size={9} className="text-emerald-500" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500">{p('heartbeat.live')}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">{p('heartbeat.live')}</span>
             </div>
           </div>
         </div>
@@ -396,7 +396,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
           }`}
         >
           <div className="min-w-0">
-            <div className={`text-[10px] font-semibold ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
+            <div className={`text-[11px] font-semibold ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
               {p('privateSale.roundLabel', { n: 1 })} · {PRESALE_ROUNDS[0].d3.toLocaleString()} D3
             </div>
             <div className="mt-0.5 flex items-baseline gap-0.5 leading-none">
@@ -415,7 +415,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
                 <TrendingUp size={12} strokeWidth={2.5} />
                 {p('heartbeat.priceRising')}
               </div>
-              <div className={`text-[9px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+              <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
                 {p('heartbeat.priceRisingHint')}
               </div>
             </div>
@@ -424,7 +424,7 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
 
         {/* Slowly-filling progress bar */}
         <div className="relative mt-3">
-          <div className={`mb-1 flex items-center justify-between text-[10px] ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
+          <div className={`mb-1 flex items-center justify-between text-[11px] ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
             <span className="font-semibold">{p('privateSale.progressLabel', { n: round })}</span>
             <span className="tabular-nums font-bold text-[#E0568F]">
               <NumberFlow value={Math.round(fillPct * 10) / 10} willChange />%
@@ -443,14 +443,14 @@ export function PrivateSaleHeartbeat({ lang, isDark }: { lang: AppLang; isDark: 
               />
             )}
           </div>
-          <div className={`mt-1 text-[10px] tabular-nums ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+          <div className={`mt-1 text-[11px] tabular-nums ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
             {p('privateSale.soldOfTarget', { sold: sold.toLocaleString(), target: target.toLocaleString() })}
           </div>
         </div>
 
         {/* Live incoming orders (top 3) */}
         <div className="relative mt-3">
-          <div className={`mb-0.5 flex items-center justify-between text-[10px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+          <div className={`mb-0.5 flex items-center justify-between text-[11px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
             <span>{p('heartbeat.incoming')}</span>
             <span className="flex items-center gap-0.5 text-[#E0568F]">
               {p('heartbeat.viewAll')}

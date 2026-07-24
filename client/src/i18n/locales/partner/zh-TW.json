@@ -410,5 +410,7 @@
   "assets.receivedFrom": "收到來自",
   "home.stakeComingSoonTitle": "上線時間正在倒計時",
   "home.stakeComingSoonBody": "敬請關注",
-  "home.stakeComingSoonOk": "我知道了"
+  "home.stakeComingSoonOk": "我知道了",
+  "subsidy.entitlementOn": "補貼權益已開通 · 比例 {pct}%",
+  "subsidy.entitlementOff": "補貼權益未開通，請聯繫管理員"
 }

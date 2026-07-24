@@ -412,5 +412,7 @@
   "assets.receivedFrom": "From",
   "home.stakeComingSoonTitle": "Launch countdown in progress",
   "home.stakeComingSoonBody": "Stay tuned",
-  "home.stakeComingSoonOk": "Got it"
+  "home.stakeComingSoonOk": "Got it",
+  "subsidy.entitlementOn": "Subsidy entitlement active · {pct}%",
+  "subsidy.entitlementOff": "Subsidy not enabled — contact an administrator"
 }

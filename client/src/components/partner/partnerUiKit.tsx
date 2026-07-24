@@ -14,7 +14,7 @@ export function PartnerLevelBadge({
 }) {
   return (
     <GlassChip
-      className={`!py-1 !px-2.5 text-[10px] font-bold partner-level-badge w-fit ${className}`}
+      className={`!py-1 !px-2.5 text-[11px] font-bold partner-level-badge w-fit ${className}`}
       style={{ color: '#E0568F' }}
     >
       {label}
@@ -31,7 +31,7 @@ export function PartnerTagChip({
 }) {
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide ${
+      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide ${
         accent
           ? 'bg-[#E0568F]/15 text-[#E0568F] border border-[#E0568F]/25'
           : 'partner-depth-inset text-[#8A2B57]/80 dark:text-white/55'
@@ -73,7 +73,7 @@ export function PartnerInsetCell({
 }) {
   return (
     <div className="partner-inset-cell p-2.5 rounded-xl text-center">
-      <div className={`text-[9px] font-semibold uppercase tracking-wider mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+      <div className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
         {label}
       </div>
       <div className={`text-xs font-bold leading-tight ${accent ? 'text-[#E0568F]' : isDark ? 'text-white' : 'text-[#160510]'}`}>
@@ -136,13 +136,13 @@ export function PartnerAnimatedBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-end justify-between gap-2">
-        <span className={`text-[10px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{label}</span>
+        <span className={`text-[11px] font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>{label}</span>
         <div className="text-right">
           <span className="text-xs font-bold" style={{ color: accent }}>
             {display}
           </span>
           {badge && (
-            <span className="block text-[9px] font-semibold text-amber-500/90 mt-0.5">{badge}</span>
+            <span className="block text-[10px] font-semibold text-amber-500/90 mt-0.5">{badge}</span>
           )}
         </div>
       </div>
@@ -219,7 +219,7 @@ export function PartnerDualAnimatedBar({
             {title}
           </span>
           {featuredHint && (
-            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md partner-metric-pill-accent">
+            <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md partner-metric-pill-accent">
               {featuredHint}
             </span>
           )}
@@ -241,7 +241,7 @@ export function PartnerDualAnimatedBar({
           <div className={`text-[12px] font-semibold mb-1 flex items-center gap-1 ${muted}`}>
             <span className="truncate">{newLabel}</span>
             {badge && (
-              <span className="shrink-0 text-[8px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none">
+              <span className="shrink-0 text-[9px] font-medium text-amber-500/90 px-1 py-0 rounded bg-amber-500/10 border border-amber-500/18 leading-none">
                 {badge}
               </span>
             )}
@@ -333,7 +333,7 @@ export function PartnerListFilters({
         />
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-[10px] font-semibold shrink-0 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+        <span className={`text-[11px] font-semibold shrink-0 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
           {sortLabel}
         </span>
         <select

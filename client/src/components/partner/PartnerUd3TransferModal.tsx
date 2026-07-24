@@ -75,14 +75,14 @@ export function PartnerUd3TransferModal({
   return (
     <PartnerModal open={open} onClose={onClose} title={p('assets.balanceTitle')} isDark={isDark}>
       <div className={`mb-4 p-3.5 rounded-2xl ${panelClass}`}>
-        <div className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${labelMuted}`}>
+        <div className={`text-[11px] font-semibold uppercase tracking-widest mb-2 ${labelMuted}`}>
           {p('tree.transferTo')}
         </div>
         <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
           <PartnerLevelBadge label={levelLabel} />
           {layerLabel ? (
             <span
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
                 recipientIsDirect
                   ? 'text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20'
                   : isDark
@@ -94,7 +94,7 @@ export function PartnerUd3TransferModal({
             </span>
           ) : null}
           {toAlias ? (
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20 max-w-[8rem] truncate">
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20 max-w-[8rem] truncate">
               {toAlias}
             </span>
           ) : null}

@@ -78,13 +78,13 @@ export function PartnerSubsidyReceiptUpload({
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
           {p('subsidy.uploadReceipts')}
         </button>
-        <p className={`text-[10px] mt-2 leading-relaxed ${ui.labelMuted}`}>{p('subsidy.receiptsHint')}</p>
+        <p className={`text-[11px] mt-2 leading-relaxed ${ui.labelMuted}`}>{p('subsidy.receiptsHint')}</p>
         {files.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-3">
             {files.map((item) => (
               <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden bg-black/10">
                 {item.isVideo ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[10px] font-semibold">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[11px] font-semibold">
                     <Video size={18} className={isDark ? 'text-white/70' : 'text-[#8A2B57]'} />
                     <span className={`px-1 text-center line-clamp-2 ${ui.labelMuted}`}>{item.file.name}</span>
                   </div>

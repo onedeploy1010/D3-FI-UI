@@ -57,7 +57,7 @@ function DemoPaymentHint({
         isDark ? 'text-white/60 bg-amber-500/[0.06]' : 'text-[#160510]/60 bg-amber-500/[0.04]'
       }`}
     >
-      <div className="text-[10px] uppercase tracking-widest mb-2 text-amber-500/80">
+      <div className="text-[11px] uppercase tracking-widest mb-2 text-amber-500/80">
         {label('stake.payMethod')}
       </div>
       <div className="flex items-start gap-2.5">

@@ -25,18 +25,24 @@ export async function createPartnerSubsidyTicket(
 ) {
   const { data: account } = await sb
     .from('partner_accounts')
-    .select('is_partner, market_leader_status')
+    .select('is_partner, market_leader_status, subsidy_rate_pct')
     .ilike('wallet_address', wallet)
     .maybeSingle();
 
-  if (!account?.is_partner) {
-    throw new HttpError(403, 'Partner account required');
+  // 补贴资格 = 管理后台的补贴开关: effective rate > 0 (合伙人默认 10%, 其他
+  // 会员默认 0%, admin 可为任何会员开通/关闭)。取代旧的
+  // is_partner + market_leader 门槛。
+  const effectiveRatePct =
+    account?.subsidy_rate_pct != null
+      ? Number(account.subsidy_rate_pct)
+      : account?.is_partner
+        ? 10
+        : 0;
+  if (input.kind !== 'market_leader' && effectiveRatePct <= 0) {
+    throw new HttpError(403, '补贴权益未开通,请联系管理员');
   }
-
-  if (input.kind === 'market_subsidy' || input.kind === 'market_leader') {
-    if (account.market_leader_status !== 'approved') {
-      throw new HttpError(400, 'Market leader approval required');
-    }
+  if (input.kind === 'market_leader' && !account?.is_partner) {
+    throw new HttpError(403, 'Partner account required');
   }
 
   if (input.kind === 'market_leader') {

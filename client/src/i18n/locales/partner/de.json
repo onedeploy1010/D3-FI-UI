@@ -412,5 +412,7 @@
   "assets.receivedFrom": "Von",
   "home.stakeComingSoonTitle": "Launch-Countdown läuft",
   "home.stakeComingSoonBody": "Bleib dran",
-  "home.stakeComingSoonOk": "Verstanden"
+  "home.stakeComingSoonOk": "Verstanden",
+  "subsidy.entitlementOn": "Subventionsanspruch aktiv · {pct}%",
+  "subsidy.entitlementOff": "Subvention nicht freigeschaltet — Admin kontaktieren"
 }

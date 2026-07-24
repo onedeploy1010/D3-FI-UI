@@ -90,7 +90,7 @@ function PartnerTeamNodeRemarkChip({
   };
 
   const chipClass =
-    '!py-1 !px-2.5 text-[10px] font-bold rounded-full w-fit max-w-[9rem] inline-flex items-center gap-1 touch-manipulation';
+    '!py-1 !px-2.5 text-[11px] font-bold rounded-full w-fit max-w-[9rem] inline-flex items-center gap-1 touch-manipulation';
 
   if (editing) {
     return (
@@ -344,14 +344,14 @@ export function PartnerTeamTree({
           />
           <span
             className={cn(
-              'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0',
+              'text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0',
               nodeLayerChipClass(node.isDirect, isDark),
             )}
           >
             {node.isDirect ? p('tree.direct') : layerDepthLabel(nodeDepth, p)}
           </span>
           {isBigArea && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-600 bg-amber-400/15 border border-amber-400/45">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-amber-600 bg-amber-400/15 border border-amber-400/45">
               {p('tree.bigAreaBadge')}
             </span>
           )}
@@ -363,7 +363,7 @@ export function PartnerTeamTree({
             onSave={(next) => saveAlias(node.address, next)}
           />
           {node.isGuideMock && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/10 border border-[#E0568F]/20">
               {p('tree.guideMockBadge')}
             </span>
           )}

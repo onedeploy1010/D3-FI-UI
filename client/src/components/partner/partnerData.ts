@@ -458,6 +458,8 @@ export type PartnerState = {
   yieldWithdrawals: PartnerYieldWithdrawal[];
   dtPreorderEligible: boolean;
   marketLeaderStatus: MarketLeaderStatus;
+  /** 管理后台的补贴开关: per-member 比例 override (null = 默认: 合伙人取全局比例, 其他会员 0 = 未开通). */
+  subsidyRatePct?: number | null;
   partnerSubsidyApplications: SubsidyApplication[];
   marketSubsidyApplications: SubsidyApplication[];
   marketSubsidyPerformanceUsed: number;

@@ -412,5 +412,7 @@
   "assets.receivedFrom": "De",
   "home.stakeComingSoonTitle": "Cuenta regresiva de lanzamiento en curso",
   "home.stakeComingSoonBody": "Mantente atento",
-  "home.stakeComingSoonOk": "Entendido"
+  "home.stakeComingSoonOk": "Entendido",
+  "subsidy.entitlementOn": "Derecho a subsidio activo · {pct}%",
+  "subsidy.entitlementOff": "Subsidio no habilitado — contacte a un administrador"
 }

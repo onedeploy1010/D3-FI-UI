@@ -221,7 +221,7 @@ export function PartnerStakeTab({
             <div className="text-sm font-bold tracking-tight text-emerald-500">
               {formatD3Amount(usdtToD3(stats.dailyUsdtYield))} D3
             </div>
-            <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+            <div className={`text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
               ≈ ${formatDailyYieldUsdt(stats.dailyUsdtYield)}
             </div>
           </div>
@@ -270,7 +270,7 @@ export function PartnerStakeTab({
         onSortChange={(v) => setSort(v as OrderSort)}
       />
 
-      <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 px-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+      <div className={`text-[11px] font-semibold uppercase tracking-widest mb-1 px-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
         {p('stake.orders')} · {STAKE_LOCK_DAYS}{p('stake.daysEach')}
       </div>
 
@@ -302,15 +302,15 @@ export function PartnerStakeTab({
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span className="text-[13px] font-bold text-[#E0568F] truncate">{p(stakeKindKey(order.kind))}</span>
                   {paidWithUd3 && (
-                    <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/12 border border-[#E0568F]/20">
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#E0568F] bg-[#E0568F]/12 border border-[#E0568F]/20">
                       {p('stake.paidWithUd3')}
                     </span>
                   )}
-                  <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md text-[#8A2B57] bg-[#E0568F]/10">
+                  <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md text-[#8A2B57] bg-[#E0568F]/10">
                     {exitMult}×
                   </span>
                 </span>
-                <span className={`shrink-0 text-[10px] tabular-nums ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                <span className={`shrink-0 text-[11px] tabular-nums ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                   {order.startedAt}
                 </span>
               </div>
@@ -331,7 +331,7 @@ export function PartnerStakeTab({
               </div>
 
               {/* D3 私募价 (下单时锁定) + 质押 D3 数量 */}
-              <div className={`flex items-center flex-wrap gap-x-1.5 text-[10px] mb-2.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+              <div className={`flex items-center flex-wrap gap-x-1.5 text-[11px] mb-2.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
                 <span>
                   {p('stake.salePrice')} <span className="font-bold text-[#E0568F]">{salePrice}U</span>
                 </span>
@@ -351,7 +351,7 @@ export function PartnerStakeTab({
                   style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #8A2B57, #E0568F)' }}
                 />
               </div>
-              <div className={`flex items-center justify-between text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+              <div className={`flex items-center justify-between text-[11px] ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
                 <span className="tabular-nums">
                   {progress}% · {daysLeft}{p('stake.daysLeft')} · {order.unlockAt}
                 </span>
@@ -376,7 +376,7 @@ export function PartnerStakeTab({
             <div className={`p-3 mb-3 rounded-2xl border ${isDark ? 'bg-[#E0568F]/10 border-[#E0568F]/25' : 'bg-[#E0568F]/8 border-[#E0568F]/20'}`}>
               <div className="flex justify-between items-start gap-2 mb-1.5">
                 <div className="min-w-0">
-                  <div className={`text-[10px] uppercase tracking-widest mb-0.5 ${isDark ? 'text-[#f9a8d4]' : 'text-[#8A2B57]/70'}`}>
+                  <div className={`text-[11px] uppercase tracking-widest mb-0.5 ${isDark ? 'text-[#f9a8d4]' : 'text-[#8A2B57]/70'}`}>
                     {p(stakeKindKey(historyOrder.kind))}
                   </div>
                   <div className="text-base font-bold text-[#E0568F]">
@@ -384,16 +384,16 @@ export function PartnerStakeTab({
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className={`text-[10px] ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.daily')}</div>
+                  <div className={`text-[11px] ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>{p('stake.daily')}</div>
                   <div className="text-sm font-semibold text-emerald-400">
                     {formatD3Amount(usdtToD3(historyOrder.dailyYieldUsdt))} D3
                   </div>
-                  <div className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  <div className={`text-[11px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                     ≈ ${formatDailyYieldUsdt(historyOrder.dailyYieldUsdt)}
                   </div>
                 </div>
               </div>
-              <div className={`text-[10px] ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
+              <div className={`text-[11px] ${isDark ? 'text-white/55' : 'text-[#160510]/55'}`}>
                 {historyOrder.startedAt} → {historyOrder.unlockAt}
               </div>
             </div>
@@ -405,7 +405,7 @@ export function PartnerStakeTab({
             ) : (
               <div className="mb-3">
                 <div
-                  className={`grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-0 px-1.5 pb-1.5 text-[10px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}
+                  className={`grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-0 px-1.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}
                 >
                   <span>{p('stake.yieldHistoryDate')}</span>
                   <span className="text-right min-w-[4.5rem]">{p('stake.yieldHistoryAmount')}</span>
@@ -436,7 +436,7 @@ export function PartnerStakeTab({
                         +{formatD3Amount(usdtToD3(row.yieldUsdt))} D3
                       </span>
                       <span
-                        className={`text-[10px] text-right min-w-[2.75rem] font-medium leading-tight ${
+                        className={`text-[11px] text-right min-w-[2.75rem] font-medium leading-tight ${
                           row.source === 'settled'
                             ? isDark ? 'text-emerald-300/90' : 'text-emerald-700'
                             : isDark ? 'text-amber-300/80' : 'text-amber-700'
@@ -464,7 +464,7 @@ export function PartnerStakeTab({
                       <ChevronLeft size={14} />
                       {p('stake.yieldHistoryPrev')}
                     </button>
-                    <span className={`text-[10px] font-medium tabular-nums ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
+                    <span className={`text-[11px] font-medium tabular-nums ${isDark ? 'text-white/50' : 'text-[#160510]/50'}`}>
                       {p('stake.yieldHistoryPage', { page: safeHistoryPage + 1, total: historyPageCount })}
                     </span>
                     <button

@@ -181,11 +181,15 @@ export function usePartnerProgram(wallet: string | null, demoSessionKey = 0) {
       let subsidyPatch: Partial<PartnerState> = {};
       if (ticketsRes.status === 'fulfilled') {
         const mapped = mapSubsidyTicketsToApplications(ticketsRes.value.tickets ?? []);
+        const acct = bundle.partnerAccount as
+          | { market_leader_status?: string; subsidy_rate_pct?: number | null }
+          | null
+          | undefined;
         subsidyPatch = {
           ...mapped,
           marketLeaderStatus:
-            (bundle.partnerAccount as { market_leader_status?: string } | null | undefined)
-              ?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
+            acct?.market_leader_status as PartnerState['marketLeaderStatus'] | undefined,
+          subsidyRatePct: acct?.subsidy_rate_pct ?? null,
         };
       } /* else keep local subsidy state */
       let nodes = buildPartnerTeamNodes(wallet, bundle);

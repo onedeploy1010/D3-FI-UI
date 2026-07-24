@@ -412,5 +412,7 @@
   "assets.receivedFrom": "От",
   "home.stakeComingSoonTitle": "Идёт обратный отсчёт до запуска",
   "home.stakeComingSoonBody": "Следите за обновлениями",
-  "home.stakeComingSoonOk": "Понятно"
+  "home.stakeComingSoonOk": "Понятно",
+  "subsidy.entitlementOn": "Право на субсидию активно · {pct}%",
+  "subsidy.entitlementOff": "Субсидия не подключена — обратитесь к администратору"
 }

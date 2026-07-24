@@ -412,5 +412,7 @@
   "assets.receivedFrom": "De",
   "home.stakeComingSoonTitle": "Compte à rebours de lancement en cours",
   "home.stakeComingSoonBody": "Restez à l'écoute",
-  "home.stakeComingSoonOk": "Compris"
+  "home.stakeComingSoonOk": "Compris",
+  "subsidy.entitlementOn": "Droit à la subvention actif · {pct}%",
+  "subsidy.entitlementOff": "Subvention non activée — contactez un administrateur"
 }

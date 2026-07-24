@@ -390,5 +390,7 @@
   "assets.receivedFrom": "送信元",
   "home.stakeComingSoonTitle": "ローンチまでカウントダウン中",
   "home.stakeComingSoonBody": "お楽しみに",
-  "home.stakeComingSoonOk": "OK"
+  "home.stakeComingSoonOk": "OK",
+  "subsidy.entitlementOn": "補助金権益は有効 · 比率 {pct}%",
+  "subsidy.entitlementOff": "補助金は未開通です。管理者にお問い合わせください"
 }

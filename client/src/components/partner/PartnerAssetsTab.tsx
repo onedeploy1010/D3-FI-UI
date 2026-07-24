@@ -200,7 +200,7 @@ export function PartnerAssetsTab({
             <div className="ios-glass-inset p-3.5 mb-2 flex items-center justify-between gap-3 border border-[#E0568F]/15">
               <div className="min-w-0">
                 <div className={`text-[11px] font-semibold ${muted}`}>{p('assets.availableUd3')}</div>
-                <div className={`text-[9px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
+                <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/35'}`}>
                   {p('assets.ud3StakeHist')} · {p('assets.transferHist')}
                 </div>
               </div>
@@ -212,7 +212,7 @@ export function PartnerAssetsTab({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+            <div className="grid grid-cols-2 gap-2 text-[11px] mb-2">
               <div className="ios-glass-inset p-2.5">
                 <div className={isDark ? 'text-white/30' : 'text-[#160510]/30'}>{p('assets.totalInvest')}</div>
                 <div className="font-bold text-sm mt-0.5">${yieldBalances.principalUsdt.toLocaleString()}</div>
@@ -222,7 +222,7 @@ export function PartnerAssetsTab({
                 <div className="font-bold text-sm mt-0.5 text-emerald-500">
                   {formatD3Amount(yieldBalances.accruedD3)} D3
                 </div>
-                <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
+                <div className={`text-[11px] mt-0.5 ${isDark ? 'text-white/30' : 'text-[#160510]/30'}`}>
                   ≈ ${yieldBalances.accruedTotal.toLocaleString()}
                 </div>
               </div>
@@ -250,11 +250,11 @@ export function PartnerAssetsTab({
                 </div>
                 <div className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white/70' : 'text-[#160510]/70'}`}>
                   ≈ ${yieldBalances.claimableUsdt.toLocaleString()}
-                  <span className={`font-normal text-[10px] ml-1 ${muted}`}>
+                  <span className={`font-normal text-[11px] ml-1 ${muted}`}>
                     ({p('assets.d3PriceHint', { price: yieldBalances.d3PriceUsdt })})
                   </span>
                 </div>
-                <div className={`text-[10px] mt-1 ${muted}`}>
+                <div className={`text-[11px] mt-1 ${muted}`}>
                   {p('assets.flashYieldAvailable')}
                   {!yieldBalances.canWithdraw && yieldBalances.claimableD3 > 0 && (
                     <span className="block text-amber-500/90 mt-0.5">
@@ -275,7 +275,7 @@ export function PartnerAssetsTab({
                 {p('assets.flashSwap')}
               </GlassButton>
             </div>
-            <div className={`text-[10px] ${muted}`}>
+            <div className={`text-[11px] ${muted}`}>
               {p('assets.dailyD3')}: {formatD3Amount(yieldBalances.dailyD3)} D3
               <span className="mx-1">·</span>
               ≈ ${yieldBalances.dailyUsdtYield.toFixed(4)}
@@ -291,7 +291,7 @@ export function PartnerAssetsTab({
                 <div className="text-2xl font-black text-[#E0568F] mt-1">
                   <PartnerUd3Amount value={quotas.transferQuota} />
                 </div>
-                <div className={`text-[10px] mt-1 leading-relaxed ${muted}`}>
+                <div className={`text-[11px] mt-1 leading-relaxed ${muted}`}>
                   {p('assets.canTransfer')}
                 </div>
               </div>
@@ -363,7 +363,7 @@ export function PartnerAssetsTab({
                     <span className={`text-xs font-bold ${historyKindColor(row.kind)}`}>
                       {historyKindLabel(row.kind)}
                     </span>
-                    <span className={`text-[10px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{row.at}</span>
+                    <span className={`text-[11px] ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{row.at}</span>
                   </div>
                   <div className={`text-sm font-bold mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
                     {row.kind === 'transfer' && row.direction !== 'received' ? '-' : '+'}
@@ -383,7 +383,7 @@ export function PartnerAssetsTab({
                     />
                   )}
                   {row.unlockAt && (
-                    <div className={`text-[10px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                    <div className={`text-[11px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                       {p('assets.unlock')}: {row.unlockAt}
                     </div>
                   )}
@@ -403,7 +403,7 @@ export function PartnerAssetsTab({
         <p className={`text-[11px] leading-relaxed mb-4 ${muted}`}>
           {p('assets.flashSwapHintD3', { pct: FLASH_SWAP_FEE_PCT })}
         </p>
-        <div className={`text-[10px] mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+        <div className={`text-[11px] mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
           {p('assets.d3PriceHint', { price: yieldBalances.d3PriceUsdt ?? CROWDFUND_UNIT_PRICE_USDT })}
         </div>
         <div className="ios-glass-inset p-3 flex justify-between items-center text-xs mb-4">
@@ -455,7 +455,7 @@ export function PartnerAssetsTab({
               key={v}
               type="button"
               onClick={() => setFlashAmount(String(v))}
-              className="text-[10px] px-2.5 py-1 rounded-lg ios-glass-inset ios-glass-pressable text-emerald-500 font-semibold"
+              className="text-[11px] px-2.5 py-1 rounded-lg ios-glass-inset ios-glass-pressable text-emerald-500 font-semibold"
             >
               {v} D3
             </button>

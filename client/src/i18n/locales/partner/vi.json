@@ -412,5 +412,7 @@
   "assets.receivedFrom": "Từ",
   "home.stakeComingSoonTitle": "Đang đếm ngược ra mắt",
   "home.stakeComingSoonBody": "Hãy đón chờ",
-  "home.stakeComingSoonOk": "Đã hiểu"
+  "home.stakeComingSoonOk": "Đã hiểu",
+  "subsidy.entitlementOn": "Quyền trợ cấp đã kích hoạt · {pct}%",
+  "subsidy.entitlementOff": "Trợ cấp chưa được kích hoạt — liên hệ quản trị viên"
 }

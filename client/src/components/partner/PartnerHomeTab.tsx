@@ -264,7 +264,7 @@ export function PartnerHomeTab({
           </div>
 
           <div className="relative mb-4 animate-tile-rise" style={{ ['--rise-delay']: '60ms' } as CSSProperties}>
-            <div className={`text-[10px] font-semibold uppercase tracking-widest text-center mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+            <div className={`text-[11px] font-semibold uppercase tracking-widest text-center mb-2 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
               {useUd3 ? 'UD3' : 'USDT'}
             </div>
             <input
@@ -332,7 +332,7 @@ export function PartnerHomeTab({
               />
               <span className="text-[11px] leading-relaxed text-left">
                 <span className="font-semibold">{p('home.becomePartnerCheckbox')}</span>
-                <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                <span className={`block text-[11px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
                   {partnerShortfall > 0 && partnerShortfall < PARTNER_ENTRY_USDT
                     ? p('home.becomePartnerTopUpHint', {
                         pay: partnerJoinAmount.toLocaleString(),
@@ -346,7 +346,7 @@ export function PartnerHomeTab({
           )}
 
           {(useUd3 || isRegularMode) && (
-            <p className={`text-[10px] text-center mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+            <p className={`text-[11px] text-center mb-4 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
               {useUd3
                 ? p('home.stakeUd3StepHint', { step: UD3_STAKE_STEP })
                 : p('home.stakeStepHint', { step: REGULAR_STAKE_STEP_USDT })}
@@ -374,7 +374,7 @@ export function PartnerHomeTab({
               {!useUd3 && (
               <div className="partner-depth-inset rounded-2xl overflow-hidden">
                 <div className="px-4 py-3.5">
-                  <div className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  <div className={`text-[11px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                     {p('home.estD3Amount', { amount: stakeAmount.toLocaleString(), price: CROWDFUND_UNIT_PRICE_USDT })}
                   </div>
                   <div className="mt-1.5 text-xl font-bold tracking-tight text-[#E0568F]">
@@ -384,7 +384,7 @@ export function PartnerHomeTab({
                 </div>
                 <div className={`h-px mx-4 ${isDark ? 'bg-white/[0.06]' : 'bg-[#160510]/06'}`} />
                 <div className="px-4 py-3.5">
-                  <div className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  <div className={`text-[11px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                     {p('home.estDailyYield')}
                   </div>
                   <div className="mt-1.5 flex items-baseline gap-2 flex-wrap">
@@ -406,7 +406,7 @@ export function PartnerHomeTab({
               )}
               {useUd3 && (
                 <div className="partner-depth-inset rounded-2xl px-4 py-3.5">
-                  <div className={`text-[10px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+                  <div className={`text-[11px] font-semibold tracking-wide ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                     {p('home.estDailyYield')}
                   </div>
                   <div className={`mt-2 text-[11px] leading-relaxed tabular-nums ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
@@ -417,7 +417,7 @@ export function PartnerHomeTab({
                       }),
                     })}
                   </div>
-                  <div className={`mt-1.5 text-[10px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                  <div className={`mt-1.5 text-[11px] ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.ud3NoBribeHint')}
                   </div>
                 </div>
@@ -441,7 +441,7 @@ export function PartnerHomeTab({
                       <PartnerUd3Amount value={availableUd3} />
                     </span>
                   </span>
-                  <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                  <span className={`block text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.ud3QuotaHintOpen')}
                     <button
                       type="button"
@@ -481,7 +481,7 @@ export function PartnerHomeTab({
                       <PartnerUd3Amount value={availableUd3} />
                     </span>
                   </span>
-                  <span className={`block text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+                  <span className={`block text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
                     {p('home.ud3QuotaHintOpen')}
                   </span>
                 </span>
@@ -499,14 +499,14 @@ export function PartnerHomeTab({
       >
         <div className="space-y-2 mb-5">
           <div className="partner-depth-inset p-4 text-center rounded-2xl">
-            <div className={`text-[10px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
+            <div className={`text-[11px] uppercase tracking-widest mb-1 ${isDark ? 'text-white/35' : 'text-[#160510]/35'}`}>
               {useUd3 ? p('stake.kind.sd3') : withPartnerJoin ? p('stake.partner') : p('stake.stakeAmount')}
             </div>
             <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E0568F]">{stakeAmount.toLocaleString()}</div>
             <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
               {useUd3 ? 'UD3' : 'USDT'}
             </div>
-            <div className={`text-[10px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
+            <div className={`text-[11px] mt-2 ${isDark ? 'text-white/35' : 'text-[#160510]/40'}`}>
               {p('home.tagExitMult', { mult: exitMultiplier })}
             </div>
           </div>
