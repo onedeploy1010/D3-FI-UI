@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "Protokoll",
+    "token": "Token",
+    "roadmap": "Roadmap",
+    "docs": "Doku",
+    "connect": "Wallet verbinden"
+  },
+  "hero": {
+    "badge": "BSC 2026 · Dezentrales Bribe-Finance-Protokoll",
+    "title": "Echte Rendite",
+    "titleAccent": "On-Chain verifiziert",
+    "subtitle": "Transparenz für DeFi-Governance-Anreize\nJeder Ertrag hat eine Quelle, jede Dividende ist nachvollziehbar",
+      "cta1": "Wallet verbinden",
+      "cta2": "Whitepaper lesen",
+      "learnMore": "Mehr erfahren"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "Bribe-Pool-TVL",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 im Umlauf",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "DT-Inhaber",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "Dividenden gesamt",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "Warum Bribe Finance?",
+    "subtitle": "Transparenz für die Grauzonen der DeFi-Governance — ein Gewinn für Projekte, Wähler und Protokolle",
+    "imageCaption": "D³ Bribe-Finance-Mechanismus",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "Projekte zahlen",
+        "desc": "Projekte hinterlegen Bribes in Gauge-Pools und konkurrieren um D3-Emissionszuteilung und Liquiditätsunterstützung"
+      },
+      {
+        "icon": "users",
+        "title": "Wähler verdienen",
+        "desc": "veD3 sperren und abstimmen, anteilig an den Bribe-Pool-Belohnungen mit attraktiver APY teilhaben"
+      },
+      {
+        "icon": "lock",
+        "title": "Smart-Contract-Ausführung",
+        "desc": "Automatisierte On-Chain-Abwicklung, vertrauenslos und vollständig transparent verifizierbar"
+      }
+    ]
+  },
+  "entry": {
+    "title": "Drei Einstiegswege",
+    "subtitle": "Wähle die Strategie, die zu dir passt",
+    "methods": [
+      {
+        "name": "Spot-Swap",
+        "desc": "D3-Token direkt kaufen",
+        "tag": "Sofort",
+        "features": [
+          "Zero-Slippage-AMM",
+          "Sofortige Abwicklung",
+          "Keine Sperrfrist"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "LP-Bond",
+        "desc": "Liquidität bereitstellen und D3 mit Rabatt erhalten",
+        "tag": "Rabatt",
+        "features": [
+          "5–15% Rabatt",
+          "Lineares Vesting",
+          "Doppelte Belohnungen"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "Burn-Bond",
+        "desc": "DT verbrennen und D3 erwerben",
+        "tag": "Fortgeschritten",
+        "features": [
+          "Maximaler Rabatt",
+          "Deflationär",
+          "Langfristiger Wert"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "Sechs Wert-Wächter",
+    "subtitle": "Vom Code bis zur Governance — umfassender Schutz für Protokollwert und Nutzervermögen",
+    "imageCaption": "D³-Sicherheitssystem",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "Zugangstor",
+        "desc": "Smarter Zugang",
+        "detail": "KYC + Whitelist"
+      },
+      {
+        "icon": "lock",
+        "name": "Sperrsiegel",
+        "desc": "Zeitsperre",
+        "detail": "veD3-Mechanismus"
+      },
+      {
+        "icon": "flame",
+        "name": "Burn-Engine",
+        "desc": "Kontinuierlicher Burn",
+        "detail": "Bei jeder Transaktion"
+      },
+      {
+        "icon": "activity",
+        "name": "Ratenlimit",
+        "desc": "Anti-Flash",
+        "detail": "Abkühlphase"
+      },
+      {
+        "icon": "eye",
+        "name": "On-Chain-Audit",
+        "desc": "Volle Transparenz",
+        "detail": "Echtzeit-Audit"
+      },
+      {
+        "icon": "ban",
+        "name": "Notbremse",
+        "desc": "Not-Stopp",
+        "detail": "Multisig-Auslösung"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "phases": [
+      {
+        "phase": "Phase 1",
+        "name": "Protokollstart",
+        "desc": "Kernverträge · Token-Ausgabe · Anfangsliquidität",
+        "status": "done"
+      },
+      {
+        "phase": "Phase 2",
+        "name": "Ökosystem-Wachstum",
+        "desc": "Bribe-Markt · Governance-Voting · Partner-Integration",
+        "status": "active"
+      },
+      {
+        "phase": "Phase 3",
+        "name": "Globale Expansion",
+        "desc": "Multi-Chain · RWA-Integration · Institutionelle Partnerschaften",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Phase 4",
+        "name": "Volle Dezentralisierung",
+        "desc": "Community-Governance · DAO-Übergang · Protokoll-Autonomie",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": [
+      {
+        "q": "Was ist Bribe Finance?",
+        "a": "Bribe Finance ist ein innovatives Modell, das Transparenz und Compliance in die grauen Anreizmechanismen der DeFi-Governance bringt. Projekte incentivieren Wähler offen im Austausch für Liquiditätsunterstützung."
+      },
+      {
+        "q": "Wofür wird der D3-Token verwendet?",
+        "a": "D3 ist der zentrale Governance-Token. Inhaber können ihn für veD3 sperren, abstimmen, Bribe-Belohnungen verdienen, Protokoll-Dividenden erhalten und von der deflationären Mechanik profitieren."
+      },
+      {
+        "q": "Wie verdiene ich Dividenden?",
+        "a": "Halte DT (Dividenden-Token), um automatisch an der Dividendenausschüttung jeder Epoch teilzunehmen — aus Protokollgebühren, Bribe-Pool-Überschüssen und Partnerschaftserlösen."
+      },
+      {
+        "q": "Wie wird die Sicherheit gewährleistet?",
+        "a": "Das Protokoll setzt sechs Sicherheitsmechanismen ein: Zugangstor, Sperrsiegel, Burn-Engine, Ratenlimit, On-Chain-Audit und Notbremse — für einen umfassenden Schutz der Vermögenswerte."
+      }
+    ]
+  },
+  "footer": {
+    "resources": "Ressourcen",
+    "community": "Community",
+    "legal": "Rechtliches",
+    "links": {
+      "whitepaper": "Whitepaper",
+      "docs": "Dokumentation",
+      "audit": "Audit-Bericht",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "Nutzungsbedingungen",
+      "privacy": "Datenschutzerklärung",
+      "disclaimer": "Haftungsausschluss"
+    }
+  }
+}

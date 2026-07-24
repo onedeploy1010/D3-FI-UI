@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "Giao thức",
+    "token": "Token",
+    "roadmap": "Lộ trình",
+    "docs": "Tài liệu",
+    "connect": "Kết nối ví"
+  },
+  "hero": {
+    "badge": "BSC 2026 · Giao thức Bribe Finance phi tập trung",
+    "title": "Lợi nhuận thực",
+    "titleAccent": "Xác minh on-chain",
+    "subtitle": "Mang sự minh bạch đến cơ chế khuyến khích quản trị DeFi\nMọi lợi nhuận đều có nguồn gốc, mọi khoản cổ tức đều truy xuất được",
+      "cta1": "Kết nối ví",
+      "cta2": "Đọc Whitepaper",
+      "learnMore": "Tìm hiểu thêm"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "TVL quỹ Bribe",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 lưu hành",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "Người nắm giữ DT",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "Tổng cổ tức",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "Vì sao chọn Bribe Finance?",
+    "subtitle": "Mang sự minh bạch đến vùng xám của quản trị DeFi — đôi bên cùng có lợi cho dự án, người bỏ phiếu và giao thức",
+    "imageCaption": "Cơ chế Bribe Finance của D³",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "Dự án chi trả",
+        "desc": "Dự án nạp bribe vào các pool Gauge, cạnh tranh phân bổ phát hành D3 và hỗ trợ thanh khoản"
+      },
+      {
+        "icon": "users",
+        "title": "Người bỏ phiếu nhận thưởng",
+        "desc": "Khóa veD3 để bỏ phiếu, chia thưởng quỹ bribe theo tỷ lệ với APY hấp dẫn"
+      },
+      {
+        "icon": "lock",
+        "title": "Hợp đồng thông minh thực thi",
+        "desc": "Tất toán on-chain tự động, không cần tin cậy, xác minh hoàn toàn minh bạch"
+      }
+    ]
+  },
+  "entry": {
+    "title": "Ba cách tham gia",
+    "subtitle": "Chọn chiến lược phù hợp với bạn",
+    "methods": [
+      {
+        "name": "Spot Swap",
+        "desc": "Mua trực tiếp token D3",
+        "tag": "Tức thì",
+        "features": [
+          "AMM không trượt giá",
+          "Tất toán tức thì",
+          "Không khóa"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "LP Bond",
+        "desc": "Cung cấp thanh khoản để nhận D3 chiết khấu",
+        "tag": "Chiết khấu",
+        "features": [
+          "Chiết khấu 5-15%",
+          "Vesting tuyến tính",
+          "Thưởng kép"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "Burn Bond",
+        "desc": "Đốt DT để nhận D3",
+        "tag": "Nâng cao",
+        "features": [
+          "Chiết khấu tối đa",
+          "Giảm phát",
+          "Giá trị dài hạn"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "Sáu lớp bảo vệ giá trị",
+    "subtitle": "Từ mã nguồn đến quản trị, bảo vệ toàn diện giá trị giao thức và tài sản người dùng",
+    "imageCaption": "Hệ thống bảo mật D³",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "Cổng vào",
+        "desc": "Kiểm soát thông minh",
+        "detail": "KYC + Whitelist"
+      },
+      {
+        "icon": "lock",
+        "name": "Khóa niêm phong",
+        "desc": "Khóa thời gian",
+        "detail": "Cơ chế veD3"
+      },
+      {
+        "icon": "flame",
+        "name": "Động cơ đốt",
+        "desc": "Đốt liên tục",
+        "detail": "Theo từng giao dịch"
+      },
+      {
+        "icon": "activity",
+        "name": "Giới hạn tần suất",
+        "desc": "Chống flash",
+        "detail": "Thời gian chờ"
+      },
+      {
+        "icon": "eye",
+        "name": "Kiểm toán on-chain",
+        "desc": "Minh bạch hoàn toàn",
+        "detail": "Kiểm toán thời gian thực"
+      },
+      {
+        "icon": "ban",
+        "name": "Cầu dao khẩn cấp",
+        "desc": "Dừng khẩn cấp",
+        "detail": "Kích hoạt đa chữ ký"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "Lộ trình",
+    "phases": [
+      {
+        "phase": "Giai đoạn 1",
+        "name": "Ra mắt giao thức",
+        "desc": "Hợp đồng lõi · Phát hành token · Thanh khoản ban đầu",
+        "status": "done"
+      },
+      {
+        "phase": "Giai đoạn 2",
+        "name": "Tăng trưởng hệ sinh thái",
+        "desc": "Thị trường bribe · Bỏ phiếu quản trị · Tích hợp đối tác",
+        "status": "active"
+      },
+      {
+        "phase": "Giai đoạn 3",
+        "name": "Mở rộng toàn cầu",
+        "desc": "Đa chuỗi · Tích hợp RWA · Hợp tác tổ chức",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Giai đoạn 4",
+        "name": "Phi tập trung hoàn toàn",
+        "desc": "Quản trị cộng đồng · Chuyển đổi DAO · Giao thức tự vận hành",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "Câu hỏi thường gặp",
+    "items": [
+      {
+        "q": "Bribe Finance là gì?",
+        "a": "Bribe Finance là mô hình đổi mới mang lại sự minh bạch và tuân thủ cho các cơ chế khuyến khích vùng xám trong quản trị DeFi. Dự án công khai khuyến khích người bỏ phiếu để đổi lấy hỗ trợ thanh khoản."
+      },
+      {
+        "q": "Token D3 dùng để làm gì?",
+        "a": "D3 là token quản trị cốt lõi. Người nắm giữ có thể khóa thành veD3 để bỏ phiếu, nhận thưởng bribe, nhận cổ tức giao thức và hưởng lợi từ cơ chế giảm phát."
+      },
+      {
+        "q": "Làm sao để nhận cổ tức?",
+        "a": "Nắm giữ DT (Dividend Token) để tự động tham gia chia cổ tức mỗi Epoch từ phí giao thức, phần dư quỹ bribe và doanh thu hợp tác."
+      },
+      {
+        "q": "Bảo mật được đảm bảo thế nào?",
+        "a": "Giao thức áp dụng sáu cơ chế bảo mật: Cổng vào, Khóa niêm phong, Động cơ đốt, Giới hạn tần suất, Kiểm toán on-chain và Cầu dao khẩn cấp để bảo vệ tài sản toàn diện."
+      }
+    ]
+  },
+  "footer": {
+    "resources": "Tài nguyên",
+    "community": "Cộng đồng",
+    "legal": "Pháp lý",
+    "links": {
+      "whitepaper": "Whitepaper",
+      "docs": "Tài liệu",
+      "audit": "Báo cáo kiểm toán",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "Điều khoản dịch vụ",
+      "privacy": "Chính sách bảo mật",
+      "disclaimer": "Tuyên bố miễn trừ trách nhiệm"
+    }
+  }
+}

@@ -46,6 +46,14 @@
       "title": "概览面板",
       "sub": "投资组合与AI状态"
     },
+    "/projects": {
+      "title": "热门项目",
+      "sub": "蓝筹与新兴协议分析"
+    },
+    "/tools": {
+      "title": "常用工具",
+      "sub": "DeFi 计算器"
+    },
     "/market": {
       "title": "市场情报",
       "sub": "实时信号与新闻"

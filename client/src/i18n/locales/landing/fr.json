@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "Protocole",
+    "token": "Token",
+    "roadmap": "Feuille de route",
+    "docs": "Docs",
+    "connect": "Connecter le wallet"
+  },
+  "hero": {
+    "badge": "BSC 2026 · Protocole décentralisé de Bribe Finance",
+    "title": "Rendement réel",
+    "titleAccent": "Vérifié on-chain",
+    "subtitle": "La transparence au cœur des incitations de gouvernance DeFi\nChaque rendement a une source, chaque dividende est traçable",
+      "cta1": "Connecter le wallet",
+      "cta2": "Lire le livre blanc",
+      "learnMore": "En savoir plus"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "TVL du pool de bribes",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 en circulation",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "Détenteurs de DT",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "Dividendes cumulés",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "Pourquoi la Bribe Finance ?",
+    "subtitle": "Apporter de la transparence aux zones grises de la gouvernance DeFi — un gain partagé pour les projets, les votants et les protocoles",
+    "imageCaption": "Mécanisme D³ Bribe Finance",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "Les projets paient",
+        "desc": "Les projets déposent des bribes dans les pools Gauge pour obtenir une part des émissions D3 et un soutien en liquidité"
+      },
+      {
+        "icon": "users",
+        "title": "Les votants gagnent",
+        "desc": "Verrouillez du veD3 pour voter et partagez les récompenses du pool de bribes au prorata, avec un APY attractif"
+      },
+      {
+        "icon": "lock",
+        "title": "Exécution par smart contract",
+        "desc": "Règlement automatisé on-chain, vérification sans tiers de confiance et totalement transparente"
+      }
+    ]
+  },
+  "entry": {
+    "title": "Trois portes d'entrée",
+    "subtitle": "Choisissez la stratégie qui vous convient",
+    "methods": [
+      {
+        "name": "Swap au comptant",
+        "desc": "Achetez directement des tokens D3",
+        "tag": "Instantané",
+        "features": [
+          "AMM sans slippage",
+          "Règlement instantané",
+          "Sans blocage"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "Bond LP",
+        "desc": "Fournissez de la liquidité pour du D3 à prix réduit",
+        "tag": "Remise",
+        "features": [
+          "5 à 15 % de remise",
+          "Acquisition linéaire",
+          "Double récompense"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "Bond de burn",
+        "desc": "Brûlez du DT pour obtenir du D3",
+        "tag": "Avancé",
+        "features": [
+          "Remise maximale",
+          "Déflationniste",
+          "Valeur à long terme"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "Six gardiens de la valeur",
+    "subtitle": "Du code à la gouvernance, une protection complète de la valeur du protocole et des actifs des utilisateurs",
+    "imageCaption": "Système de sécurité D³",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "Porte d'entrée",
+        "desc": "Accès intelligent",
+        "detail": "KYC + liste blanche"
+      },
+      {
+        "icon": "lock",
+        "name": "Sceau de verrouillage",
+        "desc": "Verrou temporel",
+        "detail": "Mécanisme veD3"
+      },
+      {
+        "icon": "flame",
+        "name": "Moteur de burn",
+        "desc": "Burn continu",
+        "detail": "À chaque transaction"
+      },
+      {
+        "icon": "activity",
+        "name": "Limitation de débit",
+        "desc": "Anti-flash",
+        "detail": "Période de refroidissement"
+      },
+      {
+        "icon": "eye",
+        "name": "Audit on-chain",
+        "desc": "Transparence totale",
+        "detail": "Audit en temps réel"
+      },
+      {
+        "icon": "ban",
+        "name": "Coupe-circuit",
+        "desc": "Arrêt d'urgence",
+        "detail": "Déclenchement multisig"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "Feuille de route",
+    "phases": [
+      {
+        "phase": "Phase 1",
+        "name": "Lancement du protocole",
+        "desc": "Contrats principaux · Émission du token · Liquidité initiale",
+        "status": "done"
+      },
+      {
+        "phase": "Phase 2",
+        "name": "Croissance de l'écosystème",
+        "desc": "Marché des bribes · Vote de gouvernance · Intégration de partenaires",
+        "status": "active"
+      },
+      {
+        "phase": "Phase 3",
+        "name": "Expansion mondiale",
+        "desc": "Multi-chaînes · Intégration RWA · Partenariats institutionnels",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Phase 4",
+        "name": "Décentralisation complète",
+        "desc": "Gouvernance communautaire · Transition DAO · Autonomie du protocole",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": [
+      {
+        "q": "Qu'est-ce que la Bribe Finance ?",
+        "a": "La Bribe Finance est un modèle innovant qui apporte transparence et conformité aux mécanismes d'incitation opaques de la gouvernance DeFi. Les projets rémunèrent ouvertement les votants en échange d'un soutien en liquidité."
+      },
+      {
+        "q": "À quoi sert le token D3 ?",
+        "a": "D3 est le token de gouvernance central. Les détenteurs peuvent le verrouiller en veD3 pour voter, gagner des récompenses de bribes, percevoir les dividendes du protocole et profiter de la mécanique déflationniste."
+      },
+      {
+        "q": "Comment percevoir des dividendes ?",
+        "a": "Détenez du DT (token de dividendes) pour participer automatiquement à la distribution de dividendes de chaque Epoch, issue des frais du protocole, du surplus du pool de bribes et des revenus de partenariats."
+      },
+      {
+        "q": "Comment la sécurité est-elle assurée ?",
+        "a": "Le protocole s'appuie sur six mécanismes de sécurité : porte d'entrée, sceau de verrouillage, moteur de burn, limitation de débit, audit on-chain et coupe-circuit, pour une protection complète des actifs."
+      }
+    ]
+  },
+  "footer": {
+    "resources": "Ressources",
+    "community": "Communauté",
+    "legal": "Mentions légales",
+    "links": {
+      "whitepaper": "Livre blanc",
+      "docs": "Documentation",
+      "audit": "Rapport d'audit",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "Conditions d'utilisation",
+      "privacy": "Politique de confidentialité",
+      "disclaimer": "Avertissement"
+    }
+  }
+}

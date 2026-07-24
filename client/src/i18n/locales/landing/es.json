@@ -1,0 +1,216 @@
+{
+  "nav": {
+    "protocol": "Protocolo",
+    "token": "Token",
+    "roadmap": "Hoja de ruta",
+    "docs": "Docs",
+    "connect": "Conectar billetera"
+  },
+  "hero": {
+    "badge": "BSC 2026 · Protocolo descentralizado de Bribe Finance",
+    "title": "Rendimiento real",
+    "titleAccent": "Verificado on-chain",
+    "subtitle": "Transparencia para los incentivos de gobernanza DeFi\nCada rendimiento tiene un origen, cada dividendo es rastreable",
+      "cta1": "Conectar billetera",
+      "cta2": "Leer el whitepaper",
+      "learnMore": "Saber más"
+  },
+  "stats": [
+    {
+      "value": "$2.4M",
+      "label": "TVL del pool de sobornos",
+      "change": "+12.3%"
+    },
+    {
+      "value": "420K",
+      "label": "D3 en circulación",
+      "change": ""
+    },
+    {
+      "value": "12,450",
+      "label": "Titulares de DT",
+      "change": "+340"
+    },
+    {
+      "value": "$1.2M",
+      "label": "Dividendos totales",
+      "change": "+$48K"
+    }
+  ],
+  "why": {
+    "title": "¿Por qué Bribe Finance?",
+    "subtitle": "Llevamos transparencia a las zonas grises de la gobernanza DeFi: ganan los proyectos, los votantes y los protocolos",
+    "imageCaption": "Mecanismo de Bribe Finance de D³",
+    "items": [
+      {
+        "icon": "zap",
+        "title": "Los proyectos pagan",
+        "desc": "Los proyectos depositan sobornos en los pools Gauge y compiten por la asignación de emisión de D3 y el apoyo de liquidez"
+      },
+      {
+        "icon": "users",
+        "title": "Los votantes ganan",
+        "desc": "Bloquea veD3 para votar y comparte proporcionalmente las recompensas del pool de sobornos con un APY atractivo"
+      },
+      {
+        "icon": "lock",
+        "title": "Ejecución por contrato inteligente",
+        "desc": "Liquidación automática on-chain, verificación sin confianza y totalmente transparente"
+      }
+    ]
+  },
+  "entry": {
+    "title": "Tres vías de entrada",
+    "subtitle": "Elige la estrategia que mejor se adapte a ti",
+    "methods": [
+      {
+        "name": "Swap spot",
+        "desc": "Compra tokens D3 directamente",
+        "tag": "Instantáneo",
+        "features": [
+          "AMM sin deslizamiento",
+          "Liquidación instantánea",
+          "Sin bloqueo"
+        ],
+        "color": "#E0568F"
+      },
+      {
+        "name": "Bono LP",
+        "desc": "Aporta liquidez y obtén D3 con descuento",
+        "tag": "Descuento",
+        "features": [
+          "5-15% de descuento",
+          "Vesting lineal",
+          "Recompensa doble"
+        ],
+        "color": "#B23A6E"
+      },
+      {
+        "name": "Bono de quema",
+        "desc": "Quema DT para adquirir D3",
+        "tag": "Avanzado",
+        "features": [
+          "Descuento máximo",
+          "Deflacionario",
+          "Valor a largo plazo"
+        ],
+        "color": "#8A2B57"
+      }
+    ]
+  },
+  "guardians": {
+    "title": "Seis guardianes del valor",
+    "subtitle": "Del código a la gobernanza, protección integral del valor del protocolo y de los activos de los usuarios",
+    "imageCaption": "Sistema de seguridad de D³",
+    "items": [
+      {
+        "icon": "shield",
+        "name": "Puerta de entrada",
+        "desc": "Acceso inteligente",
+        "detail": "KYC + lista blanca"
+      },
+      {
+        "icon": "lock",
+        "name": "Sello de bloqueo",
+        "desc": "Bloqueo temporal",
+        "detail": "Mecanismo veD3"
+      },
+      {
+        "icon": "flame",
+        "name": "Motor de quema",
+        "desc": "Quema continua",
+        "detail": "En cada transacción"
+      },
+      {
+        "icon": "activity",
+        "name": "Límite de frecuencia",
+        "desc": "Anti-flash",
+        "detail": "Período de enfriamiento"
+      },
+      {
+        "icon": "eye",
+        "name": "Auditoría on-chain",
+        "desc": "Transparencia total",
+        "detail": "Auditoría en tiempo real"
+      },
+      {
+        "icon": "ban",
+        "name": "Cortacircuitos",
+        "desc": "Parada de emergencia",
+        "detail": "Activación multifirma"
+      }
+    ]
+  },
+  "roadmap": {
+    "title": "Hoja de ruta",
+    "phases": [
+      {
+        "phase": "Fase 1",
+        "name": "Lanzamiento del protocolo",
+        "desc": "Contratos principales · Emisión del token · Liquidez inicial",
+        "status": "done"
+      },
+      {
+        "phase": "Fase 2",
+        "name": "Crecimiento del ecosistema",
+        "desc": "Mercado de sobornos · Votación de gobernanza · Integración de socios",
+        "status": "active"
+      },
+      {
+        "phase": "Fase 3",
+        "name": "Expansión global",
+        "desc": "Multicadena · Integración de RWA · Alianzas institucionales",
+        "status": "upcoming"
+      },
+      {
+        "phase": "Fase 4",
+        "name": "Descentralización total",
+        "desc": "Gobernanza comunitaria · Transición a DAO · Autonomía del protocolo",
+        "status": "upcoming"
+      }
+    ]
+  },
+  "faq": {
+    "title": "Preguntas frecuentes",
+    "items": [
+      {
+        "q": "¿Qué es Bribe Finance?",
+        "a": "Bribe Finance es un modelo innovador que aporta transparencia y cumplimiento a los mecanismos de incentivos grises de la gobernanza DeFi. Los proyectos incentivan abiertamente a los votantes a cambio de apoyo de liquidez."
+      },
+      {
+        "q": "¿Para qué sirve el token D3?",
+        "a": "D3 es el token de gobernanza principal. Sus titulares pueden bloquearlo como veD3 para votar, ganar recompensas de soborno, recibir dividendos del protocolo y beneficiarse de la mecánica deflacionaria."
+      },
+      {
+        "q": "¿Cómo se ganan dividendos?",
+        "a": "Mantén DT (token de dividendos) para participar automáticamente en la distribución de dividendos de cada Epoch, procedentes de las comisiones del protocolo, el excedente del pool de sobornos y los ingresos por alianzas."
+      },
+      {
+        "q": "¿Cómo se garantiza la seguridad?",
+        "a": "El protocolo emplea seis mecanismos de seguridad: puerta de entrada, sello de bloqueo, motor de quema, límite de frecuencia, auditoría on-chain y cortacircuitos, para una protección integral de los activos."
+      }
+    ]
+  },
+  "footer": {
+    "resources": "Recursos",
+    "community": "Comunidad",
+    "legal": "Legal",
+    "links": {
+      "whitepaper": "Whitepaper",
+      "docs": "Documentación",
+      "audit": "Informe de auditoría",
+      "github": "GitHub"
+    },
+    "social": {
+      "twitter": "Twitter",
+      "telegram": "Telegram",
+      "discord": "Discord",
+      "medium": "Medium"
+    },
+    "legalLinks": {
+      "terms": "Términos de servicio",
+      "privacy": "Política de privacidad",
+      "disclaimer": "Aviso de exención de responsabilidad"
+    }
+  }
+}

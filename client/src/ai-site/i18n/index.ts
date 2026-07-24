@@ -7,6 +7,11 @@ import zhTW from "./locales/zh-TW.json";
 import ja from "./locales/ja.json";
 import ko from "./locales/ko.json";
 import th from "./locales/th.json";
+import vi from "./locales/vi.json";
+import ru from "./locales/ru.json";
+import fr from "./locales/fr.json";
+import de from "./locales/de.json";
+import es from "./locales/es.json";
 
 const resources = {
   en: { translation: en },
@@ -16,6 +21,11 @@ const resources = {
   ja: { translation: ja },
   ko: { translation: ko },
   th: { translation: th },
+  vi: { translation: vi },
+  ru: { translation: ru },
+  fr: { translation: fr },
+  de: { translation: de },
+  es: { translation: es },
 };
 
 i18n
@@ -30,6 +40,11 @@ i18n
       ja: ["en"],
       ko: ["en"],
       th: ["en"],
+      vi: ["en"],
+      ru: ["en"],
+      fr: ["en"],
+      de: ["en"],
+      es: ["en"],
       default: ["en"],
     },
     interpolation: { escapeValue: false },
