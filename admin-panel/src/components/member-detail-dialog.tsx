@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { AddressChip } from './address-chip';
+import { MemberTagChips, MemberTagsEditor } from './member-tags';
 import { getMember, setMemberRemark, setMemberSubsidyRate, type MemberDetail } from '@/lib/adminApi';
 import { useAdminAuth } from '@/contexts/admin-auth';
 import { useLocation } from 'wouter';
@@ -168,6 +169,21 @@ function DialogBody({ wallet, onClose }: { wallet: string; onClose: () => void }
             )}
             <LevelBadge prefix="S" value={r.sLevel} />
             <LevelBadge prefix="V" value={r.vLevel} />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <MemberTagChips tags={data.memberTags} />
+            {hasPermission('members.write') && (
+              <MemberTagsEditor
+                wallet={data.wallet}
+                tags={data.memberTags}
+                onSaved={(_w, next) =>
+                  setData((prev) => (prev ? { ...prev, memberTags: next } : prev))
+                }
+              />
+            )}
+            {!data.memberTags?.length && (
+              <span className="text-[11px] text-muted-foreground">添加标签</span>
+            )}
           </div>
         </div>
       </Section>

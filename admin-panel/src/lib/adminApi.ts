@@ -30,6 +30,8 @@ export async function adminFetch<T>(path: string, init?: RequestInit): Promise<T
 
 export type MemberRow = {
   walletAddress: string;
+  /** 会员标签 (admin-managed, filterable). */
+  tags?: string[];
   isPartner: boolean;
   sd3Balance: number;
   pendingUsdtYield: number;
@@ -194,6 +196,8 @@ export type MemberReferralSummary = {
 export type MemberDetail = {
   wallet: string;
   profile: MemberProfile;
+  /** 会员标签 (admin-managed). */
+  memberTags?: string[];
   marketLeaderStatus: string;
   isPartner: boolean;
   /** Per-member subsidy % override; null = use global default (10%). */
@@ -232,6 +236,14 @@ export function setMemberLeader(wallet: string, isLeader: boolean, reason: strin
       body: JSON.stringify({ isLeader, reason }),
     },
   );
+}
+
+/** Replace a member's 标签 set (shared across tree/list/detail). Needs `members.write`. */
+export function setMemberTags(wallet: string, tags: string[]) {
+  return adminFetch<{ ok?: boolean; tags: string[] }>(`/members/${wallet}/tags`, {
+    method: 'PUT',
+    body: JSON.stringify({ tags }),
+  });
 }
 
 /** Set/clear a member's subsidy % override (null = fall back to global default). Needs `subsidies.rates`. */
@@ -280,6 +292,8 @@ export function getAuditLogs(params?: { action?: string; limit?: number }) {
 
 export type ReferralTreeNode = {
   wallet: string;
+  /** 会员标签 (admin-managed, shared with member list/detail). */
+  tags?: string[];
   directCount: number;
   teamCount: number;
   bigAreaPerfUsdt: number;

@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { MemberTagChips, MemberTagsEditor } from '@/components/member-tags';
+import { useAdminAuth } from '@/contexts/admin-auth';
 import { Crown, Eye, Pencil, RotateCw, ShieldCheck } from 'lucide-react';
 
 /** Effective subsidy %: explicit override wins; partners default 10%, others 0%. */
@@ -33,6 +35,8 @@ function effectiveSubsidyPct(row: { subsidyRatePct: number | null; isPartner: bo
 type MemberListRow = MemberRow & {
   displayName?: string | null;
   remark?: string | null;
+  /** Space-joined tags — makes 标签 searchable via DataList's string search. */
+  tagsText?: string;
 };
 
 const LEADER_LABELS: Record<string, string> = {
@@ -93,6 +97,21 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rateEditing, setRateEditing] = useState<MemberListRow | null>(null);
+  const { hasPermission } = useAdminAuth();
+  const canTag = hasPermission('members.write');
+  // 标签筛选 (多选, OR 语义)。
+  const [tagPicks, setTagPicks] = useState<Set<string>>(() => new Set());
+  // 全部已用标签 — 筛选芯片 + 编辑器的一键建议。
+  const tagVocabulary = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) for (const t of r.tags ?? []) set.add(t);
+    return [...set].sort();
+  }, [rows]);
+  const tagFilteredRows = useMemo(
+    () =>
+      tagPicks.size ? rows.filter((r) => (r.tags ?? []).some((t) => tagPicks.has(t))) : rows,
+    [rows, tagPicks],
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -100,7 +119,16 @@ export default function MembersPage() {
     void adminFetch<{ ok: boolean; rows: MemberListRow[] }>('/members?limit=1000')
       // The list is filtered client-side; normalize `registeredAt` so the
       // 注册时间 column/filter works even before the backend ships the field.
-      .then((r) => setRows(r.rows.map((row) => ({ ...row, registeredAt: row.registeredAt ?? row.createdAt }))))
+      .then((r) =>
+        setRows(
+          r.rows.map((row) => ({
+            ...row,
+            registeredAt: row.registeredAt ?? row.createdAt,
+            // 标签也可被搜索框命中 (DataList search matches plain string fields).
+            tagsText: (row.tags ?? []).join(' '),
+          })),
+        ),
+      )
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
       .finally(() => setLoading(false));
   }, []);
@@ -134,7 +162,36 @@ export default function MembersPage() {
         label: '钱包',
         render: (row) => (
           <div className="flex flex-col items-end gap-0.5 md:items-start">
-            <AddressChip address={row.walletAddress} variant="compact" />
+            <span className="flex items-center gap-1">
+              <AddressChip address={row.walletAddress} variant="compact" />
+              {canTag && (
+                <MemberTagsEditor
+                  wallet={row.walletAddress}
+                  tags={row.tags}
+                  vocabulary={tagVocabulary}
+                  onSaved={(wallet, next) =>
+                    setRows((prev) =>
+                      prev.map((r) =>
+                        r.walletAddress === wallet
+                          ? { ...r, tags: next, tagsText: next.join(' ') }
+                          : r,
+                      ),
+                    )
+                  }
+                />
+              )}
+            </span>
+            <MemberTagChips
+              tags={row.tags}
+              onTagClick={(t) =>
+                setTagPicks((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(t)) next.delete(t);
+                  else next.add(t);
+                  return next;
+                })
+              }
+            />
             {row.displayName ? (
               <span className="max-w-[160px] truncate text-[11px] text-muted-foreground">
                 {row.displayName}
@@ -219,7 +276,7 @@ export default function MembersPage() {
           row.joinedAt ? new Date(row.joinedAt).toLocaleDateString('zh-CN') : '—',
       },
     ],
-    [],
+    [canTag, tagVocabulary],
   );
 
   const renderExpanded = useCallback(
@@ -282,12 +339,54 @@ export default function MembersPage() {
       }
     >
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+      {/* 标签快速筛选 (OR 多选) — 点行内标签或此处芯片皆可 */}
+      {tagVocabulary.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">按标签筛选</span>
+          {tagVocabulary.map((t) => {
+            const on = tagPicks.has(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() =>
+                  setTagPicks((prev) => {
+                    const next = new Set(prev);
+                    if (on) next.delete(t);
+                    else next.add(t);
+                    return next;
+                  })
+                }
+                className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  on
+                    ? 'border-violet-500/60 bg-violet-500/15 text-violet-400'
+                    : 'border-border/60 text-muted-foreground hover:bg-muted/40'
+                }`}
+              >
+                {t}
+              </button>
+            );
+          })}
+          {tagPicks.size > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-violet-400"
+              onClick={() => setTagPicks(new Set())}
+            >
+              清除 ({tagPicks.size})
+            </Button>
+          )}
+        </div>
+      )}
+
       <DataList<MemberListRow>
         columns={columns}
-        rows={rows}
+        rows={tagFilteredRows}
         getRowId={(r) => r.walletAddress}
-        searchKeys={['walletAddress', 'displayName', 'remark', 'sponsorWallet']}
-        searchPlaceholder="搜索钱包地址 / 昵称 / 备注…"
+        searchKeys={['walletAddress', 'displayName', 'remark', 'sponsorWallet', 'tagsText']}
+        searchPlaceholder="搜索钱包地址 / 昵称 / 备注 / 标签…"
         filters={filters}
         dateOptions={[
           { key: 'registeredAt', label: '注册时间' },

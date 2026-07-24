@@ -152,12 +152,14 @@ async function listMembers(sb: Sb, params: URLSearchParams, admin: AdminProfile)
           'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, team_perf_usdt, small_area_perf_usdt, joined_at, created_at',
         )
         .range(a, b)),
-    fetchAll((a, b) => sb.from('profiles').select('wallet_address, created_at').range(a, b)),
+    fetchAll((a, b) =>
+      sb.from('profiles').select('wallet_address, created_at, member_tags').range(a, b)),
   ]);
 
   const walletSet = new Set<string>();
   const referralMap = new Map<string, { sponsor: string | null; referredAt: string | null }>();
   const profileCreatedMap = new Map<string, string>();
+  const tagsMap = new Map<string, string[]>();
   for (const r of refRows) {
     const k = w(r.wallet_address as string);
     walletSet.add(k);
@@ -171,6 +173,9 @@ async function listMembers(sb: Sb, params: URLSearchParams, admin: AdminProfile)
     const k = w(p.wallet_address as string);
     walletSet.add(k);
     if (p.created_at) profileCreatedMap.set(k, p.created_at as string);
+    if (Array.isArray(p.member_tags) && (p.member_tags as string[]).length) {
+      tagsMap.set(k, p.member_tags as string[]);
+    }
   }
 
   // The demo wallet's simulated data never belongs in the ops member list.
@@ -242,6 +247,7 @@ async function listMembers(sb: Sb, params: URLSearchParams, admin: AdminProfile)
 
   const rows = page.map(({ pk, a, ref, registeredAt, joinedAt }) => ({
     walletAddress: pk,
+    tags: tagsMap.get(pk) ?? [],
     isPartner: Boolean(a?.is_partner),
     ud3Balance: Number(a?.sd3_balance ?? 0),
     pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
@@ -381,7 +387,7 @@ async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> 
   const pk = w(wallet);
   // PERF: read the MATERIALIZED team/small-area columns instead of fetchPartnerTeamStats
   // (which re-walked the subtree several times PER NODE — the referral tree was slow).
-  const [accountRes, referralRes, directs, downline] = await Promise.all([
+  const [accountRes, referralRes, directs, downline, profileRes] = await Promise.all([
     sb
       .from('partner_accounts')
       .select('is_partner, market_leader_status, team_perf_usdt, small_area_perf_usdt')
@@ -395,6 +401,7 @@ async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> 
       .maybeSingle(),
     fetchDirectPartnerReferrals(sb, pk),
     collectPartnerDownlineWallets(sb, pk),
+    sb.from('profiles').select('member_tags').ilike('wallet_address', pk).maybeSingle(),
   ]);
   const acct = accountRes.data as
     | { is_partner?: boolean; market_leader_status?: string; team_perf_usdt?: number | null; small_area_perf_usdt?: number | null }
@@ -414,7 +421,24 @@ async function buildReferralNode(sb: Sb, wallet: string): Promise<ReferralNode> 
     vLevel: sLevel, // S/V qualify off the same 总业绩 bracket
     isPartner: Boolean(acct?.is_partner),
     marketLeaderStatus: acct?.market_leader_status ?? 'none',
+    tags: Array.isArray(profileRes.data?.member_tags)
+      ? (profileRes.data.member_tags as string[])
+      : [],
   };
+}
+
+// 会员标签: sanitize a tags payload (trim, dedupe, bounded count/length).
+function sanitizeMemberTags(input: unknown): string[] {
+  if (!Array.isArray(input)) throw new HttpError(400, 'tags must be an array');
+  const out: string[] = [];
+  for (const raw of input) {
+    const tag = String(raw ?? '').trim();
+    if (!tag) continue;
+    if (tag.length > 24) throw new HttpError(400, `标签过长(≤24字): ${tag.slice(0, 24)}…`);
+    if (!out.includes(tag)) out.push(tag);
+    if (out.length > 12) throw new HttpError(400, '每个会员最多 12 个标签');
+  }
+  return out;
 }
 
 const USDT_STAKE_KINDS = ['partner_join', 'crowdfund_stake'];
@@ -473,6 +497,7 @@ async function getMemberBundle(sb: Sb, wallet: string) {
       createdAt: (profile?.created_at as string) ?? null,
       lang: (profile?.lang as string) ?? null,
     },
+    memberTags: Array.isArray(profile?.member_tags) ? (profile.member_tags as string[]) : [],
     marketLeaderStatus: node.marketLeaderStatus,
     isPartner: node.isPartner,
     subsidyRatePct: account?.subsidy_rate_pct == null ? null : Number(account.subsidy_rate_pct),
@@ -2682,6 +2707,33 @@ Deno.serve(async (req) => {
         referralRow: legacy.referral,
         ...bundle,
       });
+    }
+
+    // PUT member tags (会员标签, shared across tree/list/detail) → members.write, audited.
+    const tagsMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})\/tags$/);
+    if (req.method === 'PUT' && tagsMatch) {
+      if (!adminHasPermission(admin, 'members.write')) {
+        throw new HttpError(403, 'Missing members.write permission');
+      }
+      const body = await readJson<{ tags?: unknown }>(req);
+      const tags = sanitizeMemberTags(body.tags);
+      const { data: updatedProfile, error: tagsErr } = await sb
+        .from('profiles')
+        .update({ member_tags: tags })
+        .ilike('wallet_address', tagsMatch[1])
+        .select('wallet_address')
+        .maybeSingle();
+      if (tagsErr) throw tagsErr;
+      if (!updatedProfile) throw new HttpError(404, 'Member not found');
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'member_tags_set',
+        entityType: 'profiles',
+        entityId: tagsMatch[1].toLowerCase(),
+        newValue: { tags },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, tags });
     }
 
     // PATCH member remark (free-text admin note) → members.write, audited.

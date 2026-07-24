@@ -3,7 +3,9 @@ import { ChevronRight, CornerDownRight, ArrowLeft, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddressChip } from './address-chip';
+import { MemberTagChips, MemberTagsEditor } from './member-tags';
 import { getReferralTree, type ReferralTreeNode } from '@/lib/adminApi';
+import { useAdminAuth } from '@/contexts/admin-auth';
 import { fmtUsd } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
@@ -30,13 +32,20 @@ function Node({
   node,
   depth,
   onFocus,
+  tagVocabulary,
 }: {
   node: ReferralTreeNode;
   depth: number;
   onFocus: (wallet: string) => void;
+  tagVocabulary?: string[];
 }) {
   // Auto-open the first AUTO_OPEN_LEVELS levels; collapse deeper ones by default.
   const [open, setOpen] = useState(depth < AUTO_OPEN_LEVELS - 1);
+  const { hasPermission } = useAdminAuth();
+  const canTag = hasPermission('members.write');
+  // Local override so a saved tag edit reflects immediately without a tree reload.
+  const [tags, setTags] = useState<string[] | undefined>(undefined);
+  const effectiveTags = tags ?? node.tags ?? [];
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
   // A depth-capped leaf that still has downline the server did not send → the only
@@ -62,6 +71,14 @@ function Node({
             <span className="inline-block h-5 w-5 shrink-0" />
           )}
           <AddressChip address={node.wallet} variant="compact" />
+          {canTag && (
+            <MemberTagsEditor
+              wallet={node.wallet}
+              tags={effectiveTags}
+              vocabulary={tagVocabulary}
+              onSaved={(_w, next) => setTags(next)}
+            />
+          )}
           {node.isPartner && (
             <Badge className="h-4 bg-[#E0568F]/15 px-1.5 text-[10px] text-[#E0568F] hover:bg-[#E0568F]/15">
               合伙人
@@ -82,6 +99,7 @@ function Node({
             </button>
           )}
         </div>
+        {effectiveTags.length > 0 && <MemberTagChips tags={effectiveTags} className="ml-6" />}
         <div className="ml-6 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
           <span>直推 <b className="text-foreground">{node.directCount}</b></span>
           <span>团队 <b className="text-foreground">{node.teamCount}</b></span>
@@ -102,7 +120,13 @@ function Node({
       {hasChildren && open && (
         <div className="space-y-0.5">
           {children.map((child) => (
-            <Node key={child.wallet} node={child} depth={depth + 1} onFocus={onFocus} />
+            <Node
+              key={child.wallet}
+              node={child}
+              depth={depth + 1}
+              onFocus={onFocus}
+              tagVocabulary={tagVocabulary}
+            />
           ))}
         </div>
       )}
@@ -141,6 +165,19 @@ export function ReferralTree({ root, depth = 3 }: { root: string; depth?: number
   const drillTo = (wallet: string) => {
     setPath((p) => (p[p.length - 1]?.toLowerCase() === wallet.toLowerCase() ? p : [...p, wallet]));
   };
+
+  // Every tag already used anywhere in the loaded tree — offered as one-click
+  // suggestions when tagging other members.
+  const tagVocabulary = (() => {
+    const set = new Set<string>();
+    const walk = (n: ReferralTreeNode | null) => {
+      if (!n) return;
+      for (const t of n.tags ?? []) set.add(t);
+      for (const c of n.children ?? []) walk(c);
+    };
+    walk(tree);
+    return [...set];
+  })();
   const jumpTo = (index: number) => setPath((p) => p.slice(0, index + 1));
 
   const breadcrumb =
@@ -192,7 +229,7 @@ export function ReferralTree({ root, depth = 3 }: { root: string; depth?: number
   } else if (!tree) {
     body = <p className="py-6 text-center text-sm text-muted-foreground">暂无推荐数据</p>;
   } else {
-    body = <Node node={tree} depth={0} onFocus={drillTo} />;
+    body = <Node node={tree} depth={0} onFocus={drillTo} tagVocabulary={tagVocabulary} />;
   }
 
   return (
