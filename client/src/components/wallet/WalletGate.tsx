@@ -56,7 +56,7 @@ export function WalletGate({ children, title, desc, lang }: WalletGateProps) {
 
         <div className="flex items-center gap-3 my-5">
           <div className="h-px flex-1 bg-[#8A2B57]/10 dark:bg-white/10" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#160510]/35 dark:text-white/35">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#160510]/35 dark:text-white/35">
             {t('gate.or')}
           </span>
           <div className="h-px flex-1 bg-[#8A2B57]/10 dark:bg-white/10" />

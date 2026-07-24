@@ -332,7 +332,7 @@ export default function PartnerProgram() {
                   }`}
                 >
                   <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                  <span className="text-[10px] font-semibold">{p(TAB_KEYS[id])}</span>
+                  <span className="text-[11px] font-semibold">{p(TAB_KEYS[id])}</span>
                 </button>
               );
             })}

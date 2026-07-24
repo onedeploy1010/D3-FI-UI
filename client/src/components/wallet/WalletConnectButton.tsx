@@ -72,7 +72,7 @@ export function WalletConnectButton({
               onClick={() => void connectDemo()}
               disabled={isConnecting}
               title={t('demo.desc')}
-              className="h-8 px-2 rounded-md text-[10px] font-semibold text-amber-600/90 hover:text-amber-600 hover:bg-amber-500/10 transition-colors inline-flex items-center gap-1 touch-manipulation disabled:opacity-50"
+              className="h-8 px-2 rounded-md text-[11px] font-semibold text-amber-600/90 hover:text-amber-600 hover:bg-amber-500/10 transition-colors inline-flex items-center gap-1 touch-manipulation disabled:opacity-50"
             >
               <FlaskConical size={12} />
               {t('demo.tag')}
@@ -80,7 +80,7 @@ export function WalletConnectButton({
           )}
         </div>
         {error && (
-          <p className="max-w-[14rem] text-[9px] leading-snug text-red-500 text-right">{error}</p>
+          <p className="max-w-[14rem] text-[10px] leading-snug text-red-500 text-right">{error}</p>
         )}
       </div>
     );
@@ -89,7 +89,7 @@ export function WalletConnectButton({
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
       {isDemo && (
-        <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600">
+        <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600">
           {t('demo.tag')}
         </span>
       )}

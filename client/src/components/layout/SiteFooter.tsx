@@ -42,7 +42,7 @@ function FooterLinkSection({
     <div>
       <h4
         className={`font-medium tracking-wide uppercase mb-2 ${
-          compact ? 'text-[9px]' : 'text-[10px]'
+          compact ? 'text-[10px]' : 'text-[11px]'
         } ${isDark ? 'text-[#E0568F]/45' : 'text-[#8A2B57]/40'}`}
       >
         {title}
@@ -55,7 +55,7 @@ function FooterLinkSection({
               <a
                 href={item.href ?? '#'}
                 className={`group inline-flex items-center gap-1.5 py-1 transition-colors ${
-                  compact ? 'text-[10px]' : 'text-[11px]'
+                  compact ? 'text-[11px]' : 'text-[11px]'
                 } ${
                   isDark
                     ? 'text-white/35 hover:text-[#E0568F]/80'
@@ -188,7 +188,7 @@ export function SiteFooter({ lang, variant = 'full', showCta = true }: SiteFoote
                     {t('footer.tagline')}
                   </p>
                   <div
-                    className={`inline-flex items-center gap-1.5 mt-3 px-2 py-1 rounded-full text-[9px] font-medium tracking-wide uppercase ${
+                    className={`inline-flex items-center gap-1.5 mt-3 px-2 py-1 rounded-full text-[10px] font-medium tracking-wide uppercase ${
                       isDark ? 'text-[#E0568F]/50' : 'text-[#8A2B57]/45'
                     }`}
                   >
@@ -217,7 +217,7 @@ export function SiteFooter({ lang, variant = 'full', showCta = true }: SiteFoote
               isDark ? 'border-[#E0568F]/[0.05]' : 'border-[#8A2B57]/[0.05]'
             }`}
           >
-            <p className={`text-[10px] ${isDark ? 'text-white/20' : 'text-[#160510]/25'}`}>{t('footer.rights')}</p>
+            <p className={`text-[11px] ${isDark ? 'text-white/20' : 'text-[#160510]/25'}`}>{t('footer.rights')}</p>
             <div className="flex items-center gap-1.5">
               {[
                 { Icon: Twitter, label: 'Twitter' },

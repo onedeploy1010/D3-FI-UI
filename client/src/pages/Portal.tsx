@@ -63,15 +63,15 @@ export default function Portal() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
           <GlassCard variant="accent" className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <div className={`text-[10px] font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t('page.wallet')}</div>
+              <div className={`text-[11px] font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t('page.wallet')}</div>
               <GlassChip className="!py-1 !px-2 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] text-emerald-400 font-medium">{t('page.status')}</span>
+                <span className="text-[11px] text-emerald-400 font-medium">{t('page.status')}</span>
               </GlassChip>
             </div>
             <div className="flex items-center gap-2 min-w-0">
               <div
-                className={`font-mono text-[9px] sm:text-[10px] leading-none tracking-tight min-w-0 flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] ${
+                className={`font-mono text-[10px] sm:text-[11px] leading-none tracking-tight min-w-0 flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] ${
                   isDark ? 'text-white' : 'text-[#160510]'
                 }`}
                 title={wallet ?? undefined}
@@ -84,11 +84,11 @@ export default function Portal() {
             </div>
 
             <div className="mt-4 pt-4 border-t border-white/10">
-              <div className={`text-[10px] font-medium mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
+              <div className={`text-[11px] font-medium mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
                 {t('page.referralLink')}
               </div>
               <AddressBlock value={referralLink} isDark={isDark} compact />
-              <p className={`text-[10px] mt-2 leading-relaxed ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>
+              <p className={`text-[11px] mt-2 leading-relaxed ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>
                 {t('page.referralHint')}
               </p>
             </div>
@@ -118,7 +118,7 @@ export default function Portal() {
                   <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
                     <Sparkles size={18} className="text-[#E0568F]" />
                   </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
+                  <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
                     {t('ai.badge')}
                   </GlassChip>
                 </div>
@@ -139,7 +139,7 @@ export default function Portal() {
                   <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
                     <Handshake size={18} className="text-[#E0568F]" />
                   </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
+                  <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
                     {t('partner.badge')}
                   </GlassChip>
                 </div>
@@ -162,20 +162,20 @@ export default function Portal() {
                     <Globe size={18} className={isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'} />
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
+                    <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
                       {t('fi.badgeOffline')}
                     </GlassChip>
-                    <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
+                    <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
                       {t('fi.badgeDemo')}
                     </GlassChip>
                   </div>
                 </div>
                 <h3 className="site-card-title mb-1">{t('fi.title')}</h3>
                 <p className={`text-xs mb-1 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t('fi.desc')}</p>
-                <p className={`text-[10px] mb-0.5 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
+                <p className={`text-[11px] mb-0.5 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
                   {t('fi.bribeMarket')} · {t('fi.badgeOffline')}
                 </p>
-                <p className={`text-[9px] mb-4 leading-relaxed ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
+                <p className={`text-[10px] mb-4 leading-relaxed ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
                   {t('fi.incompleteHint')}
                 </p>
                 <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
@@ -194,13 +194,13 @@ export default function Portal() {
             <div className="flex items-start justify-between gap-2 mb-4">
               <div>
                 <h3 className="site-section-title">{t('page.announcements')}</h3>
-                <p className={`text-[10px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>{t('page.protocolPublic')}</p>
+                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>{t('page.protocolPublic')}</p>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
-                <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
+                <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
                   {t('fi.badgeOffline')}
                 </GlassChip>
-                <GlassChip className="!py-0.5 !px-2 text-[9px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
+                <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
                   {t('fi.badgeDemo')}
                 </GlassChip>
               </div>

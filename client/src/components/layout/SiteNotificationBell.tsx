@@ -54,7 +54,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang?: AppLang; isDark?
       >
         <Bell size={16} className={muted} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#E0568F] text-[9px] font-bold text-white flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#E0568F] text-[10px] font-bold text-white flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -89,7 +89,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang?: AppLang; isDark?
                     {t('bell.title')}
                   </div>
                   {unreadCount > 0 && (
-                    <div className={cn('text-[10px] mt-0.5', muted)}>
+                    <div className={cn('text-[11px] mt-0.5', muted)}>
                       {t('bell.unreadCount', { n: unreadCount })}
                     </div>
                   )}
@@ -99,7 +99,7 @@ export function SiteNotificationBell({ lang, isDark }: { lang?: AppLang; isDark?
                     <button
                       type="button"
                       onClick={() => void markAllRead()}
-                      className={cn('text-[10px] font-semibold px-2 py-1 rounded-lg ios-glass-pressable', muted)}
+                      className={cn('text-[11px] font-semibold px-2 py-1 rounded-lg ios-glass-pressable', muted)}
                     >
                       <Check size={12} className="inline mr-0.5" />
                       {t('bell.markAll')}
@@ -145,11 +145,11 @@ export function SiteNotificationBell({ lang, isDark }: { lang?: AppLang; isDark?
                               {notif.title}
                             </span>
                             {!notif.isRead && (
-                              <span className="text-[9px] font-bold text-[#E0568F] shrink-0">NEW</span>
+                              <span className="text-[10px] font-bold text-[#E0568F] shrink-0">NEW</span>
                             )}
                           </div>
                           <p className={cn('text-[11px] mt-0.5 leading-relaxed line-clamp-2', muted)}>{notif.message}</p>
-                          <div className={cn('text-[9px] mt-1.5', dark ? 'text-white/30' : 'text-[#160510]/30')}>
+                          <div className={cn('text-[10px] mt-1.5', dark ? 'text-white/30' : 'text-[#160510]/30')}>
                             {timeAgo(notif.createdAt, notifLang)}
                           </div>
                         </div>

@@ -80,7 +80,7 @@ export function AddressBlock({
         <div
           className={cn(
             'font-medium',
-            dense ? 'text-[9px] mb-1' : 'text-[10px] mb-2',
+            dense ? 'text-[10px] mb-1' : 'text-[11px] mb-2',
             isDark ? 'text-white/40' : 'text-[#160510]/55',
           )}
         >
@@ -126,7 +126,7 @@ export function AddressBlock({
             >
               <Send size={compact ? 12 : 14} className="text-amber-500" />
               {transferLabel && (
-                <span className="text-[8px] font-bold leading-none text-amber-500 whitespace-nowrap">
+                <span className="text-[9px] font-bold leading-none text-amber-500 whitespace-nowrap">
                   {transferLabel}
                 </span>
               )}
