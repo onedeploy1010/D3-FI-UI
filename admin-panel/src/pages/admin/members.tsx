@@ -80,8 +80,10 @@ export default function MembersPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    void adminFetch<{ ok: boolean; rows: MemberListRow[] }>('/members?limit=500')
-      .then((r) => setRows(r.rows))
+    void adminFetch<{ ok: boolean; rows: MemberListRow[] }>('/members?limit=1000')
+      // The list is filtered client-side; normalize `registeredAt` so the
+      // 注册时间 column/filter works even before the backend ships the field.
+      .then((r) => setRows(r.rows.map((row) => ({ ...row, registeredAt: row.registeredAt ?? row.createdAt }))))
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
       .finally(() => setLoading(false));
   }, []);
@@ -172,37 +174,12 @@ export default function MembersPage() {
         render: (row) => usd(row.pendingUsdtYield),
       },
       {
-        key: 'sponsorWallet',
-        label: '推荐人',
-        mobileHide: true,
-        render: (row) =>
-          row.sponsorWallet ? (
-            <div className="flex items-center gap-1">
-              <AddressChip address={row.sponsorWallet} variant="compact" />
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 shrink-0"
-                title="查看推荐人"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  open(row.sponsorWallet!);
-                }}
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
-      },
-      {
-        key: 'createdAt',
-        label: '注册日期',
+        key: 'registeredAt',
+        label: '注册时间',
         sortable: true,
         className: 'whitespace-nowrap text-right md:text-left text-xs text-muted-foreground',
         render: (row) =>
-          row.createdAt ? new Date(row.createdAt).toLocaleDateString('zh-CN') : '—',
+          row.registeredAt ? new Date(row.registeredAt).toLocaleDateString('zh-CN') : '—',
       },
       {
         key: 'joinedAt',
@@ -213,7 +190,7 @@ export default function MembersPage() {
           row.joinedAt ? new Date(row.joinedAt).toLocaleDateString('zh-CN') : '—',
       },
     ],
-    [open],
+    [],
   );
 
   const renderExpanded = useCallback(
@@ -283,7 +260,10 @@ export default function MembersPage() {
         searchKeys={['walletAddress', 'displayName', 'remark', 'sponsorWallet']}
         searchPlaceholder="搜索钱包地址 / 昵称 / 备注…"
         filters={filters}
-        dateKey="joinedAt"
+        dateOptions={[
+          { key: 'registeredAt', label: '注册时间' },
+          { key: 'joinedAt', label: '加入时间' },
+        ]}
         renderExpanded={renderExpanded}
         onRowClick={(row) => open(row.walletAddress)}
         pageSize={20}

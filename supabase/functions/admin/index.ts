@@ -81,67 +81,154 @@ function w(addr: string): string {
   return addr.trim().toLowerCase();
 }
 
-async function listMembers(sb: Sb, params: URLSearchParams) {
+// ── Admin data scope (伞下数据范围) ──────────────────────────────────────────
+// When admin.scope_wallet is set, every member-shaped read is limited to that
+// wallet's referral subtree (incl. itself). Returns null for unscoped admins.
+async function getScopeWallets(sb: Sb, admin: AdminProfile): Promise<Set<string> | null> {
+  const root = (admin.scopeWallet ?? '').trim().toLowerCase();
+  if (!root) return null;
+  const out = new Set<string>([root]);
+  try {
+    const { data, error } = await sb.rpc('partner_downline_wallets', { root_wallet: root });
+    if (error) throw error;
+    for (const r of (data ?? []) as Array<Record<string, unknown> | string>) {
+      const v = typeof r === 'string' ? r : (Object.values(r)[0] as string);
+      if (v) out.add(String(v).toLowerCase());
+    }
+  } catch (_e) {
+    // Fail CLOSED to just the root wallet rather than leaking the full dataset.
+  }
+  return out;
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function listMembers(sb: Sb, params: URLSearchParams, admin: AdminProfile) {
   const search = (params.get('q') ?? '').trim().toLowerCase();
-  const limit = Math.min(Number(params.get('limit') ?? 50), 200);
+  const limit = Math.min(Number(params.get('limit') ?? 50), 1000);
   const offset = Math.max(Number(params.get('offset') ?? 0), 0);
+  // Date-range filter: dateField=registered|joined + from/to (inclusive, ISO).
+  const dateField = params.get('dateField') === 'joined' ? 'joined' : 'registered';
+  const fromRaw = (params.get('from') ?? '').trim();
+  const toRaw = (params.get('to') ?? '').trim();
+  const fromIso = fromRaw ? new Date(fromRaw).toISOString() : null;
+  // `to` is a date — make the bound inclusive through end-of-day.
+  const toIso = toRaw ? new Date(new Date(toRaw).getTime() + 86_399_999).toISOString() : null;
+  const scope = await getScopeWallets(sb, admin);
+
+  // Fetch each source paginated in full and match case-INSENSITIVELY (the DB
+  // holds a mix of lowercase and checksummed addresses). The member universe is
+  // profiles ∪ referrals ∪ partner_accounts — pure registrations must appear
+  // even before any referral/stake exists, or their address is unsearchable.
+  const fetchAll = async (build: (from: number, to: number) => ReturnType<typeof sb.from>) => {
+    const out: Record<string, unknown>[] = [];
+    const page = 1000;
+    for (let from = 0; ; from += page) {
+      // deno-lint-ignore no-explicit-any
+      const { data, error } = await (build(from, from + page - 1) as any);
+      if (error) throw error;
+      if (!data?.length) break;
+      out.push(...data);
+      if (data.length < page) break;
+    }
+    return out;
+  };
+
+  const [refRows, accounts, profRows] = await Promise.all([
+    fetchAll((a, b) =>
+      sb
+        .from('referrals')
+        .select('wallet_address, sponsor_wallet_address, referred_at')
+        .eq('referral_type', 'partner')
+        .range(a, b)),
+    fetchAll((a, b) =>
+      sb
+        .from('partner_accounts')
+        .select(
+          'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, team_perf_usdt, small_area_perf_usdt, joined_at, created_at',
+        )
+        .range(a, b)),
+    fetchAll((a, b) => sb.from('profiles').select('wallet_address, created_at').range(a, b)),
+  ]);
 
   const walletSet = new Set<string>();
+  const referralMap = new Map<string, { sponsor: string | null; referredAt: string | null }>();
+  const profileCreatedMap = new Map<string, string>();
+  for (const r of refRows) {
+    const k = w(r.wallet_address as string);
+    walletSet.add(k);
+    referralMap.set(k, {
+      sponsor: (r.sponsor_wallet_address as string) ?? null,
+      referredAt: (r.referred_at as string) ?? null,
+    });
+  }
+  for (const a of accounts) walletSet.add(w(a.wallet_address as string));
+  for (const p of profRows) {
+    const k = w(p.wallet_address as string);
+    walletSet.add(k);
+    if (p.created_at) profileCreatedMap.set(k, p.created_at as string);
+  }
 
-  let refQ = sb
-    .from('referrals')
-    .select('wallet_address')
-    .eq('referral_type', 'partner')
-    .order('referred_at', { ascending: false })
-    .limit(500);
-  if (search) refQ = refQ.ilike('wallet_address', `%${search}%`);
-  const { data: refRows } = await refQ;
-  for (const r of refRows ?? []) walletSet.add(w(r.wallet_address as string));
+  // The demo wallet's simulated data never belongs in the ops member list.
+  walletSet.delete(DEMO_WALLET_ADDRESS.toLowerCase());
 
-  let acctQ = sb
-    .from('partner_accounts')
-    .select(
-      'wallet_address, is_partner, sd3_balance, pending_usdt_yield, market_leader_status, subsidy_rate_pct, team_perf_usdt, small_area_perf_usdt, joined_at, created_at',
-    )
-    .order('created_at', { ascending: false })
-    .limit(500);
-  if (search) acctQ = acctQ.ilike('wallet_address', `%${search}%`);
-  const { data: accounts } = await acctQ;
-  for (const a of accounts ?? []) walletSet.add(w(a.wallet_address as string));
+  // Server-side search over the FULL universe (lowercased substring).
+  if (search) {
+    for (const x of [...walletSet]) if (!x.includes(search)) walletSet.delete(x);
+  }
 
-  const allWallets = [...walletSet].slice(offset, offset + limit);
+  // Scope (伞下): restrict the visible universe BEFORE filtering/pagination.
+  if (scope) {
+    for (const x of [...walletSet]) if (!scope.has(x)) walletSet.delete(x);
+  }
+
+  const universe = [...walletSet];
   const accountMap = new Map(
-    (accounts ?? []).map((a) => [w(a.wallet_address as string), a]),
+    accounts.map((a) => [w(a.wallet_address as string), a]),
   );
 
-  const referralMap = new Map<string, { sponsor: string | null; referredAt: string | null }>();
-  if (allWallets.length) {
-    const { data: refs } = await sb
-      .from('referrals')
-      .select('wallet_address, sponsor_wallet_address, referred_at')
-      .in('wallet_address', allWallets)
-      .eq('referral_type', 'partner');
-    for (const r of refs ?? []) {
-      referralMap.set(w(r.wallet_address as string), {
-        sponsor: (r.sponsor_wallet_address as string) ?? null,
-        referredAt: (r.referred_at as string) ?? null,
-      });
-    }
-  }
+  // Skeleton rows for the whole (scoped) universe so the date-range filter and
+  // total count are correct; per-row perf enrichment happens on the page only.
+  const skeletons = universe.map((pk) => {
+    const a = accountMap.get(pk);
+    const ref = referralMap.get(pk);
+    const registeredAt =
+      profileCreatedMap.get(pk) ?? (a?.created_at as string | undefined) ?? ref?.referredAt ?? null;
+    return { pk, a, ref, registeredAt, joinedAt: (a?.joined_at as string | null) ?? null };
+  });
+
+  const inRange = (v: string | null): boolean => {
+    if (!fromIso && !toIso) return true;
+    if (!v) return false;
+    if (fromIso && v < fromIso) return false;
+    if (toIso && v > toIso) return false;
+    return true;
+  };
+  const filtered =
+    fromIso || toIso
+      ? skeletons.filter((s) => inRange(dateField === 'joined' ? s.joinedAt : s.registeredAt))
+      : skeletons;
+
+  const page = filtered.slice(offset, offset + limit);
+  const pageWallets = page.map((s) => s.pk);
 
   // PERF: 团队业绩 reads the MATERIALIZED team_perf_usdt column (kept fresh by
   // settlement) instead of walking every member's referral subtree per row — that
   // per-member fetchPartnerTeamStats made the member list very slow. 个人业绩 +
-  // 当日新增 are computed in ONE batched stake_intents query for all wallets.
+  // 当日新增 are computed in ONE batched stake_intents query for the page.
   const CREDITED = ['credited', 'completed', 'sweep_pending', 'sweeping'];
   const dayStart = startOfSgtDayIso();
   const personalMap = new Map<string, number>();
   const dailyNewMap = new Map<string, number>();
-  if (allWallets.length) {
+  if (pageWallets.length) {
     const { data: intents } = await sb
       .from('stake_intents')
       .select('wallet_address, amount_usdt, updated_at')
-      .in('wallet_address', allWallets)
+      .in('wallet_address', pageWallets)
       .in('status', CREDITED);
     for (const it of intents ?? []) {
       const k = w(it.wallet_address as string);
@@ -153,28 +240,25 @@ async function listMembers(sb: Sb, params: URLSearchParams) {
     }
   }
 
-  const rows = allWallets.map((pk) => {
-    const a = accountMap.get(pk);
-    const ref = referralMap.get(pk);
-    return {
-      walletAddress: pk,
-      isPartner: Boolean(a?.is_partner),
-      ud3Balance: Number(a?.sd3_balance ?? 0),
-      pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
-      marketLeaderStatus: a?.market_leader_status ?? 'none',
-      subsidyRatePct: a?.subsidy_rate_pct == null ? null : Number(a.subsidy_rate_pct),
-      joinedAt: a?.joined_at ?? null,
-      createdAt: a?.created_at ?? ref?.referredAt ?? null,
-      sponsorWallet: ref?.sponsor ?? null,
-      referredAt: ref?.referredAt ?? null,
-      teamPerformanceUsd: Number(a?.team_perf_usdt ?? 0),
-      smallAreaPerformanceUsd: Number(a?.small_area_perf_usdt ?? 0),
-      personalPerformanceUsd: personalMap.get(pk) ?? 0,
-      dailyNewPerformanceUsd: dailyNewMap.get(pk) ?? 0,
-    };
-  });
+  const rows = page.map(({ pk, a, ref, registeredAt, joinedAt }) => ({
+    walletAddress: pk,
+    isPartner: Boolean(a?.is_partner),
+    ud3Balance: Number(a?.sd3_balance ?? 0),
+    pendingUsdtYield: Number(a?.pending_usdt_yield ?? 0),
+    marketLeaderStatus: a?.market_leader_status ?? 'none',
+    subsidyRatePct: a?.subsidy_rate_pct == null ? null : Number(a.subsidy_rate_pct),
+    joinedAt,
+    registeredAt,
+    createdAt: (a?.created_at as string | null) ?? ref?.referredAt ?? null,
+    sponsorWallet: ref?.sponsor ?? null,
+    referredAt: ref?.referredAt ?? null,
+    teamPerformanceUsd: Number(a?.team_perf_usdt ?? 0),
+    smallAreaPerformanceUsd: Number(a?.small_area_perf_usdt ?? 0),
+    personalPerformanceUsd: personalMap.get(pk) ?? 0,
+    dailyNewPerformanceUsd: dailyNewMap.get(pk) ?? 0,
+  }));
 
-  return { rows, total: walletSet.size, limit, offset };
+  return { rows, total: filtered.length, limit, offset };
 }
 
 async function getMemberDetail(sb: Sb, wallet: string) {
@@ -444,24 +528,64 @@ async function getReferralTree(
 }
 
 // Unified transaction feed: flash-swap withdrawals + UD3 umbrella transfers.
-async function listTransactions(sb: Sb, params: URLSearchParams) {
+// Paginated fetch that honors an admin scope set: without scope it is a single
+// range query; with scope it queries per wallet-chunk (keeps URLs bounded),
+// merges, re-sorts and re-slices so pagination and totals stay correct.
+async function scopedPaged(
+  // deno-lint-ignore no-explicit-any
+  buildQ: () => any,
+  scopeCol: string,
+  scopeArr: string[] | null,
+  offset: number,
+  limit: number,
+  sortKey: string,
+): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+  if (!scopeArr) {
+    const { data, count, error } = await buildQ().range(offset, offset + limit - 1);
+    if (error) throw error;
+    return { rows: data ?? [], total: count ?? (data ?? []).length };
+  }
+  let total = 0;
+  const merged: Record<string, unknown>[] = [];
+  for (const part of chunk(scopeArr, 300)) {
+    const { data, count, error } = await buildQ().in(scopeCol, part).range(0, offset + limit - 1);
+    if (error) throw error;
+    total += count ?? 0;
+    merged.push(...(data ?? []));
+  }
+  merged.sort((a, b) => String(b[sortKey] ?? '').localeCompare(String(a[sortKey] ?? '')));
+  return { rows: merged.slice(offset, offset + limit), total };
+}
+
+async function listTransactions(sb: Sb, params: URLSearchParams, admin: AdminProfile) {
   const type = params.get('type') === 'ud3_transfer' ? 'ud3_transfer' : 'flash_swap';
   const wallet = (params.get('wallet') ?? '').trim().toLowerCase();
   const from = params.get('from');
   const to = params.get('to');
   const limit = Math.min(Number(params.get('limit') ?? 50), 200);
   const offset = Math.max(Number(params.get('offset') ?? 0), 0);
+  const scope = await getScopeWallets(sb, admin);
+  const scopeArr = scope ? [...scope] : null;
 
   if (type === 'flash_swap') {
-    let q = sb
-      .from('partner_yield_withdrawals')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false });
-    if (wallet) q = q.ilike('wallet_address', wallet);
-    if (from) q = q.gte('created_at', from);
-    if (to) q = q.lte('created_at', to);
-    const { data, count, error } = await q.range(offset, offset + limit - 1);
-    if (error) throw error;
+    const buildQ = () => {
+      let q = sb
+        .from('partner_yield_withdrawals')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
+      if (wallet) q = q.ilike('wallet_address', wallet);
+      if (from) q = q.gte('created_at', from);
+      if (to) q = q.lte('created_at', to);
+      return q;
+    };
+    const { rows: data, total } = await scopedPaged(
+      buildQ,
+      'wallet_address',
+      scopeArr,
+      offset,
+      limit,
+      'created_at',
+    );
     const rows = (data ?? []).map((r) => ({
       id: r.id,
       type: 'flash_swap' as const,
@@ -473,18 +597,28 @@ async function listTransactions(sb: Sb, params: URLSearchParams) {
       txHash: (r.tx_hash as string) ?? null,
       createdAt: r.created_at,
     }));
-    return { rows, total: count ?? rows.length };
+    return { rows, total };
   }
 
-  let q = sb
-    .from('partner_ud3_transfers')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false });
-  if (wallet) q = q.or(`from_wallet.ilike.${wallet},to_wallet.ilike.${wallet}`);
-  if (from) q = q.gte('created_at', from);
-  if (to) q = q.lte('created_at', to);
-  const { data, count, error } = await q.range(offset, offset + limit - 1);
-  if (error) throw error;
+  const buildQ = () => {
+    let q = sb
+      .from('partner_ud3_transfers')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+    if (wallet) q = q.or(`from_wallet.ilike.${wallet},to_wallet.ilike.${wallet}`);
+    if (from) q = q.gte('created_at', from);
+    if (to) q = q.lte('created_at', to);
+    return q;
+  };
+  // Scoped admins see transfers SENT by their subtree (from_wallet side).
+  const { rows: data, total } = await scopedPaged(
+    buildQ,
+    'from_wallet',
+    scopeArr,
+    offset,
+    limit,
+    'created_at',
+  );
   const rows = (data ?? []).map((r) => ({
     id: r.id,
     type: 'ud3_transfer' as const,
@@ -496,32 +630,46 @@ async function listTransactions(sb: Sb, params: URLSearchParams) {
     txHash: null,
     createdAt: r.created_at,
   }));
-  return { rows, total: count ?? rows.length };
+  return { rows, total };
 }
 
-async function listReferrals(sb: Sb, params: URLSearchParams) {
+async function listReferrals(sb: Sb, params: URLSearchParams, admin: AdminProfile) {
   const search = (params.get('q') ?? '').trim().toLowerCase();
   const limit = Math.min(Number(params.get('limit') ?? 100), 500);
+  const scope = await getScopeWallets(sb, admin);
 
-  let q = sb
-    .from('referrals')
-    .select('*')
-    .eq('referral_type', 'partner')
-    .order('referred_at', { ascending: false })
-    .limit(limit);
+  const buildQ = () => {
+    let q = sb
+      .from('referrals')
+      .select('*')
+      .eq('referral_type', 'partner')
+      .order('referred_at', { ascending: false })
+      .limit(limit);
+    if (search) {
+      q = q.or(`wallet_address.ilike.%${search}%,sponsor_wallet_address.ilike.%${search}%`);
+    }
+    return q;
+  };
 
-  if (search) {
-    q = q.or(`wallet_address.ilike.%${search}%,sponsor_wallet_address.ilike.%${search}%`);
+  if (!scope) {
+    const { data, error } = await buildQ();
+    if (error) throw error;
+    return { rows: data ?? [] };
   }
-
-  const { data, error } = await q;
-  if (error) throw error;
-  return { rows: data ?? [] };
+  const merged: Record<string, unknown>[] = [];
+  for (const part of chunk([...scope], 300)) {
+    const { data, error } = await buildQ().in('wallet_address', part);
+    if (error) throw error;
+    merged.push(...(data ?? []));
+  }
+  merged.sort((a, b) => String(b.referred_at ?? '').localeCompare(String(a.referred_at ?? '')));
+  return { rows: merged.slice(0, limit) };
 }
 
-async function listPartners(sb: Sb, params: URLSearchParams) {
+async function listPartners(sb: Sb, params: URLSearchParams, admin: AdminProfile) {
   const search = (params.get('q') ?? '').trim().toLowerCase();
   const limit = Math.min(Number(params.get('limit') ?? 100), 500);
+  const scope = await getScopeWallets(sb, admin);
 
   let q = sb
     .from('partner_accounts')
@@ -531,6 +679,7 @@ async function listPartners(sb: Sb, params: URLSearchParams) {
     .limit(limit);
 
   if (search) q = q.ilike('wallet_address', `%${search}%`);
+  if (scope) q = q.in('wallet_address', [...scope].slice(0, 900));
 
   const { data, error } = await q;
   if (error) throw error;
@@ -546,13 +695,15 @@ async function listPartners(sb: Sb, params: URLSearchParams) {
   return { rows };
 }
 
-async function listStakes(sb: Sb, params: URLSearchParams) {
+async function listStakes(sb: Sb, params: URLSearchParams, admin: AdminProfile) {
   const kind = params.get('kind') ?? 'usdt';
   const wallet = (params.get('wallet') ?? '').trim().toLowerCase();
   const from = params.get('from');
   const to = params.get('to');
   const limit = Math.min(Number(params.get('limit') ?? 100), 500);
   const offset = Math.max(Number(params.get('offset') ?? 0), 0);
+  const scope = await getScopeWallets(sb, admin);
+  const scopeArr = scope ? [...scope] : null;
 
   // Legacy: kind=sd3 returned the UD3 umbrella-transfer ledger. Kept for back-compat.
   if (kind === 'sd3') {
@@ -571,16 +722,25 @@ async function listStakes(sb: Sb, params: URLSearchParams) {
 
   // kind=usdt → USDT-funded stake positions; kind=ud3 → UD3-funded positions.
   const kinds = kind === 'ud3' ? UD3_STAKE_KINDS : USDT_STAKE_KINDS;
-  let q = sb
-    .from('partner_stake_positions')
-    .select('*', { count: 'exact' })
-    .in('kind', kinds)
-    .order('started_at', { ascending: false });
-  if (wallet) q = q.ilike('wallet_address', wallet);
-  if (from) q = q.gte('started_at', from);
-  if (to) q = q.lte('started_at', to);
-  const { data: positions, count, error } = await q.range(offset, offset + limit - 1);
-  if (error) throw error;
+  const buildQ = () => {
+    let q = sb
+      .from('partner_stake_positions')
+      .select('*', { count: 'exact' })
+      .in('kind', kinds)
+      .order('started_at', { ascending: false });
+    if (wallet) q = q.ilike('wallet_address', wallet);
+    if (from) q = q.gte('started_at', from);
+    if (to) q = q.lte('started_at', to);
+    return q;
+  };
+  const { rows: positions, total: count } = await scopedPaged(
+    buildQ,
+    'wallet_address',
+    scopeArr,
+    offset,
+    limit,
+    'started_at',
+  );
 
   const isUd3Kind = kind === 'ud3';
   // Map raw snake_case rows → the camelCase shape the admin StakeRow UI reads
@@ -854,14 +1014,94 @@ async function createApproval(
   return data;
 }
 
-async function listPendingApprovals(sb: Sb) {
+// ── Approval policies (审批策略): single checker vs N co-signers per permission ──
+type ApprovalPolicy = {
+  permission_key: string;
+  mode: 'single' | 'multi';
+  required_approvals: number;
+  approver_ids: string[] | null;
+};
+
+async function loadApprovalPolicy(sb: Sb, permissionKey: string): Promise<ApprovalPolicy | null> {
+  try {
+    const { data, error } = await sb
+      .from('admin_approval_policies')
+      .select('permission_key, mode, required_approvals, approver_ids')
+      .eq('permission_key', permissionKey)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as ApprovalPolicy | null) ?? null;
+  } catch (_e) {
+    return null; // missing table / transient error → default single-checker flow
+  }
+}
+
+async function listApprovalPolicies(sb: Sb) {
+  try {
+    const { data, error } = await sb
+      .from('admin_approval_policies')
+      .select('permission_key, mode, required_approvals, approver_ids, updated_at');
+    if (error) throw error;
+    return { rows: data ?? [] };
+  } catch (_e) {
+    return { rows: [] };
+  }
+}
+
+async function listPendingApprovals(sb: Sb, _admin: AdminProfile) {
   const { data, error } = await sb
     .from('admin_action_approvals')
     .select('*')
     .eq('status', 'pending')
     .order('requested_at', { ascending: false });
   if (error) throw error;
-  return { rows: data ?? [] };
+  const rows = data ?? [];
+
+  // Enrich each row with its policy (required approvals + designated approvers)
+  // and requester/approver usernames so the UI can render "n/m 已批准".
+  const policies = new Map<string, ApprovalPolicy>();
+  for (const r of rows) {
+    const perm = requiredPermissionForApprovalAction(r.action as string);
+    if (!policies.has(perm)) {
+      const p = await loadApprovalPolicy(sb, perm);
+      if (p) policies.set(perm, p);
+    }
+  }
+  const userIds = new Set<string>();
+  for (const r of rows) {
+    if (r.requested_by) userIds.add(r.requested_by as string);
+    for (const a of (r.approvals as Array<{ userId: string }> | null) ?? []) userIds.add(a.userId);
+  }
+  for (const p of policies.values()) for (const id of p.approver_ids ?? []) userIds.add(id);
+  const nameById = new Map<string, string>();
+  if (userIds.size) {
+    const { data: users } = await sb
+      .from('admin_users')
+      .select('user_id, username')
+      .in('user_id', [...userIds]);
+    for (const u of users ?? []) nameById.set(u.user_id as string, u.username as string);
+  }
+
+  const enriched = rows.map((r) => {
+    const perm = requiredPermissionForApprovalAction(r.action as string);
+    const policy = policies.get(perm) ?? null;
+    const required = policy?.mode === 'multi' ? policy.required_approvals : 1;
+    const approvals = ((r.approvals as Array<{ userId: string; at: string }> | null) ?? []).map(
+      (a) => ({ ...a, username: nameById.get(a.userId) ?? a.userId.slice(0, 8) }),
+    );
+    return {
+      ...r,
+      requesterUsername: nameById.get(r.requested_by as string) ?? null,
+      requiredPermission: perm,
+      requiredApprovals: required,
+      approvalsCount: approvals.length,
+      approvals,
+      designatedApprovers: (policy?.approver_ids ?? []).map(
+        (id) => nameById.get(id) ?? id.slice(0, 8),
+      ),
+    };
+  });
+  return { rows: enriched };
 }
 
 async function loadPendingApproval(sb: Sb, id: string) {
@@ -1085,6 +1325,52 @@ export async function approveApproval(
     throw new HttpError(403, `Missing ${requiredPerm} permission`);
   }
 
+  // 审批策略: multi mode needs N co-signers (optionally from a designated list)
+  // before the final approver claims + executes. Default (no policy row) is the
+  // original single-checker maker-checker flow.
+  const policy = await loadApprovalPolicy(sb, requiredPerm);
+  if (policy?.approver_ids?.length && !policy.approver_ids.includes(admin.userId)) {
+    throw new HttpError(403, '你不在该事务的指定审批人名单中');
+  }
+  const required = policy?.mode === 'multi' ? policy.required_approvals : 1;
+  const prior = ((approval.approvals as Array<{ userId: string; at: string }> | null) ?? []);
+  if (prior.some((a) => a.userId === admin.userId)) {
+    throw new HttpError(409, '你已批准过该事务');
+  }
+  if (prior.length + 1 < required) {
+    // Co-sign only: append this approval; optimistic-concurrency guard on the
+    // previous count so two concurrent co-signers cannot both take one slot.
+    const { data: cosigned, error: cosignErr } = await sb
+      .from('admin_action_approvals')
+      .update({
+        approvals: [...prior, { userId: admin.userId, at: new Date().toISOString() }],
+        approved_count: prior.length + 1,
+      })
+      .eq('id', id)
+      .eq('status', 'pending')
+      .eq('approved_count', prior.length)
+      .select('*')
+      .maybeSingle();
+    if (cosignErr) throw cosignErr;
+    if (!cosigned) throw new HttpError(409, '审批状态已变化,请刷新后重试');
+    await writeAdminAudit(sb, {
+      actorId: admin.userId,
+      actorRole: admin.role,
+      action: `${action}.co_sign`,
+      entityType: approval.target_type as string,
+      entityId: approval.target_id as string,
+      before: { approvedCount: prior.length },
+      after: { approvedCount: prior.length + 1, requiredApprovals: required },
+      reason: `multi-sign co-approval ${prior.length + 1}/${required}`,
+    });
+    return {
+      approval: cosigned,
+      pending: true,
+      approvalsCount: prior.length + 1,
+      requiredApprovals: required,
+    };
+  }
+
   // CLAIM FIRST: atomically move pending -> executed. Losers of a concurrent
   // race get null here and apply NOTHING.
   const claimed = await deps.claimApproval(sb, id, admin.userId);
@@ -1154,6 +1440,11 @@ export async function rejectApproval(
   const requiredPerm = requiredPermissionForApprovalAction(approval.action as string);
   if (!adminHasPermission(admin, requiredPerm)) {
     throw new HttpError(403, `Missing ${requiredPerm} permission`);
+  }
+  // 审批策略: designated-approver restriction applies to rejection too.
+  const rejPolicy = await loadApprovalPolicy(sb, requiredPerm);
+  if (rejPolicy?.approver_ids?.length && !rejPolicy.approver_ids.includes(admin.userId)) {
+    throw new HttpError(403, '你不在该事务的指定审批人名单中');
   }
 
   const claimed = await claimApproval(sb, id, 'rejected', admin.userId, {
@@ -1422,13 +1713,21 @@ async function sumTableColumn(
 
 const DASH_CREDITED_STATUSES = ['credited', 'completed', 'sweep_pending', 'sweeping'];
 
-async function dashboardStats(sb: Sb) {
+async function dashboardStats(sb: Sb, admin: AdminProfile) {
   const sgtDayStart = startOfSgtDayIso();
   // Ops numbers must reflect real users only — the demo wallet carries
   // simulated balances refreshed by the demo cron. `ilike` (no wildcards)
   // gives case-insensitive equality.
   // deno-lint-ignore no-explicit-any
   const noDemo = (q: any) => q.not('wallet_address', 'ilike', DEMO_WALLET_ADDRESS);
+  // 权限细化: the funds/token/solvency section needs dashboard.funds.read.
+  const fundsVisible = adminHasPermission(admin, 'dashboard.funds.read');
+  // 伞下数据范围: scoped admins see stats computed over their subtree only.
+  const scope = await getScopeWallets(sb, admin);
+  const scopeArr = scope ? [...scope] : null;
+  // deno-lint-ignore no-explicit-any
+  const scoped = (q: any, col = 'wallet_address') =>
+    scopeArr ? q.in(col, scopeArr.slice(0, 900)) : q;
   const [
     partners,
     members,
@@ -1447,59 +1746,78 @@ async function dashboardStats(sb: Sb) {
   ] = await Promise.all([
     // partner_accounts has NO `id` column (PK = wallet_address) — selecting `id`
     // errors out and the count silently became 0.
-    noDemo(
+    scoped(noDemo(
       sb
         .from('partner_accounts')
         .select('wallet_address', { count: 'exact', head: true })
         .eq('is_partner', true),
-    ),
-    noDemo(sb.from('partner_accounts').select('wallet_address', { count: 'exact', head: true })),
-    noDemo(sb.from('profiles').select('wallet_address', { count: 'exact', head: true })),
-    noDemo(
+    )),
+    scoped(noDemo(sb.from('partner_accounts').select('wallet_address', { count: 'exact', head: true }))),
+    scoped(noDemo(sb.from('profiles').select('wallet_address', { count: 'exact', head: true }))),
+    scoped(noDemo(
       sb
         .from('profiles')
         .select('wallet_address', { count: 'exact', head: true })
         .gte('created_at', sgtDayStart),
-    ),
+    )),
     loadEffectiveCustomerSet(sb),
-    noDemo(
+    scoped(noDemo(
       sb
         .from('partner_accounts')
         .select('wallet_address', { count: 'exact', head: true })
         .gte('created_at', sgtDayStart),
-    ),
-    sb
+    )),
+    scoped(sb
       .from('partner_subsidy_tickets')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['open', 'pending_info', 'under_review']),
-    sb
+      .in('status', ['open', 'pending_info', 'under_review'])),
+    scoped(sb
       .from('partner_yield_withdrawals')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['pending', 'signing', 'broadcasted', 'manual_review']),
-    sb
+      .in('status', ['pending', 'signing', 'broadcasted', 'manual_review'])),
+    scoped(sb
       .from('partner_stake_positions')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'active'),
-    sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
-      noDemo(q.in('status', DASH_CREDITED_STATUSES))),
-    sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
-      noDemo(q.in('status', DASH_CREDITED_STATUSES).gte('created_at', sgtDayStart))),
-    sumTableColumn(sb, 'partner_stake_positions', 'principal_usdt', (q) =>
-      noDemo(q.eq('status', 'active'))),
-    sumTableColumn(sb, 'partner_accounts', 'ud3_balance', noDemo),
-    sumTableColumn(sb, 'partner_accounts', 'lifetime_ud3_earned', noDemo),
+      .eq('status', 'active')),
+    fundsVisible
+      ? sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
+        scoped(noDemo(q.in('status', DASH_CREDITED_STATUSES))))
+      : Promise.resolve(null),
+    fundsVisible
+      ? sumTableColumn(sb, 'stake_intents', 'amount_usdt', (q) =>
+        scoped(noDemo(q.in('status', DASH_CREDITED_STATUSES).gte('created_at', sgtDayStart))))
+      : Promise.resolve(null),
+    fundsVisible
+      ? sumTableColumn(sb, 'partner_stake_positions', 'principal_usdt', (q) =>
+        scoped(noDemo(q.eq('status', 'active'))))
+      : Promise.resolve(null),
+    fundsVisible
+      ? sumTableColumn(sb, 'partner_accounts', 'ud3_balance', (q) => scoped(noDemo(q)))
+      : Promise.resolve(null),
+    fundsVisible
+      ? sumTableColumn(sb, 'partner_accounts', 'lifetime_ud3_earned', (q) => scoped(noDemo(q)))
+      : Promise.resolve(null),
   ]);
   effectiveCustomers.delete(DEMO_WALLET_ADDRESS.toLowerCase());
+  if (scope) {
+    for (const x of [...effectiveCustomers]) if (!scope.has(x)) effectiveCustomers.delete(x);
+  }
 
-  // On-chain reserves + D3 liability; keep the dashboard usable when RPC is down.
+  // On-chain reserves + D3 liability; global infra numbers — shown only with
+  // dashboard.funds.read AND to unscoped admins. Null-safe when the RPC is down.
   let solvency: Awaited<ReturnType<typeof computeSolvency>> | null = null;
-  try {
-    solvency = await computeSolvency(sb);
-  } catch (_e) {
-    solvency = null;
+  if (fundsVisible && !scope) {
+    try {
+      solvency = await computeSolvency(sb);
+    } catch (_e) {
+      solvency = null;
+    }
   }
 
   return {
+    fundsVisible,
+    scoped: Boolean(scope),
+    scopeWallet: admin.scopeWallet ?? null,
     partnerCount: partners.count ?? 0,
     memberCount: members.count ?? 0,
     registeredMemberCount: registered.count ?? 0,
@@ -1602,7 +1920,7 @@ function validateTemplateLabel(raw: unknown): string {
 async function listAdmins(sb: Sb, caller: AdminProfile) {
   const { data, error } = await sb
     .from('admin_users')
-    .select('user_id, username, role, permissions, created_at')
+    .select('user_id, username, role, permissions, scope_wallet, created_at')
     .order('created_at', { ascending: true });
   if (error) throw error;
   // Emails live in auth.users (not admin_users) — resolve them via the admin API
@@ -1623,6 +1941,7 @@ async function listAdmins(sb: Sb, caller: AdminProfile) {
       email: emailById.get(r.user_id as string) ?? null,
       role: r.role as string,
       permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+      scopeWallet: (r.scope_wallet as string | null) ?? null,
       createdAt: (r.created_at as string) ?? null,
     }));
   return { rows };
@@ -1643,7 +1962,7 @@ function sanitizePermissions(input: unknown): string[] {
 async function patchAdmin(
   sb: Sb,
   targetUserId: string,
-  body: { role?: string; permissions?: unknown },
+  body: { role?: string; permissions?: unknown; scopeWallet?: string | null },
   caller: AdminProfile,
 ) {
   const patch: { role?: string; permissions?: string[] } = {};
@@ -1654,8 +1973,17 @@ async function patchAdmin(
   if (body.permissions !== undefined) {
     patch.permissions = sanitizePermissions(body.permissions);
   }
-  if (patch.role === undefined && patch.permissions === undefined) {
-    throw new HttpError(400, 'role or permissions required');
+  // 伞下数据范围: null clears; a wallet limits the admin to that subtree.
+  let scopePatch: { scope_wallet: string | null } | null = null;
+  if (body.scopeWallet !== undefined) {
+    const raw = body.scopeWallet === null ? '' : String(body.scopeWallet).trim().toLowerCase();
+    if (raw && !/^0x[a-f0-9]{40}$/.test(raw)) {
+      throw new HttpError(400, 'scopeWallet must be a wallet address or null');
+    }
+    scopePatch = { scope_wallet: raw || null };
+  }
+  if (patch.role === undefined && patch.permissions === undefined && !scopePatch) {
+    throw new HttpError(400, 'role, permissions or scopeWallet required');
   }
 
   // Privilege-escalation / self-escalation guard (pure, unit-tested).
@@ -1663,7 +1991,7 @@ async function patchAdmin(
 
   const { data: before, error: beforeErr } = await sb
     .from('admin_users')
-    .select('user_id, username, role, permissions')
+    .select('user_id, username, role, permissions, scope_wallet')
     .eq('user_id', targetUserId)
     .maybeSingle();
   if (beforeErr) throw beforeErr;
@@ -1678,12 +2006,13 @@ async function patchAdmin(
   } else if (patch.role !== undefined) {
     update.permissions = permissionsForRole(patch.role);
   }
+  if (scopePatch) update.scope_wallet = scopePatch.scope_wallet;
 
   const { data: after, error } = await sb
     .from('admin_users')
     .update(update)
     .eq('user_id', targetUserId)
-    .select('user_id, username, role, permissions')
+    .select('user_id, username, role, permissions, scope_wallet')
     .single();
   if (error) throw error;
 
@@ -1693,8 +2022,12 @@ async function patchAdmin(
     action: 'admin.update',
     entityType: 'admin_users',
     entityId: targetUserId,
-    before: { role: before.role, permissions: before.permissions },
-    after: { role: after.role, permissions: after.permissions },
+    before: {
+      role: before.role,
+      permissions: before.permissions,
+      scopeWallet: before.scope_wallet ?? null,
+    },
+    after: { role: after.role, permissions: after.permissions, scopeWallet: after.scope_wallet ?? null },
   });
 
   return { admin: after };
@@ -2091,7 +2424,7 @@ Deno.serve(async (req) => {
 
     if (req.method === 'GET' && path === '/dashboard') {
       requirePermission(admin, 'dashboard.read');
-      return jsonResponse({ ok: true, ...(await dashboardStats(sb)) });
+      return jsonResponse({ ok: true, ...(await dashboardStats(sb, admin)) });
     }
 
     // ── Fund management: infra wallet balances (gas/treasury/settlement/flash) ──
@@ -2268,7 +2601,7 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && path === '/members') {
       requirePermission(admin, 'members.read');
       const url = new URL(req.url);
-      return jsonResponse({ ok: true, ...(await listMembers(sb, url.searchParams)) });
+      return jsonResponse({ ok: true, ...(await listMembers(sb, url.searchParams, admin)) });
     }
 
     // Member set-leader (payout-authorizing) → maker-checker approval flow.
@@ -2316,6 +2649,13 @@ Deno.serve(async (req) => {
     const memberMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})$/);
     if (req.method === 'GET' && memberMatch) {
       requirePermission(admin, 'members.read');
+      {
+        // 伞下数据范围: block detail reads outside the scoped subtree.
+        const s = await getScopeWallets(sb, admin);
+        if (s && !s.has(memberMatch[1].toLowerCase())) {
+          throw new HttpError(403, '超出你的数据范围(伞下)');
+        }
+      }
       // Legacy detail bundle + compact mobile-UI contract. The new contract keys
       // (wallet/profile/stakeSummary/balances/referral) win on collision; the raw
       // legacy referrals row is preserved under `referralRow`.
@@ -2369,6 +2709,11 @@ Deno.serve(async (req) => {
       if (!/^0x[a-fA-F0-9]{40}$/.test(root)) {
         throw new HttpError(400, 'root wallet required');
       }
+      // 伞下数据范围: a scoped admin may only expand trees inside their subtree.
+      const treeScope = await getScopeWallets(sb, admin);
+      if (treeScope && !treeScope.has(root)) {
+        throw new HttpError(403, '超出你的数据范围(伞下)');
+      }
       const depth = Math.max(1, Math.min(5, Math.floor(Number(url.searchParams.get('depth') ?? 3))));
       const tree = await getReferralTree(sb, root, depth);
       return jsonResponse({ ok: true, ...tree });
@@ -2377,25 +2722,25 @@ Deno.serve(async (req) => {
     if (req.method === 'GET' && path === '/referrals') {
       requirePermission(admin, 'referrals.read');
       const url = new URL(req.url);
-      return jsonResponse({ ok: true, ...(await listReferrals(sb, url.searchParams)) });
+      return jsonResponse({ ok: true, ...(await listReferrals(sb, url.searchParams, admin)) });
     }
 
     if (req.method === 'GET' && path === '/transactions') {
       requirePermission(admin, 'transactions.read');
       const url = new URL(req.url);
-      return jsonResponse({ ok: true, ...(await listTransactions(sb, url.searchParams)) });
+      return jsonResponse({ ok: true, ...(await listTransactions(sb, url.searchParams, admin)) });
     }
 
     if (req.method === 'GET' && path === '/partners') {
       requirePermission(admin, 'partners.read');
       const url = new URL(req.url);
-      return jsonResponse({ ok: true, ...(await listPartners(sb, url.searchParams)) });
+      return jsonResponse({ ok: true, ...(await listPartners(sb, url.searchParams, admin)) });
     }
 
     if (req.method === 'GET' && path === '/stakes') {
       requirePermission(admin, 'stakes.read');
       const url = new URL(req.url);
-      return jsonResponse({ ok: true, ...(await listStakes(sb, url.searchParams)) });
+      return jsonResponse({ ok: true, ...(await listStakes(sb, url.searchParams, admin)) });
     }
 
     // A stake order's UD3 反向金 (bribe) reward distribution + burn, for the admin
@@ -2672,10 +3017,71 @@ Deno.serve(async (req) => {
 
     // ── V-08 maker-checker approval queue ────────────────────────────────────
     if (req.method === 'GET' && path === '/approvals') {
-      if (!adminHasPermission(admin, 'subsidies.write')) {
-        throw new HttpError(403, 'Missing subsidies.write permission');
+      // approvals.read is implied by subsidies.write / security.write /
+      // members.write (see PERMISSION_IMPLIED_BY) so existing admins keep access.
+      requirePermission(admin, 'approvals.read');
+      return jsonResponse({ ok: true, ...(await listPendingApprovals(sb, admin)) });
+    }
+
+    // ── 审批策略: per-permission approval mode (single / multi + designated) ──
+    if (req.method === 'GET' && path === '/approval-policies') {
+      requirePermission(admin, 'admins.read');
+      const [{ rows }, adminsRes] = await Promise.all([
+        listApprovalPolicies(sb),
+        sb.from('admin_users').select('user_id, username, role'),
+      ]);
+      const eligible = (adminsRes.data ?? [])
+        .filter((a) => (a.role as string) !== 'super_partner')
+        .map((a) => ({ userId: a.user_id as string, username: a.username as string }));
+      return jsonResponse({ ok: true, rows, admins: eligible });
+    }
+
+    const policyMatch = path.match(/^\/approval-policies\/([a-z][a-z0-9._-]{1,63})$/);
+    if (req.method === 'PUT' && policyMatch) {
+      requireAdminManager(admin);
+      const permKey = policyMatch[1];
+      if (!isValidPermissionKey(permKey)) {
+        throw new HttpError(400, `Unknown permission: ${permKey}`);
       }
-      return jsonResponse({ ok: true, ...(await listPendingApprovals(sb)) });
+      const body = await readJson<{
+        mode?: string;
+        requiredApprovals?: number;
+        approverIds?: unknown;
+      }>(req);
+      const mode = body.mode === 'multi' ? 'multi' : 'single';
+      const requiredApprovals = Math.max(2, Math.min(5, Math.floor(Number(body.requiredApprovals ?? 2))));
+      let approverIds: string[] | null = null;
+      if (Array.isArray(body.approverIds) && body.approverIds.length) {
+        approverIds = body.approverIds.map((x) => String(x));
+        if (approverIds.some((x) => !/^[0-9a-f-]{36}$/.test(x))) {
+          throw new HttpError(400, 'approverIds must be admin user ids');
+        }
+        if (mode === 'multi' && approverIds.length < requiredApprovals) {
+          throw new HttpError(400, '指定审批人数量少于所需批准数');
+        }
+      }
+      const { data, error } = await sb
+        .from('admin_approval_policies')
+        .upsert({
+          permission_key: permKey,
+          mode,
+          required_approvals: requiredApprovals,
+          approver_ids: approverIds,
+          updated_by: admin.userId,
+          updated_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'approval_policy_update',
+        entityType: 'admin_approval_policies',
+        entityId: permKey,
+        newValue: { mode, requiredApprovals, approverIds },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, policy: data });
     }
 
     const approveMatch = path.match(/^\/approvals\/([0-9a-f-]{36})\/approve$/);

@@ -51,7 +51,9 @@ describe('permission catalog completeness', () => {
   it('contains every documented permission key', () => {
     const expected = [
       'dashboard.read',
+      'dashboard.funds.read',
       'members.read',
+      'members.balance.read',
       'members.write',
       'stakes.read',
       'transactions.read',
@@ -59,12 +61,21 @@ describe('permission catalog completeness', () => {
       'partners.read',
       'subsidies.read',
       'subsidies.write',
+      'subsidies.rates',
+      'approvals.read',
       'security.read',
       'security.write',
+      'security.pause',
+      'params.read',
+      'params.write',
+      'params.heartbeat.write',
       'treasury.read',
+      'treasury.propose',
+      'treasury.approve',
       'treasury.write',
       'admins.read',
       'admins.manage',
+      'logs.read',
     ];
     for (const k of expected) expect(ALL_PERMISSION_KEYS).toContain(k);
     expect(ALL_PERMISSION_KEYS).toHaveLength(expected.length);

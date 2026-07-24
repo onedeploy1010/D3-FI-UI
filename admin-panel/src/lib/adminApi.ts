@@ -37,6 +37,8 @@ export type MemberRow = {
   joinedAt: string | null;
   /** 注册日期 (profile created / first referral bind). */
   createdAt: string | null;
+  /** 注册时间 — canonical registration timestamp (newer backend; may be absent). */
+  registeredAt?: string | null;
   sponsorWallet: string | null;
   teamPerformanceUsd: number;
   personalPerformanceUsd: number;
@@ -456,6 +458,8 @@ export type AdminUser = {
   username: string | null;
   role: AdminRole;
   permissions: string[];
+  /** 伞下数据范围: limits the admin's data access to this wallet's subtree. */
+  scopeWallet?: string | null;
   createdAt: string | null;
 };
 
@@ -471,7 +475,7 @@ export function listAdmins() {
 
 export function updateAdmin(
   userId: string,
-  patch: { role?: AdminRole; permissions?: string[] },
+  patch: { role?: AdminRole; permissions?: string[]; scopeWallet?: string | null },
 ) {
   return adminFetch<{ ok?: boolean; approvalId?: string; pending?: boolean }>(
     `/admins/${userId}`,

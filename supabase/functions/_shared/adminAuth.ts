@@ -13,6 +13,8 @@ export type AdminProfile = {
   username: string;
   role: AdminRole;
   permissions: string[];
+  /** 伞下数据范围: when set, data access is limited to this wallet's referral subtree. */
+  scopeWallet?: string | null;
 };
 
 // ── RBAC: granular permission catalog ────────────────────────────────────────
@@ -21,28 +23,47 @@ export type AdminProfile = {
 export type PermissionDef = { key: string; label: string; group: string };
 
 export const PERMISSION_CATALOG: readonly PermissionDef[] = [
-  { key: 'dashboard.read', label: '查看仪表盘', group: '概览' },
+  { key: 'dashboard.read', label: '查看总览-运营指标', group: '概览' },
+  { key: 'dashboard.funds.read', label: '查看总览-资金与偿付', group: '概览' },
   { key: 'members.read', label: '查看会员', group: '会员' },
+  { key: 'members.balance.read', label: '查看会员余额明细', group: '会员' },
   { key: 'members.write', label: '管理会员', group: '会员' },
   { key: 'stakes.read', label: '查看质押', group: '质押' },
   { key: 'transactions.read', label: '查看交易', group: '交易' },
   { key: 'referrals.read', label: '查看推荐', group: '推荐' },
   { key: 'partners.read', label: '查看合伙人', group: '推荐' },
-  { key: 'subsidies.read', label: '查看补贴', group: '补贴' },
-  { key: 'subsidies.write', label: '管理补贴', group: '补贴' },
-  { key: 'subsidies.rates', label: '修改补贴比例', group: '补贴' },
-  { key: 'security.read', label: '查看安全', group: '安全' },
-  { key: 'security.write', label: '管理安全', group: '安全' },
+  { key: 'subsidies.read', label: '查看补贴工单', group: '事务' },
+  { key: 'subsidies.write', label: '处理补贴工单', group: '事务' },
+  { key: 'subsidies.rates', label: '修改补贴比例', group: '事务' },
+  { key: 'approvals.read', label: '查看多签审批', group: '事务' },
+  { key: 'security.read', label: '查看安全中心', group: '安全' },
+  { key: 'security.write', label: '管理安全告警与限额', group: '安全' },
+  { key: 'security.pause', label: '熔断暂停/恢复', group: '安全' },
   { key: 'params.read', label: '查看参数', group: '参数' },
   { key: 'params.write', label: '管理参数', group: '参数' },
+  { key: 'params.heartbeat.write', label: '管理心跳订单', group: '参数' },
   { key: 'treasury.read', label: '查看金库', group: '金库' },
-  { key: 'treasury.write', label: '管理金库', group: '金库' },
+  { key: 'treasury.propose', label: '发起金库转账', group: '金库' },
+  { key: 'treasury.approve', label: '审批金库转账', group: '金库' },
+  { key: 'treasury.write', label: '管理金库(全部)', group: '金库' },
   { key: 'admins.read', label: '查看管理员', group: '管理员' },
   { key: 'admins.manage', label: '管理管理员', group: '管理员' },
   { key: 'logs.read', label: '查看操作日志', group: '日志' },
 ] as const;
 
 export const ALL_PERMISSION_KEYS: readonly string[] = PERMISSION_CATALOG.map((p) => p.key);
+
+// Umbrella grants: holding the broader legacy permission implies the finer one,
+// so existing admin rows keep working after the catalog split.
+export const PERMISSION_IMPLIED_BY: Record<string, readonly string[]> = {
+  'dashboard.funds.read': ['treasury.read'],
+  'members.balance.read': ['members.read'],
+  'approvals.read': ['subsidies.write', 'security.write', 'members.write'],
+  'security.pause': ['security.write'],
+  'params.heartbeat.write': ['params.write'],
+  'treasury.propose': ['treasury.write'],
+  'treasury.approve': ['treasury.write'],
+};
 
 // The SINGLE root admin — the ONLY account allowed to create/edit/delete admins and
 // change admin permissions. Every other admin (incl. other superadmins) may hold any
@@ -65,7 +86,12 @@ export const READ_PERMISSION_KEYS: readonly string[] = ALL_PERMISSION_KEYS.filte
 
 // Privilege-escalating permissions. Granting any of these (directly OR via a role
 // preset that contains one) requires the CALLER to be a superadmin.
-export const ELEVATED_PERMISSIONS: readonly string[] = ['admins.manage', 'treasury.write'];
+export const ELEVATED_PERMISSIONS: readonly string[] = [
+  'admins.manage',
+  'treasury.write',
+  'treasury.propose',
+  'treasury.approve',
+];
 
 export function isValidPermissionKey(key: string): boolean {
   return ALL_PERMISSION_KEYS.includes(key);
@@ -205,7 +231,7 @@ export async function requireAdminUser(
 
   const { data: row, error } = await sb
     .from('admin_users')
-    .select('username, role, permissions')
+    .select('username, role, permissions, scope_wallet')
     .eq('user_id', userData.user.id)
     .maybeSingle();
 
@@ -217,10 +243,14 @@ export async function requireAdminUser(
     username: row.username as string,
     role: row.role as AdminProfile['role'],
     permissions: Array.isArray(row.permissions) ? (row.permissions as string[]) : [],
+    scopeWallet: (row.scope_wallet as string | null) ?? null,
   };
 }
 
 export function adminHasPermission(admin: AdminProfile, key: string): boolean {
   if (admin.role === 'superadmin') return true;
-  return admin.permissions.includes(key);
+  if (admin.permissions.includes(key)) return true;
+  // Umbrella compat: a broader legacy grant implies the finer split-out key.
+  const umbrellas = PERMISSION_IMPLIED_BY[key];
+  return Boolean(umbrellas?.some((u) => admin.permissions.includes(u)));
 }

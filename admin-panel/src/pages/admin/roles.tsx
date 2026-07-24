@@ -89,7 +89,14 @@ const ROLE_LABEL_FALLBACK: Record<string, string> = {
 
 /** 权限说明 — what each permission actually allows (读 / 写 / 管理). */
 const PERM_DESCRIPTIONS: Record<string, string> = {
-  'dashboard.read': '查看仪表盘运营总览:资金(入金/质押/储备)、代币与偿付、运营指标。',
+  'dashboard.read': '查看总览的运营指标(会员/合伙人/质押笔数/工单等)。',
+  'dashboard.funds.read': '查看总览的资金与偿付分区(入金/质押本金/链上储备/D3负债/偿付率/UD3)。持有 treasury.read 也可见(兼容)。',
+  'members.balance.read': '查看会员余额明细(UD3/产出D3等)。持有 members.read 也可见(兼容)。',
+  'approvals.read': '查看事务管理中的多签审批列表。持有补贴/安全/会员写权限也可见(兼容)。',
+  'security.pause': '单独授予熔断暂停/恢复操作(security.write 包含此权限)。',
+  'params.heartbeat.write': '单独授予心跳订单配置(params.write 包含此权限)。',
+  'treasury.propose': '发起金库转账提案(提升权限,仅超级管理员可授予)。',
+  'treasury.approve': '审批金库转账提案(提升权限,仅超级管理员可授予)。',
   'members.read': '查看会员列表、会员详情、余额与团队信息。',
   'members.write': '修改会员资料与状态、调整市场领袖标记、管理入金地址池等写操作。',
   'stakes.read': '查看质押订单、仓位与 UD3 奖励明细。',
@@ -244,6 +251,7 @@ function EditAdminDialog({
 
   const [role, setRole] = useState<string>(admin.role);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(admin.permissions));
+  const [scopeWallet, setScopeWallet] = useState(admin.scopeWallet ?? '');
   const [saving, setSaving] = useState(false);
 
   const groups = usePermGroups(catalog);
@@ -280,12 +288,20 @@ function EditAdminDialog({
   const hasElevated = role === 'superadmin' || selectedArr.some((k) => ELEVATED_PERMS.has(k));
 
   async function save() {
+    const scope = scopeWallet.trim().toLowerCase();
+    if (scope && !/^0x[a-f0-9]{40}$/.test(scope)) {
+      toast.error('数据范围需为钱包地址(0x…40位)或留空');
+      return;
+    }
     setSaving(true);
     try {
       // When the selection exactly matches a named role's preset we persist it
       // as that role (backend resets to the preset); otherwise we persist the
       // explicit permission list.
-      const patch = matchesPreset ? { role: role as AdminRole } : { permissions: selectedArr };
+      const patch = {
+        ...(matchesPreset ? { role: role as AdminRole } : { permissions: selectedArr }),
+        ...(scope !== (admin.scopeWallet ?? '') ? { scopeWallet: scope || null } : {}),
+      };
       const res = await updateAdmin(admin.userId, patch);
       if (res?.pending) toast.success('已提交审批,待另一位管理员复核');
       else toast.success('权限已更新');
@@ -346,6 +362,17 @@ function EditAdminDialog({
         <p className="-mt-1 text-[11px] text-muted-foreground">
           选择角色或模板会载入其预设权限,可在下方微调后保存。
         </p>
+
+        {/* 伞下数据范围 */}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">数据范围(伞下钱包,可选)</Label>
+          <Input
+            placeholder="0x… 留空 = 不限;填入后该管理员只能看到此钱包伞下的会员/数据"
+            value={scopeWallet}
+            onChange={(e) => setScopeWallet(e.target.value)}
+            className="font-mono text-xs"
+          />
+        </div>
 
         {/* Elevated-permission note */}
         <div
@@ -767,6 +794,204 @@ function TemplatesTab({
 }
 
 // ---------------------------------------------------------------------------
+// Tab: 审批策略 (single vs multi-sign per management permission)
+// ---------------------------------------------------------------------------
+
+type ApprovalPolicyRow = {
+  permission_key: string;
+  mode: 'single' | 'multi';
+  required_approvals: number;
+  approver_ids: string[] | null;
+};
+type PolicyAdmin = { userId: string; username: string };
+
+function PolicyEditor({
+  perm,
+  policy,
+  admins,
+  canManage,
+  permLabel,
+  onSaved,
+}: {
+  perm: PermissionDef;
+  policy: ApprovalPolicyRow | null;
+  admins: PolicyAdmin[];
+  canManage: boolean;
+  permLabel: Map<string, string>;
+  onSaved: () => void;
+}) {
+  const [mode, setMode] = useState<'single' | 'multi'>(policy?.mode ?? 'single');
+  const [required, setRequired] = useState<number>(policy?.required_approvals ?? 2);
+  const [approvers, setApprovers] = useState<Set<string>>(
+    () => new Set(policy?.approver_ids ?? []),
+  );
+  const [saving, setSaving] = useState(false);
+
+  const dirty =
+    mode !== (policy?.mode ?? 'single') ||
+    (mode === 'multi' &&
+      (required !== (policy?.required_approvals ?? 2) ||
+        !sameSet([...approvers], policy?.approver_ids ?? [])));
+
+  async function save() {
+    if (mode === 'multi' && approvers.size > 0 && approvers.size < required) {
+      toast.error('指定审批人数量不能少于所需批准数');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminFetch(`/approval-policies/${perm.key}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          mode,
+          requiredApprovals: required,
+          approverIds: mode === 'multi' ? [...approvers] : [],
+        }),
+      });
+      toast.success(`${permLabel.get(perm.key) ?? perm.key} 审批策略已保存`);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl cell-inset p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{perm.label}</p>
+          <code className="text-[10px] text-muted-foreground">{perm.key}</code>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={mode}
+            onValueChange={(v) => setMode(v === 'multi' ? 'multi' : 'single')}
+            disabled={!canManage}
+          >
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">单管理员批准</SelectItem>
+              <SelectItem value="multi">多签审批</SelectItem>
+            </SelectContent>
+          </Select>
+          {mode === 'multi' && (
+            <Select
+              value={String(required)}
+              onValueChange={(v) => setRequired(Number(v))}
+              disabled={!canManage}
+            >
+              <SelectTrigger className="h-8 w-24 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[2, 3, 4, 5].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n} 人批准
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {canManage && (
+            <Button size="sm" className="h-8" onClick={save} disabled={saving || !dirty}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
+          )}
+        </div>
+      </div>
+      {mode === 'multi' && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
+            指定审批人(不选 = 持有该权限的任意管理员均可批准)
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {admins.map((a) => (
+              <label key={a.userId} className="flex cursor-pointer items-center gap-1.5 text-xs">
+                <Checkbox
+                  checked={approvers.has(a.userId)}
+                  disabled={!canManage}
+                  onCheckedChange={(v) => {
+                    setApprovers((prev) => {
+                      const next = new Set(prev);
+                      if (v === true) next.add(a.userId);
+                      else next.delete(a.userId);
+                      return next;
+                    });
+                  }}
+                />
+                {a.username}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PoliciesTab({
+  catalog,
+  canManage,
+  permLabel,
+}: {
+  catalog: PermissionsCatalog;
+  canManage: boolean;
+  permLabel: Map<string, string>;
+}) {
+  const [rows, setRows] = useState<ApprovalPolicyRow[]>([]);
+  const [admins, setAdmins] = useState<PolicyAdmin[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    void adminFetch<{ rows: ApprovalPolicyRow[]; admins: PolicyAdmin[] }>('/approval-policies')
+      .then((r) => {
+        setRows(r.rows ?? []);
+        setAdmins(r.admins ?? []);
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : '加载失败'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Management permissions only (writes) — reads never need approval.
+  const managePerms = catalog.permissions.filter((p) => !p.key.endsWith('.read'));
+
+  if (loading) return <p className="text-sm text-muted-foreground">加载中…</p>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start gap-2 rounded-xl cell-inset p-3 text-xs text-muted-foreground">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <span>
+          为每个管理权限选择审批方式:<b>单管理员批准</b> = 发起人提交后由另一位持权管理员复核(默认);
+          <b>多签审批</b> = 需 N 位管理员共同批准,可指定审批人名单。策略对走审批队列的操作生效
+          (补贴工单/补贴比例/安全熔断/风控限额/市场领袖变更等)。仅超级管理员可修改。
+        </span>
+      </div>
+      {managePerms.map((p) => (
+        <PolicyEditor
+          key={p.key}
+          perm={p}
+          policy={rows.find((r) => r.permission_key === p.key) ?? null}
+          admins={admins}
+          canManage={canManage}
+          permLabel={permLabel}
+          onSaved={load}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tab: 权限说明
 // ---------------------------------------------------------------------------
 
@@ -1021,6 +1246,10 @@ export default function RolesPage() {
             <Layers className="h-3.5 w-3.5" />
             角色模板
           </TabsTrigger>
+          <TabsTrigger value="policies" className="gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            审批策略
+          </TabsTrigger>
           <TabsTrigger value="docs" className="gap-1.5">
             <BookOpen className="h-3.5 w-3.5" />
             权限说明
@@ -1075,6 +1304,14 @@ export default function RolesPage() {
               permLabel={permLabel}
               onChanged={load}
             />
+          ) : (
+            <p className="text-sm text-muted-foreground">加载中…</p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="policies">
+          {catalog ? (
+            <PoliciesTab catalog={catalog} canManage={isRoot} permLabel={permLabel} />
           ) : (
             <p className="text-sm text-muted-foreground">加载中…</p>
           )}

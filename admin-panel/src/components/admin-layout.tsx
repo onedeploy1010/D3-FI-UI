@@ -27,7 +27,7 @@ const NAV = [
   { href: '/partners', label: '合伙人管理', sub: 'Partners', icon: Shield, perm: 'partners.read' },
   { href: '/stakes', label: '质押管理', sub: 'Stakes', icon: Layers, perm: 'stakes.read' },
   { href: '/transactions', label: '交易管理', sub: 'Transactions', icon: ArrowLeftRight, perm: 'transactions.read' },
-  { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones, perm: 'subsidies.read' },
+  { href: '/subsidies', label: '事务管理', sub: 'Affairs', icon: Headphones, perm: 'subsidies.read' },
   { href: '/roles', label: '角色权限', sub: 'Roles', icon: KeyRound, perm: 'admins.read' },
   { href: '/logs', label: '操作日志', sub: 'Logs', icon: ScrollText, perm: 'logs.read' },
   { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert, perm: 'security.read' },

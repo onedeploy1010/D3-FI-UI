@@ -4,6 +4,9 @@ import { adminFetch } from '@/lib/adminApi';
 import { Loader2 } from 'lucide-react';
 
 type Dash = {
+  fundsVisible?: boolean;
+  scoped?: boolean;
+  scopeWallet?: string | null;
   partnerCount: number;
   memberCount: number;
   registeredMemberCount: number;
@@ -88,6 +91,14 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {data.scoped && (
+            <p className="rounded-xl cell-inset p-3 text-xs text-muted-foreground">
+              数据范围:以下统计仅包含钱包 <code className="text-foreground">{data.scopeWallet}</code>{' '}
+              的伞下会员(链上储备等全局指标不可见)。
+            </p>
+          )}
+          {data.fundsVisible !== false && (
+            <>
           <Section title="资金 (USDT)">
             <Kpi label="累计入金" value={fmtNum(data.totalDepositedUsdt)} accent="#E0568F" />
             <Kpi label="今日入金" value={fmtNum(data.depositsTodayUsdt)} accent="#8A2B57" />
@@ -112,6 +123,8 @@ export default function DashboardPage() {
             />
             <Kpi label="UD3 总余额" value={fmtNum(data.ud3TotalBalance)} sub={`累计发放 ${fmtNum(data.ud3LifetimeEarned)}`} />
           </Section>
+            </>
+          )}
 
           <Section title="运营">
             <Kpi label="注册会员" value={String(data.registeredMemberCount)} accent="#E0568F" sub={`今日新增 ${data.newRegisteredToday}`} />

@@ -1,6 +1,6 @@
 import { corsHeaders, jsonResponse, optionsResponse } from '../_shared/cors.ts';
 import { notify, shortWalletForNotice } from '../_shared/notifications.ts';
-import { DEMO_POC_SCORE, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
+import { DEMO_POC_SCORE, DEMO_WALLET_ADDRESS, isDemoModeRequest, isDemoWalletAddress } from '../_shared/demo.ts';
 import { resetDemoPartnerSession } from '../_shared/demoPartnerReset.ts';
 import { getPrivyToken } from '../_shared/privy.ts';
 import { clientIpFromRequest, issueNonce, verifySiweAndIssueToken, verifySiweSession } from '../_shared/siwe.ts';
@@ -495,6 +495,7 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     teamNode,
     directReferrals,
     pocScore,
+    leaderLine,
   ] = await Promise.all([
     sb.from('shareholders').select('*').eq('wallet_address', pk).maybeSingle(),
     sb.from('usd3_accounts').select('*').eq('wallet_address', pk).maybeSingle(),
@@ -520,6 +521,11 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
       .ilike('sponsor_wallet_address', pk)
       .eq('status', 'active'),
     sb.from('poc_scores').select('*').eq('wallet_address', pk).maybeSingle(),
+    // Leader-line lookup joins the batch (was a separate 2-3 round-trip
+    // findUnionLineByLeader call on the critical path when team_nodes has no
+    // row). ilike with no wildcards == case-insensitive equality, which is the
+    // exact-then-ilike net effect of the old helper.
+    sb.from('union_lines').select('*').ilike('line_leader_wallet', pk).maybeSingle(),
   ]);
 
   const partnerDirectReferrals = (directReferrals.data ?? []).filter(
@@ -551,11 +557,10 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     }
   }
 
-  let lineId = (teamNode.data as { line_id?: string } | null)?.line_id ?? null;
-  if (!lineId) {
-    const leaderLine = await findUnionLineByLeader(sb, pk);
-    lineId = leaderLine?.id ?? null;
-  }
+  const lineId =
+    (teamNode.data as { line_id?: string } | null)?.line_id ??
+    (leaderLine.data as { id?: string } | null)?.id ??
+    null;
 
   const [unionLine, lineTeamNodes, lineMultisigs, daoMultisig] = await Promise.all([
     lineId
@@ -569,6 +574,19 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
       : Promise.resolve({ data: [] }),
     sb.from('multisig_wallets').select('*').eq('wallet_type', 'dao').maybeSingle(),
   ]);
+
+  // Member-wallet lookup only needs lineTeamNodes — start it now so it overlaps
+  // the committee/proposal/signature chain instead of running after it.
+  const profileWallets = new Set<string>([pk]);
+  for (const row of lineTeamNodes.data ?? []) {
+    profileWallets.add(String(row.wallet_address));
+  }
+  for (const ref of directReferrals.data ?? []) {
+    profileWallets.add(String(ref.wallet_address));
+  }
+  const memberWalletsPromise = fetchPartnerMemberWallets(sb, [...profileWallets]).catch(
+    () => [] as string[],
+  );
 
   const multisigList = [...(lineMultisigs.data ?? []), ...(daoMultisig.data ? [daoMultisig.data] : [])];
   const multisigIds = multisigList.map((m) => m.id as string);
@@ -591,20 +609,12 @@ async function fetchProfileBundle(sb: Sb, wallet: string) {
     ? await sb.from('multisig_signatures').select('*').in('proposal_id', proposalIds)
     : { data: [] };
 
-  const profileWallets = new Set<string>([pk]);
-  for (const row of lineTeamNodes.data ?? []) {
-    profileWallets.add(String(row.wallet_address));
-  }
-  for (const ref of directReferrals.data ?? []) {
-    profileWallets.add(String(ref.wallet_address));
-  }
-
   // Join the early-started partner-tree work (team stats, line stats, node stats
   // and the multi-level downline edges all come from one edge-CTE rollup).
   const [treeOverview, partnerBundle, partnerMemberWallets] = await Promise.all([
     treeOverviewPromise,
     partnerBundlePromise,
-    fetchPartnerMemberWallets(sb, [...profileWallets]).catch(() => [] as string[]),
+    memberWalletsPromise,
   ]);
   const {
     teamStats: partnerTeamStats,
@@ -912,10 +922,21 @@ Deno.serve(async (req) => {
 
     const profileGet = path.match(/^\/profile\/(0x[0-9a-fA-F]{40})$/);
     if (req.method === 'GET' && profileGet) {
-      const headerWallet = await requireActorWallet(sb, req, { allowDemo: true });
       const urlWallet = profileGet[1];
+      // Authorization with zero DB work first: the session subject (JWT signature
+      // already verified at the top of the handler; this re-read is pure crypto)
+      // must BE the requested wallet. With identity proven, requireActorWallet's
+      // profile-binding bookkeeping is independent of the bundle's reads, so the
+      // two run concurrently — a mismatch there still fails the request before
+      // anything is returned.
+      const sub = isDemoModeRequest(req) ? DEMO_WALLET_ADDRESS : await verifySiweSession(req);
+      if (!walletEquals(sub, urlWallet)) throw new HttpError(403, 'Wallet header mismatch');
+      const [headerWallet, bundle] = await Promise.all([
+        requireActorWallet(sb, req, { allowDemo: true }),
+        fetchProfileBundle(sb, urlWallet),
+      ]);
       assertWalletMatch(headerWallet, urlWallet);
-      return jsonResponse(await fetchProfileBundle(sb, urlWallet));
+      return jsonResponse(bundle);
     }
 
     // POST /profile

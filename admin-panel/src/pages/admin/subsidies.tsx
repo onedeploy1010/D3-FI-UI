@@ -4,11 +4,14 @@ import { toast } from 'sonner';
 import {
   Check,
   CircleDot,
+  Headphones,
   Loader2,
   MessageSquare,
   Paperclip,
+  RotateCw,
   Send,
   Settings2,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import { PageShell } from './page-shell';
@@ -410,6 +413,300 @@ function TicketDetailBody({
   );
 }
 
+// ---- 多签审批 (maker-checker approval queue) ------------------------------
+
+/**
+ * Row from GET /approvals — raw `admin_action_approvals` rows (snake_case).
+ * `requiredApprovals` / `approvalsCount` / `designatedApprovers` are optional
+ * multi-sig fields the backend may add later; render when present.
+ */
+type ApprovalRow = {
+  id: string;
+  action: string;
+  target_type?: string | null;
+  target_id?: string | null;
+  payload?: Record<string, unknown> | null;
+  status: string;
+  requested_by?: string | null;
+  requested_at?: string | null;
+  requiredApprovals?: number;
+  approvalsCount?: number;
+  designatedApprovers?: string[];
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  'program_settings.update': '补贴比例修改',
+  'subsidy_ticket.patch': '补贴工单审批',
+  'security.unpause': '安全熔断恢复',
+  'risk_limits.update': '风控限额修改',
+  'member.set_leader': '市场领袖变更',
+};
+
+function payloadSummary(p?: Record<string, unknown> | null): string {
+  if (!p || Object.keys(p).length === 0) return '—';
+  const s = Object.entries(p)
+    .map(([k, v]) => `${k}: ${typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)}`)
+    .join(' · ');
+  return s.length > 60 ? `${s.slice(0, 60)}…` : s;
+}
+
+function ApprovalsTab({ canWrite }: { canWrite: boolean }) {
+  const [rows, setRows] = useState<ApprovalRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  /** Approval id currently being approved/rejected (disables its buttons). */
+  const [acting, setActing] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<ApprovalRow | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void adminFetch<{ ok: boolean; rows: ApprovalRow[] }>('/approvals')
+      .then((r) => setRows(r.rows))
+      .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const approve = useCallback(
+    async (row: ApprovalRow) => {
+      setActing(row.id);
+      try {
+        await adminFetch(`/approvals/${row.id}/approve`, { method: 'POST' });
+        toast.success('已批准并执行');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : '批准失败');
+      } finally {
+        setActing(null);
+        load();
+      }
+    },
+    [load],
+  );
+
+  const reject = async () => {
+    if (!rejectTarget) return;
+    setActing(rejectTarget.id);
+    try {
+      await adminFetch(`/approvals/${rejectTarget.id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify(rejectReason.trim() ? { reason: rejectReason.trim() } : {}),
+      });
+      toast.success('已驳回');
+      setRejectTarget(null);
+      setRejectReason('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '驳回失败');
+    } finally {
+      setActing(null);
+      load();
+    }
+  };
+
+  const columns = useMemo<DataListColumn<ApprovalRow>[]>(
+    () => [
+      {
+        key: 'action',
+        label: '操作类型',
+        render: (r) => <span className="font-medium">{ACTION_LABEL[r.action] ?? r.action}</span>,
+      },
+      {
+        key: 'requested_by',
+        label: '发起人',
+        mobileHide: true,
+        render: (r) =>
+          r.requested_by ? (
+            <span className="font-mono text-xs">{r.requested_by.slice(0, 8)}…</span>
+          ) : (
+            '—'
+          ),
+      },
+      {
+        key: 'payload',
+        label: '内容摘要',
+        mobileHide: true,
+        className: 'max-w-[240px]',
+        render: (r) => (
+          <span className="block truncate text-xs text-muted-foreground">
+            {payloadSummary(r.payload)}
+          </span>
+        ),
+      },
+      {
+        key: 'progress',
+        label: '进度',
+        render: (r) =>
+          r.requiredApprovals != null ? (
+            <Badge variant="outline" className={cn('font-medium', STATUS_STYLE.open)}>
+              {r.approvalsCount ?? 0}/{r.requiredApprovals} 已批准
+            </Badge>
+          ) : (
+            <Badge variant="outline" className={cn('font-medium', STATUS_STYLE.open)}>
+              待审批
+            </Badge>
+          ),
+      },
+      {
+        key: 'requested_at',
+        label: '发起时间',
+        sortable: true,
+        render: (r) => (
+          <span className="text-xs">{r.requested_at?.slice(0, 16).replace('T', ' ') ?? '—'}</span>
+        ),
+      },
+      ...(canWrite
+        ? [
+            {
+              key: 'actions',
+              label: '操作',
+              render: (r: ApprovalRow) => (
+                <div className="flex justify-end gap-1.5 md:justify-start">
+                  <Button
+                    size="sm"
+                    className="h-7 gap-1 bg-emerald-600 text-white hover:bg-emerald-600/90"
+                    disabled={acting === r.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void approve(r);
+                    }}
+                  >
+                    {acting === r.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    批准
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 gap-1"
+                    disabled={acting === r.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRejectTarget(r);
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" /> 驳回
+                  </Button>
+                </div>
+              ),
+            } satisfies DataListColumn<ApprovalRow>,
+          ]
+        : []),
+    ],
+    [canWrite, acting, approve],
+  );
+
+  const renderExpanded = useCallback(
+    (r: ApprovalRow) => (
+      <div className="space-y-2 py-1 text-xs">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-lg border border-border/60 bg-card/40 p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">目标</p>
+            <p className="mt-1 break-all font-mono">
+              {r.target_type ?? '—'} · {r.target_id ?? '—'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-card/40 p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">发起人</p>
+            <p className="mt-1 break-all font-mono">{r.requested_by ?? '—'}</p>
+          </div>
+        </div>
+        {r.designatedApprovers?.length ? (
+          <div className="rounded-lg border border-border/60 bg-card/40 p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">指定审批人</p>
+            <p className="mt-1 break-all font-mono">{r.designatedApprovers.join('、')}</p>
+          </div>
+        ) : null}
+        <pre className="overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-2.5 font-mono text-[11px]">
+          {JSON.stringify(r.payload ?? {}, null, 2)}
+        </pre>
+      </div>
+    ),
+    [],
+  );
+
+  return (
+    <>
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      <DataList<ApprovalRow>
+        columns={columns}
+        rows={rows}
+        getRowId={(r) => r.id}
+        searchKeys={['id', 'action', 'requested_by', 'target_id']}
+        searchPlaceholder="搜索审批单号 / 操作 / 发起人…"
+        dateKey="requested_at"
+        renderExpanded={renderExpanded}
+        loading={loading}
+        emptyText="暂无待审批事项"
+        toolbarRight={
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={load} disabled={loading}>
+            <RotateCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            刷新
+          </Button>
+        }
+      />
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        出款类操作需第二位管理员复核后才会执行；发起人不能批准自己提交的审批。
+      </p>
+
+      {/* 驳回原因 */}
+      <Dialog
+        open={Boolean(rejectTarget)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setRejectTarget(null);
+            setRejectReason('');
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader>
+            <DialogTitle>驳回审批</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              确认驳回「{rejectTarget ? ACTION_LABEL[rejectTarget.action] ?? rejectTarget.action : ''}」？
+              可填写驳回原因（可选）。
+            </p>
+            <Textarea
+              placeholder="驳回原因（可选）"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRejectTarget(null);
+                  setRejectReason('');
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={acting === rejectTarget?.id}
+                onClick={() => void reject()}
+              >
+                确认驳回
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ---- Page ---------------------------------------------------------------
 
 export default function SubsidiesPage() {
@@ -638,8 +935,8 @@ export default function SubsidiesPage() {
 
   return (
     <PageShell
-      title="补贴工单"
-      subtitle="合伙人补贴、市场补贴与市场领袖申请 — Helpdesk"
+      title="事务管理"
+      subtitle="补贴工单与多签审批 — Affairs"
       actions={
         canWrite ? (
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
@@ -648,6 +945,17 @@ export default function SubsidiesPage() {
         ) : undefined
       }
     >
+      <Tabs defaultValue="tickets">
+        <TabsList className="mb-4">
+          <TabsTrigger value="tickets" className="gap-1.5">
+            <Headphones className="h-3.5 w-3.5" /> 补贴工单
+          </TabsTrigger>
+          <TabsTrigger value="approvals" className="gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" /> 多签审批
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tickets">
       <div className="mb-4 space-y-2">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">当前生效比例</p>
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -689,6 +997,12 @@ export default function SubsidiesPage() {
         onRowClick={(r) => openTicket(r.id)}
         emptyText="暂无补贴工单"
       />
+        </TabsContent>
+
+        <TabsContent value="approvals">
+          <ApprovalsTab canWrite={canWrite} />
+        </TabsContent>
+      </Tabs>
 
       {/* Detail: Dialog on desktop, Drawer on mobile */}
       {isDesktop ? (

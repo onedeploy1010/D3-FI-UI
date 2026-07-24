@@ -50,6 +50,13 @@ export interface DataListFilter {
   options: { value: string; label: string }[];
 }
 
+export interface DataListDateOption {
+  /** Field holding the timestamp, e.g. "registeredAt". */
+  key: string;
+  /** Chinese label shown in the field select, e.g. "注册时间". */
+  label: string;
+}
+
 export interface DataListProps<T> {
   columns: DataListColumn<T>[];
   rows: T[];
@@ -59,6 +66,12 @@ export interface DataListProps<T> {
   filters?: DataListFilter[];
   /** Field holding a timestamp; enables the date-range filter when set. */
   dateKey?: string;
+  /**
+   * Multiple candidate date fields: renders a small field select next to the
+   * range picker and filters on the chosen field (first entry is the default).
+   * Takes precedence over `dateKey` when both are given.
+   */
+  dateOptions?: DataListDateOption[];
   renderExpanded?: (row: T) => ReactNode;
   onRowClick?: (row: T) => void;
   pageSize?: number;
@@ -86,6 +99,7 @@ export function DataList<T>({
   searchPlaceholder = '搜索…',
   filters,
   dateKey,
+  dateOptions,
   renderExpanded,
   onRowClick,
   pageSize = 20,
@@ -96,6 +110,9 @@ export function DataList<T>({
   const [query, setQuery] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
+  // Which date field the range applies to (only relevant with `dateOptions`).
+  const [dateField, setDateField] = useState<string | undefined>(() => dateOptions?.[0]?.key);
+  const activeDateKey = dateOptions?.length ? (dateField ?? dateOptions[0].key) : dateKey;
   const [sort, setSort] = useState<SortState<string>>({ key: null, dir: null });
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -121,8 +138,8 @@ export function DataList<T>({
       }
     }
 
-    if (dateKey && (range.from || range.to)) {
-      out = out.filter((row) => isInRange(getField(row, dateKey) as string, range));
+    if (activeDateKey && (range.from || range.to)) {
+      out = out.filter((row) => isInRange(getField(row, activeDateKey) as string, range));
     }
 
     if (sort.key && sort.dir) {
@@ -134,7 +151,7 @@ export function DataList<T>({
     }
 
     return out;
-  }, [rows, query, searchKeys, filters, filterValues, dateKey, range, sort]);
+  }, [rows, query, searchKeys, filters, filterValues, activeDateKey, range, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -199,14 +216,37 @@ export function DataList<T>({
           </Select>
         ))}
 
-        {dateKey && (
-          <DateRangeFilter
-            value={range}
-            onChange={(v) => {
-              setRange(v);
-              resetPage();
-            }}
-          />
+        {(dateOptions?.length || dateKey) && (
+          <div className="flex items-center gap-1.5">
+            {dateOptions?.length ? (
+              <Select
+                value={dateField ?? dateOptions[0].key}
+                onValueChange={(v) => {
+                  setDateField(v);
+                  resetPage();
+                }}
+              >
+                <SelectTrigger className="h-9 w-auto min-w-[104px] gap-1 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {dateOptions.map((o) => (
+                    <SelectItem key={o.key} value={o.key}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <DateRangeFilter
+              value={range}
+              onChange={(v) => {
+                setRange(v);
+                resetPage();
+              }}
+              label={dateOptions?.find((o) => o.key === activeDateKey)?.label ?? '日期'}
+            />
+          </div>
         )}
 
         {toolbarRight && <div className="ml-auto flex items-center gap-2">{toolbarRight}</div>}

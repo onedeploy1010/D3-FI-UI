@@ -111,7 +111,11 @@ export async function requireActorWallet(
   // 4. One-wallet-one-identity: the proven subject must not already be recorded
   //    against a DIFFERENT wallet. (The subject is the wallet itself, so this can
   //    only trip on inconsistent data; it preserves the invariant structurally.)
-  const boundElsewhere = await findProfileBoundToSub(sb, sub);
+  //    Both lookups are independent reads — fetched concurrently, checked in order.
+  const [boundElsewhere, profile] = await Promise.all([
+    findProfileBoundToSub(sb, sub),
+    findProfileByWalletCI(sb, wallet),
+  ]);
   if (boundElsewhere && !walletEquals(boundElsewhere.wallet_address, wallet)) {
     throw new HttpError(403, 'Session bound to another wallet');
   }
@@ -120,7 +124,6 @@ export async function requireActorWallet(
   //    use (idempotent). Legacy Privy DIDs are migrated to the wallet subject
   //    here. No external ownership lookup is needed — the signature already
   //    proved ownership, so a provider outage can never block an existing user.
-  const profile = await findProfileByWalletCI(sb, wallet);
   if (profile && !walletEquals(profile.privy_user_id ?? '', sub)) {
     await sb
       .from('profiles')
