@@ -18,18 +18,20 @@ import {
   X,
 } from 'lucide-react';
 
+// Each page requires its `.read` permission — items the user can't read are
+// hidden (the backend independently enforces the same permission per API).
 const NAV = [
-  { href: '/dashboard', label: '仪表盘', sub: 'Dashboard', icon: LayoutDashboard },
-  { href: '/members', label: '会员管理', sub: 'Members', icon: Users },
-  { href: '/referrals', label: '推荐管理', sub: 'Referrals', icon: GitBranch },
-  { href: '/partners', label: '合伙人管理', sub: 'Partners', icon: Shield },
-  { href: '/stakes', label: '质押管理', sub: 'Stakes', icon: Layers },
-  { href: '/transactions', label: '交易管理', sub: 'Transactions', icon: ArrowLeftRight },
-  { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones },
-  { href: '/roles', label: '角色权限', sub: 'Roles', icon: KeyRound },
-  { href: '/logs', label: '操作日志', sub: 'Logs', icon: ScrollText },
-  { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert },
-  { href: '/params', label: '参数管理', sub: 'Parameters', icon: SlidersHorizontal },
+  { href: '/dashboard', label: '仪表盘', sub: 'Dashboard', icon: LayoutDashboard, perm: 'dashboard.read' },
+  { href: '/members', label: '会员管理', sub: 'Members', icon: Users, perm: 'members.read' },
+  { href: '/referrals', label: '推荐管理', sub: 'Referrals', icon: GitBranch, perm: 'referrals.read' },
+  { href: '/partners', label: '合伙人管理', sub: 'Partners', icon: Shield, perm: 'partners.read' },
+  { href: '/stakes', label: '质押管理', sub: 'Stakes', icon: Layers, perm: 'stakes.read' },
+  { href: '/transactions', label: '交易管理', sub: 'Transactions', icon: ArrowLeftRight, perm: 'transactions.read' },
+  { href: '/subsidies', label: '补贴工单', sub: 'Subsidies', icon: Headphones, perm: 'subsidies.read' },
+  { href: '/roles', label: '角色权限', sub: 'Roles', icon: KeyRound, perm: 'admins.read' },
+  { href: '/logs', label: '操作日志', sub: 'Logs', icon: ScrollText, perm: 'logs.read' },
+  { href: '/security', label: '安全中心', sub: 'Security', icon: ShieldAlert, perm: 'security.read' },
+  { href: '/params', label: '参数管理', sub: 'Parameters', icon: SlidersHorizontal, perm: 'params.read' },
 ] as const;
 
 function isActive(location: string, href: string) {
@@ -38,9 +40,14 @@ function isActive(location: string, href: string) {
 }
 
 function NavList({ location, onNavigate }: { location: string; onNavigate?: () => void }) {
+  const { user } = useAdminAuth();
+  const visible = NAV.filter(
+    ({ perm }) =>
+      user?.role === 'superadmin' || (user?.permissions ?? []).includes(perm),
+  );
   return (
     <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-      {NAV.map(({ href, label, sub, icon: Icon }) => {
+      {visible.map(({ href, label, sub, icon: Icon }) => {
         const active = isActive(location, href);
         return (
           <Link

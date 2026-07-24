@@ -11,6 +11,7 @@ import {
   PERMISSION_CATALOG,
   ROLE_PRESETS,
   ROOT_ADMIN_USERNAME,
+  VALID_ROLES,
 } from '../_shared/adminAuth.ts';
 import {
   collectPartnerDownlineWallets,
@@ -1531,13 +1532,18 @@ function requireSuperadmin(admin: AdminProfile) {
   }
 }
 
-// Managing the admin roster + admin permissions is restricted to the SINGLE root
-// admin (d3finance@hotmail.com). Other superadmins hold every other permission but
-// cannot touch admins. Every admin change is still audited (writeAuditLog inside
-// createAdmin/patchAdmin/deleteAdmin).
+// Managing the admin roster + admin permissions requires the superadmin role
+// (仅超级管理员可新增管理员/调整权限). Every admin change is still audited
+// (writeAuditLog inside createAdmin/patchAdmin/deleteAdmin).
 function requireRootAdmin(admin: AdminProfile) {
   if (!isRootAdmin(admin)) {
     throw new HttpError(403, `仅 ${ROOT_ADMIN_USERNAME} 可管理管理员与权限`);
+  }
+}
+
+function requireAdminManager(admin: AdminProfile) {
+  if (admin.role !== 'superadmin') {
+    throw new HttpError(403, '仅超级管理员可管理管理员与权限');
   }
 }
 
@@ -1548,14 +1554,52 @@ function requirePermission(admin: AdminProfile, key: string) {
 }
 
 // Shape of the permission catalog + role presets served to the Roles page.
-function permissionCatalogResponse() {
+// 超级合伙人 (super_partner, the multisig fund-authority identity) is only
+// surfaced to superadmins — regular admins must not see it.
+function permissionCatalogResponse(caller: AdminProfile) {
+  const roles =
+    caller.role === 'superadmin' ? ROLE_PRESETS : ROLE_PRESETS.filter((r) => r.key !== 'super_partner');
   return {
     permissions: PERMISSION_CATALOG.map((p) => ({ key: p.key, label: p.label, group: p.group })),
-    roles: ROLE_PRESETS.map((r) => ({ key: r.key, label: r.label, permissions: r.permissions })),
+    roles: roles.map((r) => ({ key: r.key, label: r.label, permissions: r.permissions })),
   };
 }
 
-async function listAdmins(sb: Sb) {
+// ── Custom role templates (角色模板, DB-backed) ──────────────────────────────
+type RoleTemplateRow = { key: string; label: string; permissions: string[]; createdAt: string | null };
+
+async function listRoleTemplates(sb: Sb): Promise<RoleTemplateRow[]> {
+  const { data, error } = await sb
+    .from('admin_role_templates')
+    .select('key, label, permissions, created_at')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    key: r.key as string,
+    label: r.label as string,
+    permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+    createdAt: (r.created_at as string) ?? null,
+  }));
+}
+
+function validateTemplateKey(raw: unknown): string {
+  const key = String(raw ?? '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{1,31}$/.test(key)) {
+    throw new HttpError(400, '模板 key 需为 2-32 位小写字母/数字/下划线/连字符');
+  }
+  if ((VALID_ROLES as readonly string[]).includes(key)) {
+    throw new HttpError(400, `模板 key 与内置角色 ${key} 冲突`);
+  }
+  return key;
+}
+
+function validateTemplateLabel(raw: unknown): string {
+  const label = String(raw ?? '').trim();
+  if (!label || label.length > 40) throw new HttpError(400, '模板名称需为 1-40 字');
+  return label;
+}
+
+async function listAdmins(sb: Sb, caller: AdminProfile) {
   const { data, error } = await sb
     .from('admin_users')
     .select('user_id, username, role, permissions, created_at')
@@ -1570,14 +1614,17 @@ async function listAdmins(sb: Sb) {
   } catch {
     /* email best-effort */
   }
-  const rows = (data ?? []).map((r) => ({
-    userId: r.user_id as string,
-    username: r.username as string,
-    email: emailById.get(r.user_id as string) ?? null,
-    role: r.role as string,
-    permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
-    createdAt: (r.created_at as string) ?? null,
-  }));
+  const rows = (data ?? [])
+    // 超级合伙人 accounts are hidden from non-superadmin admins.
+    .filter((r) => caller.role === 'superadmin' || (r.role as string) !== 'super_partner')
+    .map((r) => ({
+      userId: r.user_id as string,
+      username: r.username as string,
+      email: emailById.get(r.user_id as string) ?? null,
+      role: r.role as string,
+      permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+      createdAt: (r.created_at as string) ?? null,
+    }));
   return { rows };
 }
 
@@ -2043,11 +2090,13 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/dashboard') {
+      requirePermission(admin, 'dashboard.read');
       return jsonResponse({ ok: true, ...(await dashboardStats(sb)) });
     }
 
     // ── Fund management: infra wallet balances (gas/treasury/settlement/flash) ──
     if (req.method === 'GET' && path === '/wallets') {
+      requirePermission(admin, 'treasury.read');
       return jsonResponse({ ok: true, ...(await getInfraWalletBalances(sb)) });
     }
 
@@ -2072,6 +2121,7 @@ Deno.serve(async (req) => {
 
     // ── Treasury transfers (2/3 multisig) ──
     if (req.method === 'GET' && path === '/treasury/transfers') {
+      requirePermission(admin, 'treasury.read');
       const transfers = await listTreasuryTransfers(sb);
       return jsonResponse({ ok: true, transfers });
     }
@@ -2147,6 +2197,7 @@ Deno.serve(async (req) => {
 
     // ── T-D: treasury destination allowlist management (treasury.write) ──
     if (req.method === 'GET' && path === '/treasury/allowlist') {
+      requirePermission(admin, 'treasury.read');
       const { data, error } = await sb
         .from('treasury_transfer_allowlist')
         .select('*')
@@ -2215,6 +2266,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/members') {
+      requirePermission(admin, 'members.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listMembers(sb, url.searchParams)) });
     }
@@ -2263,6 +2315,7 @@ Deno.serve(async (req) => {
 
     const memberMatch = path.match(/^\/members\/(0x[a-fA-F0-9]{40})$/);
     if (req.method === 'GET' && memberMatch) {
+      requirePermission(admin, 'members.read');
       // Legacy detail bundle + compact mobile-UI contract. The new contract keys
       // (wallet/profile/stakeSummary/balances/referral) win on collision; the raw
       // legacy referrals row is preserved under `referralRow`.
@@ -2310,6 +2363,7 @@ Deno.serve(async (req) => {
 
     // Nested referral tree (bounded depth + node cap).
     if (req.method === 'GET' && path === '/referrals/tree') {
+      requirePermission(admin, 'referrals.read');
       const url = new URL(req.url);
       const root = (url.searchParams.get('root') ?? '').trim().toLowerCase();
       if (!/^0x[a-fA-F0-9]{40}$/.test(root)) {
@@ -2321,21 +2375,25 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/referrals') {
+      requirePermission(admin, 'referrals.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listReferrals(sb, url.searchParams)) });
     }
 
     if (req.method === 'GET' && path === '/transactions') {
+      requirePermission(admin, 'transactions.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listTransactions(sb, url.searchParams)) });
     }
 
     if (req.method === 'GET' && path === '/partners') {
+      requirePermission(admin, 'partners.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listPartners(sb, url.searchParams)) });
     }
 
     if (req.method === 'GET' && path === '/stakes') {
+      requirePermission(admin, 'stakes.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listStakes(sb, url.searchParams)) });
     }
@@ -2351,11 +2409,13 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/subsidy-tickets') {
+      requirePermission(admin, 'subsidies.read');
       const url = new URL(req.url);
       return jsonResponse({ ok: true, ...(await listSubsidyTickets(sb, url.searchParams)) });
     }
 
     if (req.method === 'GET' && path === '/program-settings') {
+      requirePermission(admin, 'subsidies.read');
       const settings = await getPartnerProgramSettings(sb);
       return jsonResponse({ ok: true, settings });
     }
@@ -2517,6 +2577,7 @@ Deno.serve(async (req) => {
 
     const ticketMatch = path.match(/^\/subsidy-tickets\/([0-9a-f-]{36})$/);
     if (req.method === 'GET' && ticketMatch) {
+      requirePermission(admin, 'subsidies.read');
       return jsonResponse({ ok: true, ...(await getSubsidyTicket(sb, ticketMatch[1])) });
     }
 
@@ -2636,6 +2697,7 @@ Deno.serve(async (req) => {
     // ── Security / circuit-breaker / alerts (Agent O) ─────────────────────────
     // Reads: any admin. Writes: security.write (or superadmin).
     if (req.method === 'GET' && path === '/security/overview') {
+      requirePermission(admin, 'security.read');
       const [pauseRes, limitsRes, alertCounts] = await Promise.all([
         sb
           .from('system_pause_flags')
@@ -2665,6 +2727,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/security/alerts') {
+      requirePermission(admin, 'security.read');
       const url = new URL(req.url);
       const status = url.searchParams.get('status') ?? 'open';
       const severity = url.searchParams.get('severity');
@@ -2706,6 +2769,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && path === '/security/limits') {
+      requirePermission(admin, 'security.read');
       const { data, error } = await sb.from('risk_limits').select('*').eq('id', 1).maybeSingle();
       if (error) throw error;
       return jsonResponse({ ok: true, limits: data ?? null });
@@ -2727,18 +2791,84 @@ Deno.serve(async (req) => {
     // (superadmin bypasses).
     if (req.method === 'GET' && path === '/permissions') {
       requirePermission(admin, 'admins.read');
-      return jsonResponse({ ok: true, ...permissionCatalogResponse() });
+      const templates = await listRoleTemplates(sb).catch(() => []);
+      return jsonResponse({ ok: true, ...permissionCatalogResponse(admin), templates });
+    }
+
+    // ── Custom role templates: superadmin-managed permission bundles ────────
+    if (req.method === 'POST' && path === '/role-templates') {
+      requireAdminManager(admin);
+      const body = await readJson<{ key?: string; label?: string; permissions?: unknown }>(req);
+      const key = validateTemplateKey(body.key);
+      const label = validateTemplateLabel(body.label);
+      const permissions = sanitizePermissions(body.permissions);
+      const { error } = await sb
+        .from('admin_role_templates')
+        .insert({ key, label, permissions, created_by: admin.userId });
+      if (error) {
+        if (error.code === '23505') throw new HttpError(409, `模板 ${key} 已存在`);
+        throw error;
+      }
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'role_template_create',
+        entityType: 'admin_role_templates',
+        entityId: key,
+        newValue: { label, permissions },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, template: { key, label, permissions } });
+    }
+
+    const templateMatch = path.match(/^\/role-templates\/([a-z0-9][a-z0-9_-]{1,31})$/);
+    if (req.method === 'PATCH' && templateMatch) {
+      requireAdminManager(admin);
+      const body = await readJson<{ label?: string; permissions?: unknown }>(req);
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (body.label !== undefined) update.label = validateTemplateLabel(body.label);
+      if (body.permissions !== undefined) update.permissions = sanitizePermissions(body.permissions);
+      const { data, error } = await sb
+        .from('admin_role_templates')
+        .update(update)
+        .eq('key', templateMatch[1])
+        .select('key, label, permissions')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new HttpError(404, '模板不存在');
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'role_template_update',
+        entityType: 'admin_role_templates',
+        entityId: templateMatch[1],
+        newValue: { label: data.label, permissions: data.permissions },
+      }).catch(() => {});
+      return jsonResponse({ ok: true, template: data });
+    }
+
+    if (req.method === 'DELETE' && templateMatch) {
+      requireAdminManager(admin);
+      const { error } = await sb.from('admin_role_templates').delete().eq('key', templateMatch[1]);
+      if (error) throw error;
+      await writeAuditLog(sb, {
+        actorType: 'admin',
+        actorId: admin.userId,
+        action: 'role_template_delete',
+        entityType: 'admin_role_templates',
+        entityId: templateMatch[1],
+      }).catch(() => {});
+      return jsonResponse({ ok: true });
     }
 
     if (req.method === 'GET' && path === '/admins') {
       requirePermission(admin, 'admins.read');
-      return jsonResponse({ ok: true, ...(await listAdmins(sb)) });
+      return jsonResponse({ ok: true, ...(await listAdmins(sb, admin)) });
     }
 
     // Create an admin: provision/link the auth user, then upsert admin_users.
-    // Root admin (d3finance) only.
+    // Superadmin only.
     if (req.method === 'POST' && path === '/admins') {
-      requireRootAdmin(admin);
+      requireAdminManager(admin);
       const body = await readJson<{
         email?: string;
         role?: string;
@@ -2758,10 +2888,10 @@ Deno.serve(async (req) => {
     }
 
     const adminUserMatch = path.match(/^\/admins\/([0-9a-fA-F-]{36})$/);
-    // Update an admin's role and/or explicit permissions. Root admin only + passes
-    // the privilege-escalation / self-escalation guard. Audited.
+    // Update an admin's role and/or explicit permissions. Superadmin only +
+    // passes the privilege-escalation / self-escalation guard. Audited.
     if (req.method === 'PATCH' && adminUserMatch) {
-      requireRootAdmin(admin);
+      requireAdminManager(admin);
       const body = await readJson<{ role?: string; permissions?: unknown }>(req);
       const patched = await patchAdmin(sb, adminUserMatch[1], body, admin);
       await writeAuditLog(sb, {
@@ -2775,9 +2905,9 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, ...patched });
     }
 
-    // Revoke an admin. Root admin (d3finance) only; cannot delete self. Audited.
+    // Revoke an admin. Superadmin only; cannot delete self. Audited.
     if (req.method === 'DELETE' && adminUserMatch) {
-      requireRootAdmin(admin);
+      requireAdminManager(admin);
       const deleted = await deleteAdmin(sb, adminUserMatch[1], admin);
       await writeAuditLog(sb, {
         actorType: 'admin',

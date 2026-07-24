@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Pencil, RotateCw, ShieldAlert, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import {
+  BookOpen,
+  Layers,
+  Pencil,
+  Plus,
+  RotateCw,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { PageShell } from './page-shell';
 import { DataList, type DataListColumn, type DataListFilter } from '@/components/data-list';
 import {
@@ -16,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -45,15 +57,20 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 /**
- * Roles & permissions (角色权限). The permissions catalog endpoint returns the
- * full permission catalog *and* the named-role presets — a richer shape than the
- * stale `{ rows }` type on `listPermissions()`, so we call `adminFetch` directly
- * with the documented contract type. CREATE / DELETE admin have no adminApi
- * helper yet, so those also go through `adminFetch` inline.
+ * Roles & permissions (角色权限), three tabs:
+ *  - 管理员: the admin roster (superadmin-only management).
+ *  - 角色模板: built-in presets + superadmin-authored custom templates
+ *    (POST/PATCH/DELETE /role-templates).
+ *  - 权限说明: the full catalog explained — 读/写/管理 kind + what each grants.
  */
 
 type RoleDef = { key: string; label: string; permissions: string[] };
-type PermissionsCatalog = { permissions: PermissionDef[]; roles: RoleDef[] };
+type RoleTemplate = RoleDef & { createdAt?: string | null };
+type PermissionsCatalog = {
+  permissions: PermissionDef[];
+  roles: RoleDef[];
+  templates: RoleTemplate[];
+};
 
 /** Perms that (plus the superadmin role) require the CALLER to be superadmin. */
 const ELEVATED_PERMS = new Set(['admins.manage', 'treasury.write']);
@@ -69,6 +86,39 @@ const ROLE_LABEL_FALLBACK: Record<string, string> = {
   operator: '运营',
   viewer: '只读',
 };
+
+/** 权限说明 — what each permission actually allows (读 / 写 / 管理). */
+const PERM_DESCRIPTIONS: Record<string, string> = {
+  'dashboard.read': '查看仪表盘运营总览:资金(入金/质押/储备)、代币与偿付、运营指标。',
+  'members.read': '查看会员列表、会员详情、余额与团队信息。',
+  'members.write': '修改会员资料与状态、调整市场领袖标记、管理入金地址池等写操作。',
+  'stakes.read': '查看质押订单、仓位与 UD3 奖励明细。',
+  'transactions.read': '查看入金、提现、转账等交易记录。',
+  'referrals.read': '查看推荐关系与推荐树。',
+  'partners.read': '查看合伙人名单、等级与业绩。',
+  'subsidies.read': '查看补贴工单及工单详情。',
+  'subsidies.write': '处理补贴工单:回复、通过、驳回、关闭(含审批流)。',
+  'subsidies.rates': '修改会员补贴比例(资金相关,谨慎授予)。',
+  'security.read': '查看安全中心:告警、熔断状态、风控限额。',
+  'security.write': '处理安全告警、暂停/恢复系统开关、修改风控限额(含删除类操作)。',
+  'params.read': '查看系统参数与心跳配置。',
+  'params.write': '修改系统参数、心跳订单配置(资金相关,谨慎授予)。',
+  'treasury.read': '查看金库与基础设施钱包余额、转账记录、白名单。',
+  'treasury.write': '发起金库转账、管理转账白名单(提升权限,仅超级管理员可授予)。',
+  'admins.read': '查看管理员名单与权限目录。',
+  'admins.manage': '新增/编辑/删除管理员(提升权限;当前后端además要求调用者为超级管理员)。',
+  'logs.read': '查看全部操作审计日志。',
+};
+
+function permKind(key: string): { label: string; className: string } {
+  if (key.endsWith('.read')) {
+    return { label: '读', className: 'border-sky-500/30 bg-sky-500/15 text-sky-400' };
+  }
+  if (key === 'admins.manage') {
+    return { label: '管理', className: 'border-red-500/30 bg-red-500/15 text-red-400' };
+  }
+  return { label: '写/删', className: 'border-amber-500/30 bg-amber-500/15 text-amber-400' };
+}
 
 function roleBadgeClass(role: string): string {
   switch (role) {
@@ -96,7 +146,7 @@ function sameSet(a: string[], b: string[]): boolean {
   return a.every((x) => s.has(x));
 }
 
-function fmtDate(v: string | null): string {
+function fmtDate(v: string | null | undefined): string {
   if (!v) return '—';
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('zh-CN');
@@ -106,8 +156,73 @@ function adminName(a: AdminUser): string {
   return a.username || a.email || `${a.userId.slice(0, 8)}…`;
 }
 
+/** Group the permission catalog preserving its order (概览/会员/…/管理员). */
+function usePermGroups(catalog: { permissions: PermissionDef[] } | null) {
+  return useMemo(() => {
+    const order: string[] = [];
+    const map = new Map<string, PermissionDef[]>();
+    for (const p of catalog?.permissions ?? []) {
+      const g = p.group || '其他';
+      if (!map.has(g)) {
+        map.set(g, []);
+        order.push(g);
+      }
+      map.get(g)!.push(p);
+    }
+    return order.map((g) => ({ group: g, items: map.get(g)! }));
+  }, [catalog]);
+}
+
+/** Shared grouped checkbox editor for a permission selection. */
+function PermissionPicker({
+  groups,
+  selected,
+  onToggle,
+}: {
+  groups: { group: string; items: PermissionDef[] }[];
+  selected: Set<string>;
+  onToggle: (key: string, on: boolean) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {groups.map(({ group, items }) => (
+        <div key={group} className="rounded-xl border border-border/60 bg-card/30 p-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {group}
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {items.map((p) => {
+              const on = selected.has(p.key);
+              const elevated = ELEVATED_PERMS.has(p.key);
+              return (
+                <label
+                  key={p.key}
+                  className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-muted/40"
+                >
+                  <Checkbox
+                    checked={on}
+                    onCheckedChange={(v) => onToggle(p.key, v === true)}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1 text-sm">
+                      {p.label}
+                      {elevated && <ShieldAlert className="h-3 w-3 text-amber-400" />}
+                    </span>
+                    <span className="block truncate text-[10px] text-muted-foreground">{p.key}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Edit permissions dialog
+// Edit admin permissions dialog
 // ---------------------------------------------------------------------------
 
 function EditAdminDialog({
@@ -131,20 +246,7 @@ function EditAdminDialog({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(admin.permissions));
   const [saving, setSaving] = useState(false);
 
-  // Permissions grouped preserving catalog order (概览/会员/…/管理员).
-  const groups = useMemo(() => {
-    const order: string[] = [];
-    const map = new Map<string, PermissionDef[]>();
-    for (const p of catalog.permissions) {
-      const g = p.group || '其他';
-      if (!map.has(g)) {
-        map.set(g, []);
-        order.push(g);
-      }
-      map.get(g)!.push(p);
-    }
-    return order.map((g) => ({ group: g, items: map.get(g)! }));
-  }, [catalog.permissions]);
+  const groups = usePermGroups(catalog);
 
   const applyRole = useCallback(
     (nextRole: string) => {
@@ -153,6 +255,14 @@ function EditAdminDialog({
       if (preset) setSelected(new Set(preset));
     },
     [catalog.roles],
+  );
+
+  const applyTemplate = useCallback(
+    (key: string) => {
+      const tpl = catalog.templates.find((t) => t.key === key);
+      if (tpl) setSelected(new Set(tpl.permissions));
+    },
+    [catalog.templates],
   );
 
   const toggle = useCallback((key: string, on: boolean) => {
@@ -167,8 +277,7 @@ function EditAdminDialog({
   const preset = catalog.roles.find((r) => r.key === role)?.permissions ?? [];
   const selectedArr = [...selected];
   const matchesPreset = sameSet(selectedArr, preset);
-  const hasElevated =
-    role === 'superadmin' || selectedArr.some((k) => ELEVATED_PERMS.has(k));
+  const hasElevated = role === 'superadmin' || selectedArr.some((k) => ELEVATED_PERMS.has(k));
 
   async function save() {
     setSaving(true);
@@ -183,8 +292,6 @@ function EditAdminDialog({
       onSaved();
       onClose();
     } catch (e) {
-      // Backend 403 (elevated perms / superadmin require a superadmin caller)
-      // arrives here as an Error with the server message.
       toast.error(e instanceof Error ? e.message : '保存失败');
     } finally {
       setSaving(false);
@@ -196,30 +303,49 @@ function EditAdminDialog({
       <DialogContent className="max-h-[90vh] max-w-2xl gap-4 overflow-y-auto">
         <DialogHeader>
           <DialogTitle>编辑权限 · {adminName(admin)}</DialogTitle>
-          <DialogDescription className="break-all">
-            {admin.email ?? admin.userId}
-          </DialogDescription>
+          <DialogDescription className="break-all">{admin.email ?? admin.userId}</DialogDescription>
         </DialogHeader>
 
-        {/* Role preset */}
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">角色预设</Label>
-          <Select value={role} onValueChange={applyRole}>
-            <SelectTrigger className="h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {catalog.roles.map((r) => (
-                <SelectItem key={r.key} value={r.key}>
-                  {r.label} · {r.permissions.length} 项
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[11px] text-muted-foreground">
-            选择角色会载入其预设权限,可在下方微调。
-          </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Role preset */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">角色预设</Label>
+            <Select value={role} onValueChange={applyRole}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.roles.map((r) => (
+                  <SelectItem key={r.key} value={r.key}>
+                    {r.label} · {r.permissions.length} 项
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Custom template loader */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">从自定义模板载入</Label>
+            <Select value="" onValueChange={applyTemplate} disabled={!catalog.templates.length}>
+              <SelectTrigger className="h-9">
+                <SelectValue
+                  placeholder={catalog.templates.length ? '选择模板…' : '暂无自定义模板'}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.templates.map((t) => (
+                  <SelectItem key={t.key} value={t.key}>
+                    {t.label} · {t.permissions.length} 项
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        <p className="-mt-1 text-[11px] text-muted-foreground">
+          选择角色或模板会载入其预设权限,可在下方微调后保存。
+        </p>
 
         {/* Elevated-permission note */}
         <div
@@ -232,49 +358,12 @@ function EditAdminDialog({
         >
           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            提升权限(管理员管理 <code>admins.manage</code>、金库写入{' '}
-            <code>treasury.write</code>)以及超级管理员角色,需调用者本身为超级管理员,否则后端将拒绝
-            (403)。
+            提升权限(管理员管理 <code>admins.manage</code>、金库写入 <code>treasury.write</code>
+            )以及超级管理员角色,需调用者本身为超级管理员,否则后端将拒绝 (403)。
           </span>
         </div>
 
-        {/* Grouped permission editor */}
-        <div className="space-y-3">
-          {groups.map(({ group, items }) => (
-            <div key={group} className="rounded-xl border border-border/60 bg-card/30 p-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group}
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {items.map((p) => {
-                  const on = selected.has(p.key);
-                  const elevated = ELEVATED_PERMS.has(p.key);
-                  return (
-                    <label
-                      key={p.key}
-                      className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-muted/40"
-                    >
-                      <Checkbox
-                        checked={on}
-                        onCheckedChange={(v) => toggle(p.key, v === true)}
-                        className="mt-0.5"
-                      />
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1 text-sm">
-                          {p.label}
-                          {elevated && <ShieldAlert className="h-3 w-3 text-amber-400" />}
-                        </span>
-                        <span className="block truncate text-[10px] text-muted-foreground">
-                          {p.key}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <PermissionPicker groups={groups} selected={selected} onToggle={toggle} />
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-muted-foreground">
@@ -344,7 +433,7 @@ function CreateAdminDialog({
         <DialogHeader>
           <DialogTitle>新增管理员</DialogTitle>
           <DialogDescription>
-            通过邮箱邀请一位管理员,并赋予初始角色(载入该角色的预设权限)。
+            通过邮箱邀请一位管理员,并赋予初始角色(载入该角色的预设权限,之后可在编辑中微调)。
           </DialogDescription>
         </DialogHeader>
 
@@ -373,9 +462,6 @@ function CreateAdminDialog({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-muted-foreground">
-            赋予超级管理员角色需调用者本身为超级管理员。
-          </p>
         </div>
 
         <DialogFooter>
@@ -392,15 +478,358 @@ function CreateAdminDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Role template dialog (create / edit)
+// ---------------------------------------------------------------------------
+
+function TemplateDialog({
+  template,
+  catalog,
+  onClose,
+  onSaved,
+}: {
+  template: RoleTemplate | null; // null = create
+  catalog: PermissionsCatalog;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = Boolean(template);
+  const [label, setLabel] = useState(template?.label ?? '');
+  const [key, setKey] = useState(template?.key ?? '');
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(template?.permissions ?? []),
+  );
+  const [saving, setSaving] = useState(false);
+  const groups = usePermGroups(catalog);
+
+  const toggle = useCallback((k: string, on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(k);
+      else next.delete(k);
+      return next;
+    });
+  }, []);
+
+  async function submit() {
+    const lbl = label.trim();
+    const k = key.trim().toLowerCase();
+    if (!lbl) {
+      toast.error('请填写模板名称');
+      return;
+    }
+    if (!isEdit && !/^[a-z0-9][a-z0-9_-]{1,31}$/.test(k)) {
+      toast.error('key 需为 2-32 位小写字母/数字/下划线/连字符');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (isEdit) {
+        await adminFetch(`/role-templates/${template!.key}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ label: lbl, permissions: [...selected] }),
+        });
+        toast.success('模板已更新');
+      } else {
+        await adminFetch('/role-templates', {
+          method: 'POST',
+          body: JSON.stringify({ key: k, label: lbl, permissions: [...selected] }),
+        });
+        toast.success('模板已创建');
+      }
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl gap-4 overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? `编辑模板 · ${template!.label}` : '新建角色模板'}</DialogTitle>
+          <DialogDescription>
+            角色模板是一组可复用的权限组合;在「管理员」页编辑权限时可一键载入。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">模板名称</Label>
+            <Input
+              placeholder="例如:运营专员"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">key(唯一标识)</Label>
+            <Input
+              placeholder="例如:ops_specialist"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              disabled={isEdit}
+            />
+          </div>
+        </div>
+
+        <PermissionPicker groups={groups} selected={selected} onToggle={toggle} />
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] text-muted-foreground">已选 {selected.size} 项权限</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+              取消
+            </Button>
+            <Button size="sm" onClick={submit} disabled={saving}>
+              {saving ? '保存中…' : isEdit ? '保存' : '创建'}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: 角色模板
+// ---------------------------------------------------------------------------
+
+function TemplatesTab({
+  catalog,
+  canManage,
+  permLabel,
+  onChanged,
+}: {
+  catalog: PermissionsCatalog;
+  canManage: boolean;
+  permLabel: Map<string, string>;
+  onChanged: () => void;
+}) {
+  const [dialog, setDialog] = useState<{ open: boolean; template: RoleTemplate | null }>({
+    open: false,
+    template: null,
+  });
+  const [deleting, setDeleting] = useState<RoleTemplate | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeletingBusy(true);
+    try {
+      await adminFetch(`/role-templates/${deleting.key}`, { method: 'DELETE' });
+      toast.success('模板已删除');
+      setDeleting(null);
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setDeletingBusy(false);
+    }
+  }
+
+  function PermChips({ perms }: { perms: string[] }) {
+    const shown = perms.slice(0, 6);
+    return (
+      <div className="mt-2 flex flex-wrap gap-1">
+        {shown.map((k) => (
+          <Badge key={k} variant="outline" className="text-[10px]">
+            {permLabel.get(k) ?? k}
+          </Badge>
+        ))}
+        {perms.length > shown.length && (
+          <span className="text-[11px] text-muted-foreground">+{perms.length - shown.length}</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {canManage && (
+        <div className="flex justify-end">
+          <Button size="sm" className="gap-1.5" onClick={() => setDialog({ open: true, template: null })}>
+            <Plus className="h-3.5 w-3.5" />
+            新建模板
+          </Button>
+        </div>
+      )}
+
+      <div>
+        <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
+          内置角色(代码预设,不可修改)
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {catalog.roles.map((r) => (
+            <div key={r.key} className="rounded-xl cell-inset p-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <Badge variant="outline" className={cn('gap-1', roleBadgeClass(r.key))}>
+                  <ShieldCheck className="h-3 w-3" />
+                  {r.label}
+                </Badge>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {r.permissions.length} 项权限
+                </span>
+              </div>
+              <PermChips perms={r.permissions} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
+          自定义模板 ({catalog.templates.length})
+        </p>
+        {catalog.templates.length === 0 ? (
+          <p className="rounded-xl cell-inset p-4 text-sm text-muted-foreground">
+            暂无自定义模板。{canManage ? '点击「新建模板」创建一组可复用的权限组合。' : ''}
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {catalog.templates.map((t) => (
+              <div key={t.key} className="rounded-xl cell-inset p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-sm font-medium">{t.label}</span>
+                    <code className="shrink-0 text-[10px] text-muted-foreground">{t.key}</code>
+                  </div>
+                  {canManage && (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="编辑模板"
+                        onClick={() => setDialog({ open: true, template: t })}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        aria-label="删除模板"
+                        onClick={() => setDeleting(t)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <PermChips perms={t.permissions} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {dialog.open && (
+        <TemplateDialog
+          template={dialog.template}
+          catalog={catalog}
+          onClose={() => setDialog({ open: false, template: null })}
+          onSaved={onChanged}
+        />
+      )}
+
+      <AlertDialog open={Boolean(deleting)} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除模板</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除模板
+              <span className="font-medium text-foreground"> {deleting?.label} </span>
+              吗?已用该模板赋权的管理员不受影响(权限已落到各自账户上)。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBusy}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
+              }}
+              disabled={deletingBusy}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingBusy ? '删除中…' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: 权限说明
+// ---------------------------------------------------------------------------
+
+function PermissionDocsTab({ catalog }: { catalog: PermissionsCatalog }) {
+  const groups = usePermGroups(catalog);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-2 rounded-xl cell-inset p-3 text-xs text-muted-foreground">
+        <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+        <span>
+          每项权限按「读 / 写(含删除) / 管理」分类。带
+          <ShieldAlert className="mx-0.5 inline h-3 w-3 text-amber-400" />
+          的为提升权限,仅超级管理员可授予;新增/删除管理员本身只有超级管理员能操作,与权限无关。
+        </span>
+      </div>
+      {groups.map(({ group, items }) => (
+        <div key={group} className="rounded-xl border border-border/60 bg-card/30 p-3.5">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {group}
+          </p>
+          <div className="space-y-2.5">
+            {items.map((p) => {
+              const kind = permKind(p.key);
+              return (
+                <div key={p.key} className="flex items-start gap-2.5">
+                  <Badge
+                    variant="outline"
+                    className={cn('mt-0.5 w-12 shrink-0 justify-center text-[10px]', kind.className)}
+                  >
+                    {kind.label}
+                  </Badge>
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-1.5 text-sm">
+                      <span className="font-medium">{p.label}</span>
+                      {ELEVATED_PERMS.has(p.key) && (
+                        <ShieldAlert className="h-3 w-3 text-amber-400" />
+                      )}
+                      <code className="text-[10px] text-muted-foreground">{p.key}</code>
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {PERM_DESCRIPTIONS[p.key] ?? '—'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function RolesPage() {
   const { user } = useAdminAuth();
-  // Only the single root admin (d3finance@hotmail.com) may create / edit / delete
-  // admins or change permissions. The backend enforces this via requireRootAdmin;
-  // this gate just hides the controls so non-root admins don't hit a 403.
-  const isRoot = (user?.username ?? '').trim().toLowerCase() === 'd3finance@hotmail.com';
+  // Only superadmins may create / edit / delete admins, change permissions or
+  // manage role templates. The backend enforces this (requireAdminManager);
+  // this gate just hides the controls so other admins don't hit a 403.
+  const isRoot = user?.role === 'superadmin';
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [catalog, setCatalog] = useState<PermissionsCatalog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -414,13 +843,14 @@ export default function RolesPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    void Promise.all([
-      listAdmins(),
-      adminFetch<PermissionsCatalog>('/permissions'),
-    ])
+    void Promise.all([listAdmins(), adminFetch<PermissionsCatalog>('/permissions')])
       .then(([a, c]) => {
         setAdmins(a.rows);
-        setCatalog({ permissions: c.permissions ?? [], roles: c.roles ?? [] });
+        setCatalog({
+          permissions: c.permissions ?? [],
+          roles: c.roles ?? [],
+          templates: c.templates ?? [],
+        });
       })
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
       .finally(() => setLoading(false));
@@ -448,7 +878,6 @@ export default function RolesPage() {
     const opts = roles
       .filter((r) => present.has(r.key))
       .map((r) => ({ value: r.key, label: r.label }));
-    // Include any role present on admins but missing from the catalog.
     for (const r of present) {
       if (!opts.some((o) => o.value === r)) opts.push({ value: r, label: roleLabel(r) });
     }
@@ -464,7 +893,6 @@ export default function RolesPage() {
       setDeleting(null);
       load();
     } catch (e) {
-      // e.g. cannot delete self — surfaced from the backend.
       toast.error(e instanceof Error ? e.message : '删除失败');
     } finally {
       setDeletingBusy(false);
@@ -573,52 +1001,93 @@ export default function RolesPage() {
   return (
     <PageShell
       title="角色权限"
-      subtitle="Roles · 管理员角色与权限分配"
+      subtitle="Roles · 管理员、角色模板与权限说明"
       actions={
-        <>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={load} disabled={loading}>
-            <RotateCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-            刷新
-          </Button>
-          {isRoot && (
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setCreateOpen(true)}
-              disabled={!catalog}
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              新增管理员
-            </Button>
-          )}
-        </>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={load} disabled={loading}>
+          <RotateCw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+          刷新
+        </Button>
       }
     >
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      {!isRoot && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl cell-inset p-3 text-xs text-muted-foreground">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-          <span>
-            只有根管理员 <span className="font-medium text-foreground">d3finance@hotmail.com</span>{' '}
-            可以新增、编辑或删除管理员及修改权限。你可以查看当前管理员名单。
-          </span>
-        </div>
-      )}
+      <Tabs defaultValue="admins">
+        <TabsList className="mb-4">
+          <TabsTrigger value="admins" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            管理员
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-1.5">
+            <Layers className="h-3.5 w-3.5" />
+            角色模板
+          </TabsTrigger>
+          <TabsTrigger value="docs" className="gap-1.5">
+            <BookOpen className="h-3.5 w-3.5" />
+            权限说明
+          </TabsTrigger>
+        </TabsList>
 
-      <DataList<AdminUser>
-        columns={columns}
-        rows={admins}
-        getRowId={(r) => r.userId}
-        searchKeys={['username', 'email']}
-        searchPlaceholder="搜索用户名 / 邮箱…"
-        filters={filters}
-        dateKey="createdAt"
-        onRowClick={isRoot ? (row) => setEditing(row) : undefined}
-        pageSize={20}
-        loading={loading}
-        emptyText="暂无管理员"
-      />
+        <TabsContent value="admins">
+          {!isRoot && (
+            <div className="mb-4 flex items-start gap-2 rounded-xl cell-inset p-3 text-xs text-muted-foreground">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <span>
+                只有<span className="font-medium text-foreground">超级管理员</span>
+                可以新增、编辑或删除管理员及修改权限。你可以查看当前管理员名单。
+              </span>
+            </div>
+          )}
+
+          {isRoot && (
+            <div className="mb-4 flex justify-end">
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setCreateOpen(true)}
+                disabled={!catalog}
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                新增管理员
+              </Button>
+            </div>
+          )}
+
+          <DataList<AdminUser>
+            columns={columns}
+            rows={admins}
+            getRowId={(r) => r.userId}
+            searchKeys={['username', 'email']}
+            searchPlaceholder="搜索用户名 / 邮箱…"
+            filters={filters}
+            dateKey="createdAt"
+            onRowClick={isRoot ? (row) => setEditing(row) : undefined}
+            pageSize={20}
+            loading={loading}
+            emptyText="暂无管理员"
+          />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          {catalog ? (
+            <TemplatesTab
+              catalog={catalog}
+              canManage={isRoot}
+              permLabel={permLabel}
+              onChanged={load}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">加载中…</p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="docs">
+          {catalog ? (
+            <PermissionDocsTab catalog={catalog} />
+          ) : (
+            <p className="text-sm text-muted-foreground">加载中…</p>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {editing && catalog && (
         <EditAdminDialog
@@ -643,7 +1112,10 @@ export default function RolesPage() {
             <AlertDialogTitle>删除管理员</AlertDialogTitle>
             <AlertDialogDescription>
               确定要删除管理员
-              <span className="font-medium text-foreground"> {deleting ? adminName(deleting) : ''} </span>
+              <span className="font-medium text-foreground">
+                {' '}
+                {deleting ? adminName(deleting) : ''}{' '}
+              </span>
               吗?此操作不可撤销。你无法删除自己的账户。
             </AlertDialogDescription>
           </AlertDialogHeader>
