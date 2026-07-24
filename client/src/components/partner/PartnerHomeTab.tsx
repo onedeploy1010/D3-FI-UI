@@ -330,9 +330,9 @@ export function PartnerHomeTab({
                 onChange={(e) => handleTogglePartner(e.target.checked)}
                 className="mt-0.5 accent-[#E0568F] shrink-0 scale-110"
               />
-              <span className="text-[11px] leading-relaxed text-left">
+              <span className="text-sm leading-relaxed text-left">
                 <span className="font-semibold">{p('home.becomePartnerCheckbox')}</span>
-                <span className={`block text-[11px] mt-0.5 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                <span className={`block text-xs mt-0.5 ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
                   {partnerShortfall > 0 && partnerShortfall < PARTNER_ENTRY_USDT
                     ? p('home.becomePartnerTopUpHint', {
                         pay: partnerJoinAmount.toLocaleString(),

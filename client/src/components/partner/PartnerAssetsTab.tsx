@@ -194,7 +194,9 @@ export function PartnerAssetsTab({
         <>
           <div className={glassCardClass('highlight', 'p-5 relative overflow-hidden')}>
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#E0568F]/40 to-transparent" />
-            <div className="site-stat-label mb-3">{p('assets.assetsOverview')}</div>
+            <div className={`text-[15px] font-bold tracking-tight mb-3 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+              {p('assets.assetsOverview')}
+            </div>
 
             {/* 可用 UD3：可质押 / 可转账的余额，质押或转账后即时扣减 */}
             <div className="ios-glass-inset p-3.5 mb-2 flex items-center justify-between gap-3 border border-[#E0568F]/15">

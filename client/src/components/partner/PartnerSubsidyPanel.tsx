@@ -262,7 +262,7 @@ export function PartnerSubsidyPanel({
             <Building2 size={17} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className={`text-sm font-semibold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            <div className={`text-[15px] font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
               {p('subsidy.partnerTitle')}
             </div>
             <div className={`text-[11px] mt-1 leading-relaxed ${isDark ? 'text-white/42' : 'text-[#160510]/45'}`}>

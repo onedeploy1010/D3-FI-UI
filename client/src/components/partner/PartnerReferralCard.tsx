@@ -40,7 +40,7 @@ export function PartnerReferralCard({
       <div className="partner-referral-hero-glow pointer-events-none" aria-hidden />
 
       <div className="relative p-5">
-        <div className="flex items-start gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4">
           <div
             className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
               isDark ? 'bg-[#E0568F]/20 text-[#f9a8d4]' : 'bg-[#E0568F]/12 text-[#8A2B57]'
@@ -48,14 +48,9 @@ export function PartnerReferralCard({
           >
             <Link2 size={18} strokeWidth={2.2} />
           </div>
-          <div className="min-w-0 flex-1">
-            <h3 className={`text-sm font-semibold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-              {p('team.referralTitle')}
-            </h3>
-            <p className={`text-[11px] mt-1 leading-relaxed ${isDark ? 'text-white/50' : 'text-[#160510]/55'}`}>
-              {p('team.referralDesc')}
-            </p>
-          </div>
+          <h3 className={`text-[15px] font-bold tracking-tight min-w-0 flex-1 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+            {p('team.referralTitle')}
+          </h3>
         </div>
 
         <div

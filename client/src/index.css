@@ -303,7 +303,7 @@
   }
 
   .site-card-title {
-    @apply text-sm font-bold font-heading text-foreground leading-snug;
+    @apply text-[15px] font-bold font-heading text-foreground leading-snug;
   }
 
   .site-stat-label {

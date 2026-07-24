@@ -88,9 +88,6 @@ export default function Portal() {
                 {t('page.referralLink')}
               </div>
               <AddressBlock value={referralLink} isDark={isDark} compact />
-              <p className={`text-[11px] mt-2 leading-relaxed ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>
-                {t('page.referralHint')}
-              </p>
             </div>
           </GlassCard>
         </motion.div>
