@@ -197,6 +197,18 @@ export function assertCanManageAdmin(
     );
   }
 
+  // Lockout guard: a superadmin may NOT change their OWN role away from
+  // superadmin (that once left the system with zero superadmins — an
+  // accidental self-demotion via the roles UI). Another superadmin must do it.
+  if (
+    caller.role === 'superadmin' &&
+    targetUserId === caller.userId &&
+    patch.role !== undefined &&
+    patch.role !== 'superadmin'
+  ) {
+    throw new HttpError(403, '超级管理员不能将自己降级,请由另一位超级管理员操作');
+  }
+
   // A superadmin caller is fully trusted from here on (cannot self-escalate past
   // "all"). Non-superadmins are held to the no-self-escalation rule.
   if (caller.role === 'superadmin') return;
