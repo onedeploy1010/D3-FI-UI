@@ -246,7 +246,9 @@ export function PartnerAssetsTab({
           <div className={glassCardClass('default', 'p-5')}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <div className="site-stat-label">{p('assets.flashYield')}</div>
+                <div className={`text-[15px] font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                  {p('assets.flashYield')}
+                </div>
                 <div className="text-2xl font-black text-emerald-500 mt-1">
                   {formatD3Amount(yieldBalances.claimableD3)} D3
                 </div>
@@ -289,7 +291,9 @@ export function PartnerAssetsTab({
           <div className={glassCardClass('default', 'p-5')}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="site-stat-label">{p('assets.antibribe')}</div>
+                <div className={`text-[15px] font-bold tracking-tight ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                  {p('assets.antibribe')}
+                </div>
                 <div className="text-2xl font-black text-[#E0568F] mt-1">
                   <PartnerUd3Amount value={quotas.transferQuota} />
                 </div>

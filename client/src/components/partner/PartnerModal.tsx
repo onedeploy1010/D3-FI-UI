@@ -49,7 +49,7 @@ export function PartnerModal({
               <X size={16} className={isDark ? 'text-white/50' : 'text-[#160510]/55'} />
             </GlassIconButton>
             <h3
-              className={`text-[15px] font-semibold tracking-tight mb-5 pr-8 ${
+              className={`text-[15px] font-bold tracking-tight mb-5 pr-8 ${
                 isDark ? 'text-white' : 'text-[#160510]'
               }`}
             >

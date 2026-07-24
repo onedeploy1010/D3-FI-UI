@@ -190,7 +190,7 @@ export default function Portal() {
           <GlassCard className="p-5">
             <div className="flex items-start justify-between gap-2 mb-4">
               <div>
-                <h3 className="site-section-title">{t('page.announcements')}</h3>
+                <h3 className="site-card-title">{t('page.announcements')}</h3>
                 <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/35' : 'text-[#160510]/45'}`}>{t('page.protocolPublic')}</p>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">

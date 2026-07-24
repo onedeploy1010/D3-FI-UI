@@ -293,7 +293,7 @@ export function PartnerSubsidyPanel({
         </GlassButton>
         {state.partnerSubsidyApplications.length > 0 && (
           <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/[0.06]' : 'border-[#160510]/10'}`}>
-            <div className="site-stat-label mb-2">{p('subsidy.history')}</div>
+            <div className={`text-[15px] font-bold tracking-tight mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{p('subsidy.history')}</div>
             <SubsidyHistoryList items={state.partnerSubsidyApplications} p={p} isDark={isDark} />
           </div>
         )}
@@ -340,7 +340,7 @@ export function PartnerSubsidyPanel({
             </GlassButton>
             {state.marketSubsidyApplications.length > 0 && (
               <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/[0.06]' : 'border-[#160510]/10'}`}>
-                <div className="site-stat-label mb-2">{p('subsidy.history')}</div>
+                <div className={`text-[15px] font-bold tracking-tight mb-2 ${isDark ? 'text-white' : 'text-[#160510]'}`}>{p('subsidy.history')}</div>
                 <SubsidyHistoryList items={state.marketSubsidyApplications} p={p} isDark={isDark} />
               </div>
             )}
