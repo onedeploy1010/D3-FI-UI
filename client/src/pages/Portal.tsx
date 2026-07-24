@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation } from 'wouter';
-import { Globe, Copy, Check, ArrowRight, Sparkles, Handshake } from 'lucide-react';
+import { Globe, Copy, Check, ArrowRight, ChevronDown, Sparkles, Handshake, Wallet as WalletIcon } from 'lucide-react';
 import { AddressBlock } from '@/components/ui/AddressBlock';
 import { PortalOrbitalDiagram } from '@/components/illustrations/PortalOrbitalDiagram';
-import { IllustrationCard } from '@/components/layout/IllustrationCard';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { SitePageHeader } from '@/components/layout/SitePageHeader';
+// IllustrationCard no longer used — the orbital lives inside the hub card now.
 import { SiteTopBar } from '@/components/layout/SiteTopBar';
 import { GlassCard, GlassChip, GlassIconButton } from '@/components/ui/GlassSurface';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,16 +17,38 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { captureReferralFromUrl } from '@/lib/referral';
 import { isDemoWallet } from '@/lib/demoWallet';
 import { buildReferralLink } from '@/lib/referral';
+import { shortWallet } from '@/lib/wallet';
 import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { usePortalTranslation } from '@/i18n/usePortalTranslation';
+
+const PROFILE_OPEN_KEY = 'd3_portal_profile_open';
 
 export default function Portal() {
   const { lang } = useAppLang();
   const t = usePortalTranslation(lang);
   const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
+  // Collapsed by default so the heartbeat card gets the fold; remember the choice.
+  const [profileOpen, setProfileOpen] = useState(() => {
+    try {
+      return localStorage.getItem(PROFILE_OPEN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleProfile = () => {
+    setProfileOpen((v) => {
+      try {
+        localStorage.setItem(PROFILE_OPEN_KEY, v ? '0' : '1');
+      } catch {
+        /* ignore */
+      }
+      return !v;
+    });
+  };
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -60,35 +82,93 @@ export default function Portal() {
           <SitePageHeader variant="content" title={t('page.welcome')} subtitle={t('page.subtitle')} className="mb-1" />
         </motion.div>
 
+        {/* Collapsible profile: address + referral link. Collapsed by default so the
+            heartbeat card sits above the fold. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-          <GlassCard variant="accent" className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`text-[11px] font-medium ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>{t('page.wallet')}</div>
-              <GlassChip className="!py-1 !px-2 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[11px] text-emerald-400 font-medium">{t('page.status')}</span>
-              </GlassChip>
-            </div>
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={`font-mono text-[10px] sm:text-[11px] leading-none tracking-tight min-w-0 flex-1 overflow-x-auto whitespace-nowrap [-webkit-overflow-scrolling:touch] ${
-                  isDark ? 'text-white' : 'text-[#160510]'
-                }`}
-                title={wallet ?? undefined}
+          <GlassCard variant="accent" className="p-0 overflow-hidden">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={toggleProfile}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleProfile();
+                }
+              }}
+              aria-expanded={profileOpen}
+              className="w-full flex items-center gap-3 p-4 text-left tap-press cursor-pointer"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <span className="relative ios-glass-inset w-11 h-11 rounded-2xl flex items-center justify-center shrink-0">
+                <WalletIcon size={19} className="text-[#E0568F]" />
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-white/80 animate-pulse" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-xs font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
+                  {t('page.wallet')} · <span className="text-emerald-500">{t('page.status')}</span>
+                </span>
+                <span className={`block font-mono text-sm font-bold tracking-tight mt-0.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                  {wallet ? shortWallet(wallet) : '—'}
+                </span>
+              </span>
+              <GlassIconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopy();
+                }}
+                aria-label="Copy address"
+                className="shrink-0"
               >
-                {wallet ?? '—'}
-              </div>
-              <GlassIconButton onClick={handleCopy} aria-label="Copy address" className="shrink-0">
-                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className={isDark ? 'text-white/40' : 'text-[#160510]/40'} />}
+                {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />}
               </GlassIconButton>
+              <ChevronDown
+                size={18}
+                className={`shrink-0 transition-transform duration-300 ${profileOpen ? 'rotate-180' : ''} ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}
+                aria-hidden
+              />
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <div className={`text-[11px] font-medium mb-2 ${isDark ? 'text-white/40' : 'text-[#160510]/40'}`}>
-                {t('page.referralLink')}
-              </div>
-              <AddressBlock value={referralLink} isDark={isDark} compact />
-            </div>
+            <AnimatePresence initial={false}>
+              {profileOpen && (
+                <motion.div
+                  key="profile-body"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-4 pb-4">
+                    <div className={`rounded-2xl px-3.5 py-3 ${isDark ? 'bg-black/20 border border-white/10' : 'bg-white/85 border border-[#8A2B57]/12'}`}>
+                      <div className={`font-mono text-xs leading-relaxed break-all select-text ${isDark ? 'text-white/85' : 'text-[#160510]/90'}`}>
+                        {wallet ?? '—'}
+                      </div>
+                    </div>
+
+                    <div className="mt-3.5 flex items-center justify-between gap-2">
+                      <div className={`text-xs font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
+                        {t('page.referralLink')}
+                      </div>
+                      <GlassIconButton
+                        onClick={() => {
+                          void navigator.clipboard.writeText(referralLink);
+                          setLinkCopied(true);
+                          setTimeout(() => setLinkCopied(false), 2000);
+                        }}
+                        aria-label="Copy referral link"
+                        className="shrink-0"
+                      >
+                        {linkCopied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />}
+                      </GlassIconButton>
+                    </div>
+                    <div className="mt-1.5">
+                      <AddressBlock value={referralLink} isDark={isDark} compact />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </GlassCard>
         </motion.div>
 
@@ -96,92 +176,94 @@ export default function Portal() {
           <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
         </motion.div>
 
+        {/* Protocol hub: orbital animation on top, the three app entries below —
+            one card, raised rows with a pressed accent state. */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.15, duration: 0.6 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.5 }}
         >
-          <IllustrationCard isDark={isDark} caption={t('page.diagramCaption')} className="min-h-[240px] sm:min-h-[280px] md:aspect-[4/3]">
-            <PortalOrbitalDiagram lang={lang} isDark={isDark} />
-          </IllustrationCard>
+          <GlassCard variant="default" className="p-0 overflow-hidden">
+            <div className="relative pt-4 px-4">
+              <PortalOrbitalDiagram lang={lang} isDark={isDark} />
+              <div className={`text-xs font-semibold text-center mt-1 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                {t('page.diagramCaption')}
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {[
+                {
+                  key: 'ai',
+                  icon: <Sparkles size={19} className="text-[#E0568F]" />,
+                  title: t('ai.title'),
+                  desc: t('ai.desc'),
+                  badge: t('ai.badge'),
+                  badgeCls: 'text-emerald-500 !bg-emerald-500/10 !border-emerald-500/15',
+                  onClick: () => navigate('/ai/market'),
+                  disabled: false,
+                },
+                {
+                  key: 'partner',
+                  icon: <Handshake size={19} className="text-[#E0568F]" />,
+                  title: t('partner.title'),
+                  desc: t('partner.desc'),
+                  badge: t('partner.badge'),
+                  badgeCls: 'text-emerald-500 !bg-emerald-500/10 !border-emerald-500/15',
+                  onClick: () => navigate('/partner'),
+                  disabled: false,
+                },
+                {
+                  key: 'fi',
+                  icon: <Globe size={19} className={isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'} />,
+                  title: t('fi.title'),
+                  desc: t('fi.desc'),
+                  badge: t('fi.badgeOffline'),
+                  badgeCls: 'text-amber-500/90 !bg-amber-500/10 !border-amber-500/15',
+                  onClick: () => setBuildingOpen(true),
+                  disabled: true,
+                },
+              ].map((site, i) => (
+                <motion.button
+                  key={site.key}
+                  type="button"
+                  onClick={site.onClick}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.24 + i * 0.08 }}
+                  whileTap={{ scale: 0.97, y: 1 }}
+                  className={`portal-site-row w-full rounded-2xl p-3.5 flex items-center gap-3 text-left ${
+                    site.disabled ? 'opacity-60 saturate-50' : ''
+                  }`}
+                >
+                  <span className="ios-glass-inset w-11 h-11 rounded-2xl flex items-center justify-center shrink-0">
+                    {site.icon}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`text-[15px] font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                        {site.title}
+                      </span>
+                      <GlassChip className={`!py-0.5 !px-2 text-[10px] font-semibold shrink-0 ${site.badgeCls}`}>
+                        {site.badge}
+                      </GlassChip>
+                    </span>
+                    <span className={`block text-xs mt-0.5 truncate ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                      {site.desc}
+                    </span>
+                  </span>
+                  <span
+                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      isDark ? 'bg-[#E0568F]/15 text-[#f9a8d4]' : 'bg-[#E0568F]/10 text-[#8A2B57]'
+                    }`}
+                  >
+                    <ArrowRight size={15} />
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          </GlassCard>
         </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <GlassCard variant="default" onClick={() => navigate('/ai/market')} className="p-5 h-full group cursor-pointer">
-              <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
-                    <Sparkles size={18} className="text-[#E0568F]" />
-                  </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
-                    {t('ai.badge')}
-                  </GlassChip>
-                </div>
-                <h3 className="site-card-title mb-1">{t('ai.title')}</h3>
-                <p className={`text-xs mb-4 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t('ai.desc')}</p>
-                <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
-                  {t('ai.cta')} <ArrowRight size={12} />
-                </span>
-              </div>
-            </GlassCard>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-            <GlassCard variant="default" onClick={() => navigate('/partner')} className="p-5 h-full group cursor-pointer">
-              <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
-                    <Handshake size={18} className="text-[#E0568F]" />
-                  </div>
-                  <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-emerald-400 !bg-emerald-500/10 !border-emerald-500/15">
-                    {t('partner.badge')}
-                  </GlassChip>
-                </div>
-                <h3 className="site-card-title mb-1">{t('partner.title')}</h3>
-                <p className={`text-xs mb-4 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t('partner.desc')}</p>
-                <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
-                  {t('partner.cta')} <ArrowRight size={12} />
-                </span>
-              </div>
-            </GlassCard>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 }}>
-            {/* Not launched yet: washed-out look + under-construction dialog on click. */}
-            <GlassCard variant="highlight" onClick={() => setBuildingOpen(true)} className="p-5 h-full group opacity-55 saturate-50">
-              <div className="absolute inset-0 premium-shimmer opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="ios-glass-inset w-10 h-10 flex items-center justify-center">
-                    <Globe size={18} className={isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'} />
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-amber-500/90 !bg-amber-500/10 !border-amber-500/15">
-                      {t('fi.badgeOffline')}
-                    </GlassChip>
-                    <GlassChip className="!py-0.5 !px-2 text-[10px] font-semibold text-sky-400 !bg-sky-500/10 !border-sky-500/15">
-                      {t('fi.badgeDemo')}
-                    </GlassChip>
-                  </div>
-                </div>
-                <h3 className="site-card-title mb-1">{t('fi.title')}</h3>
-                <p className={`text-xs mb-1 text-pretty-wrap leading-relaxed ${isDark ? 'text-white/40' : 'text-[#160510]/50'}`}>{t('fi.desc')}</p>
-                <p className={`text-[11px] mb-0.5 font-medium ${isDark ? 'text-white/30' : 'text-[#160510]/40'}`}>
-                  {t('fi.bribeMarket')} · {t('fi.badgeOffline')}
-                </p>
-                <p className={`text-[10px] mb-4 leading-relaxed ${isDark ? 'text-white/25' : 'text-[#160510]/30'}`}>
-                  {t('fi.incompleteHint')}
-                </p>
-                <span className={`text-xs font-semibold inline-flex items-center gap-1 ${isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'}`}>
-                  {t('fi.cta')} <ArrowRight size={12} />
-                </span>
-              </div>
-            </GlassCard>
-          </motion.div>
-        </div>
 
         {/* Protocol announcements are seeded demo numbers for the not-yet-live
             bribe market — only the demo line-leader session should see them. */}

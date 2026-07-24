@@ -550,6 +550,49 @@
     border-color: rgba(224, 86, 143, 0.2);
   }
 
+  /* Portal hub site rows — raised card that presses down with an accent flash. */
+  .portal-site-row {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78));
+    border: 1px solid rgba(138, 43, 87, 0.12);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 10px 22px -12px rgba(138, 43, 87, 0.35),
+      0 2px 5px rgba(138, 43, 87, 0.08);
+    transition:
+      transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      background 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .portal-site-row:active {
+    transform: translateY(1px) scale(0.98);
+    background: linear-gradient(180deg, rgba(224, 86, 143, 0.16), rgba(224, 86, 143, 0.08));
+    border-color: rgba(224, 86, 143, 0.5);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.5) inset,
+      0 2px 6px rgba(138, 43, 87, 0.18);
+  }
+  .dark .portal-site-row {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 10px 22px -12px rgba(0, 0, 0, 0.55);
+  }
+  .dark .portal-site-row:active {
+    background: linear-gradient(180deg, rgba(224, 86, 143, 0.2), rgba(224, 86, 143, 0.1));
+    border-color: rgba(224, 86, 143, 0.55);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .portal-site-row,
+    .portal-site-row:active {
+      transform: none;
+      transition: none;
+    }
+  }
+
   .ios-glass-pressable {
     transition:
       transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94),
