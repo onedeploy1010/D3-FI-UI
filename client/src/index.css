@@ -585,6 +585,28 @@
     background: linear-gradient(180deg, rgba(224, 86, 143, 0.2), rgba(224, 86, 143, 0.1));
     border-color: rgba(224, 86, 143, 0.55);
   }
+  /* Not-yet-live site row: flat, desaturated and dashed — visually apart from
+     the raised live rows. */
+  .portal-site-row-muted {
+    background: linear-gradient(180deg, rgba(22, 5, 16, 0.045), rgba(22, 5, 16, 0.02));
+    border: 1px dashed rgba(22, 5, 16, 0.16);
+    box-shadow: none;
+  }
+  .portal-site-row-muted:active {
+    background: rgba(22, 5, 16, 0.07);
+    border-color: rgba(22, 5, 16, 0.24);
+    box-shadow: none;
+  }
+  .dark .portal-site-row-muted {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+  .dark .portal-site-row-muted:active {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .portal-site-row,
     .portal-site-row:active {

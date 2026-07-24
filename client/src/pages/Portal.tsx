@@ -18,6 +18,7 @@ import { captureReferralFromUrl } from '@/lib/referral';
 import { isDemoWallet } from '@/lib/demoWallet';
 import { buildReferralLink } from '@/lib/referral';
 import { shortWallet } from '@/lib/wallet';
+import { getAddress } from 'viem';
 import { useProtocolEpoch } from '@/hooks/useProtocolEpoch';
 import { useAppLang } from '@/i18n/LanguageContext';
 import { usePortalTranslation } from '@/i18n/usePortalTranslation';
@@ -54,7 +55,16 @@ export default function Portal() {
 
   const { wallet } = useWallet();
   const { epoch: protocolEpoch, isLoading: protocolLoading } = useProtocolEpoch(lang);
-  const referralLink = buildReferralLink(wallet);
+  // Display with EIP-55 checksum casing, like every Ethereum wallet shows it.
+  const checksummedWallet = (() => {
+    if (!wallet) return null;
+    try {
+      return getAddress(wallet);
+    } catch {
+      return wallet;
+    }
+  })();
+  const referralLink = buildReferralLink(checksummedWallet ?? wallet);
 
   useEffect(() => {
     captureReferralFromUrl();
@@ -108,9 +118,12 @@ export default function Portal() {
                 <span className={`block text-xs font-semibold ${isDark ? 'text-white/45' : 'text-[#160510]/45'}`}>
                   {t('page.wallet')} · <span className="text-emerald-500">{t('page.status')}</span>
                 </span>
-                <span className={`block font-mono text-sm font-bold tracking-tight mt-0.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
-                  {wallet ? shortWallet(wallet) : '—'}
-                </span>
+                {/* Expanded shows the FULL address below — don't repeat it here. */}
+                {!profileOpen && (
+                  <span className={`block font-mono text-sm font-bold tracking-tight mt-0.5 ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                    {checksummedWallet ? shortWallet(checksummedWallet) : '—'}
+                  </span>
+                )}
               </span>
               <GlassIconButton
                 onClick={(e) => {
@@ -141,8 +154,8 @@ export default function Portal() {
                 >
                   <div className="px-4 pb-4">
                     <div className="ios-glass-inset rounded-2xl px-3.5 py-3">
-                      <div className={`font-mono text-xs leading-relaxed break-all select-text ${isDark ? 'text-white/85' : 'text-[#160510]/90'}`}>
-                        {wallet ?? '—'}
+                      <div className={`font-mono text-[13px] font-semibold leading-relaxed break-all select-text ${isDark ? 'text-white/90' : 'text-[#160510]/90'}`}>
+                        {checksummedWallet ?? '—'}
                       </div>
                     </div>
 
@@ -215,7 +228,7 @@ export default function Portal() {
                 },
                 {
                   key: 'fi',
-                  icon: <Globe size={19} className={isDark ? 'text-[#E0568F]' : 'text-[#8A2B57]'} />,
+                  icon: <Globe size={19} className={isDark ? 'text-white/35' : 'text-[#160510]/30'} />,
                   title: t('fi.title'),
                   desc: t('fi.desc'),
                   badge: t('fi.badgeOffline'),
@@ -232,8 +245,8 @@ export default function Portal() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.24 + i * 0.08 }}
                   whileTap={{ scale: 0.97, y: 1 }}
-                  className={`portal-site-row w-full rounded-2xl p-3.5 flex items-center gap-3 text-left ${
-                    site.disabled ? 'opacity-60 saturate-50' : ''
+                  className={`w-full rounded-2xl p-3.5 flex items-center gap-3 text-left ${
+                    site.disabled ? 'portal-site-row portal-site-row-muted' : 'portal-site-row'
                   }`}
                 >
                   <span className="ios-glass-inset w-11 h-11 rounded-2xl flex items-center justify-center shrink-0">
@@ -241,20 +254,46 @@ export default function Portal() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 min-w-0">
-                      <span className={`text-[15px] font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-[#160510]'}`}>
+                      <span
+                        className={`text-[15px] font-bold tracking-tight truncate ${
+                          site.disabled
+                            ? isDark
+                              ? 'text-white/45'
+                              : 'text-[#160510]/45'
+                            : isDark
+                              ? 'text-white'
+                              : 'text-[#160510]'
+                        }`}
+                      >
                         {site.title}
                       </span>
                       <GlassChip className={`!py-0.5 !px-2 text-[10px] font-semibold shrink-0 ${site.badgeCls}`}>
                         {site.badge}
                       </GlassChip>
                     </span>
-                    <span className={`block text-xs mt-0.5 truncate ${isDark ? 'text-white/45' : 'text-[#160510]/50'}`}>
+                    <span
+                      className={`block text-xs mt-0.5 truncate ${
+                        site.disabled
+                          ? isDark
+                            ? 'text-white/30'
+                            : 'text-[#160510]/35'
+                          : isDark
+                            ? 'text-white/45'
+                            : 'text-[#160510]/50'
+                      }`}
+                    >
                       {site.desc}
                     </span>
                   </span>
                   <span
                     className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                      isDark ? 'bg-[#E0568F]/15 text-[#f9a8d4]' : 'bg-[#E0568F]/10 text-[#8A2B57]'
+                      site.disabled
+                        ? isDark
+                          ? 'bg-white/5 text-white/30'
+                          : 'bg-[#160510]/5 text-[#160510]/30'
+                        : isDark
+                          ? 'bg-[#E0568F]/15 text-[#f9a8d4]'
+                          : 'bg-[#E0568F]/10 text-[#8A2B57]'
                     }`}
                   >
                     <ArrowRight size={15} />
