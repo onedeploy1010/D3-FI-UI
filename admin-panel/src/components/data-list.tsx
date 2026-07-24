@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Search, ChevronDown, Inbox } from 'lucide-react';
 import {
   Table,
@@ -78,6 +78,8 @@ export interface DataListProps<T> {
   loading?: boolean;
   emptyText?: string;
   toolbarRight?: ReactNode;
+  /** Fires whenever the search/filter/date-filtered row set changes (before pagination). */
+  onFilteredChange?: (rows: T[]) => void;
 }
 
 const ALL = '__all__';
@@ -106,6 +108,7 @@ export function DataList<T>({
   loading = false,
   emptyText = '暂无数据',
   toolbarRight,
+  onFilteredChange,
 }: DataListProps<T>) {
   const [query, setQuery] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -152,6 +155,11 @@ export function DataList<T>({
 
     return out;
   }, [rows, query, searchKeys, filters, filterValues, activeDateKey, range, sort]);
+
+  useEffect(() => {
+    onFilteredChange?.(filtered);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- callback identity is the caller's concern
+  }, [filtered]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);

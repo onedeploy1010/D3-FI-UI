@@ -10,7 +10,6 @@ import {
   Paperclip,
   RotateCw,
   Send,
-  Settings2,
   ShieldCheck,
   X,
 } from 'lucide-react';
@@ -732,28 +731,12 @@ export default function SubsidiesPage() {
   const [reply, setReply] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const [settings, setSettings] = useState({ partnerSubsidyRatePct: 10, marketSubsidyRatePct: 5 });
-  const [settingsDraft, setSettingsDraft] = useState({ partnerSubsidyRatePct: '10', marketSubsidyRatePct: '5' });
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // 比例统一管理已移除 — 补贴比例改为在会员管理逐会员开通/调整
+  // (合伙人默认 10%, 其他会员默认关闭)。
 
-  const loadSettings = useCallback(() => {
-    void adminFetch<{ ok: boolean; settings: { partnerSubsidyRatePct: number; marketSubsidyRatePct: number } }>(
-      '/program-settings',
-    )
-      .then((r) => {
-        setSettings(r.settings);
-        setSettingsDraft({
-          partnerSubsidyRatePct: String(r.settings.partnerSubsidyRatePct),
-          marketSubsidyRatePct: String(r.settings.marketSubsidyRatePct),
-        });
-      })
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  // 会员多选筛选 + 跟随筛选结果的统计。
+  const [walletPicks, setWalletPicks] = useState<Set<string>>(() => new Set());
+  const [statsRows, setStatsRows] = useState<SubsidyTicket[]>([]);
 
   const loadList = useCallback(() => {
     setLoading(true);
@@ -820,30 +803,38 @@ export default function SubsidiesPage() {
     }
   };
 
-  const saveSettings = async () => {
-    if (!canWrite) return;
-    setSettingsSaving(true);
-    try {
-      const r = await adminFetch<{ ok: boolean; settings: typeof settings }>('/program-settings', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          partnerSubsidyRatePct: Number(settingsDraft.partnerSubsidyRatePct),
-          marketSubsidyRatePct: Number(settingsDraft.marketSubsidyRatePct),
-        }),
-      });
-      setSettings(r.settings);
-      setSettingsDraft({
-        partnerSubsidyRatePct: String(r.settings.partnerSubsidyRatePct),
-        marketSubsidyRatePct: String(r.settings.marketSubsidyRatePct),
-      });
-      toast.success('已保存比例');
-      setSettingsOpen(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '保存设置失败');
-    } finally {
-      setSettingsSaving(false);
+  // 会员多选后的可见行 (在 ?wallet= 单选之上再叠加多选)。
+  const pickedRows = useMemo(
+    () =>
+      walletPicks.size
+        ? visibleRows.filter((r) => walletPicks.has((r.wallet_address ?? '').toLowerCase()))
+        : visibleRows,
+    [visibleRows, walletPicks],
+  );
+
+  // 会员选项 (按工单数排序) — 供多选筛选。
+  const walletOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of visibleRows) {
+      const k = (r.wallet_address ?? '').toLowerCase();
+      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-  };
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [visibleRows]);
+
+  // 统计跟随 DataList 的搜索/筛选/时间段结果 (statsRows) 汇总。
+  const stats = useMemo(() => {
+    const sum = (pred: (r: SubsidyTicket) => boolean) =>
+      statsRows.filter(pred).reduce((s, r) => s + Number(r.amount_usd ?? 0), 0);
+    const APPLYING = new Set(['open', 'pending_info', 'under_review']);
+    return {
+      count: statsRows.length,
+      totalUsd: sum(() => true),
+      applyingUsd: sum((r) => APPLYING.has(r.status)),
+      approvedUsd: sum((r) => r.status === 'approved'),
+      paidUsd: sum((r) => r.status === 'paid'),
+    };
+  }, [statsRows]);
 
   const columns = useMemo<DataListColumn<SubsidyTicket>[]>(
     () => [
@@ -934,17 +925,7 @@ export default function SubsidiesPage() {
   );
 
   return (
-    <PageShell
-      title="事务管理"
-      subtitle="补贴工单与多签审批 — Affairs"
-      actions={
-        canWrite ? (
-          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-            <Settings2 className="h-3.5 w-3.5" /> 可借比例
-          </Button>
-        ) : undefined
-      }
-    >
+    <PageShell title="事务管理" subtitle="补贴工单与多签审批 — Affairs">
       <Tabs defaultValue="tickets">
         <TabsList className="mb-4">
           <TabsTrigger value="tickets" className="gap-1.5">
@@ -956,19 +937,70 @@ export default function SubsidiesPage() {
         </TabsList>
 
         <TabsContent value="tickets">
-      <div className="mb-4 space-y-2">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">当前生效比例</p>
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <div className="rounded-xl cell-inset p-3 space-y-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">合伙人补贴</p>
-            <p className="text-lg font-bold text-primary">{settings.partnerSubsidyRatePct}%</p>
-          </div>
-          <div className="rounded-xl cell-inset p-3 space-y-1">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">市场补贴</p>
-            <p className="text-lg font-bold text-primary">{settings.marketSubsidyRatePct}%</p>
-          </div>
+      {/* 统计 — 跟随下方列表当前的搜索/筛选/时间段/会员多选结果 */}
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-3">
+        <div className="rounded-xl cell-inset p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">工单数</p>
+          <p className="mt-1 text-lg font-bold tabular-nums">{stats.count}</p>
+        </div>
+        <div className="rounded-xl cell-inset p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">总申请金额</p>
+          <p className="mt-1 text-lg font-bold tabular-nums text-primary">${fmtUsd(stats.totalUsd)}</p>
+        </div>
+        <div className="rounded-xl cell-inset p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">申请中</p>
+          <p className="mt-1 text-lg font-bold tabular-nums text-amber-500">${fmtUsd(stats.applyingUsd)}</p>
+        </div>
+        <div className="rounded-xl cell-inset p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">已批准</p>
+          <p className="mt-1 text-lg font-bold tabular-nums text-sky-500">${fmtUsd(stats.approvedUsd)}</p>
+        </div>
+        <div className="rounded-xl cell-inset p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">已发放</p>
+          <p className="mt-1 text-lg font-bold tabular-nums text-emerald-500">${fmtUsd(stats.paidUsd)}</p>
         </div>
       </div>
+
+      {/* 会员多选筛选 — 点选会员即筛出其全部工单,统计随之更新 */}
+      {walletOptions.length > 1 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">按会员筛选</span>
+          {walletOptions.slice(0, 12).map(([w, n]) => {
+            const on = walletPicks.has(w);
+            return (
+              <button
+                key={w}
+                type="button"
+                onClick={() =>
+                  setWalletPicks((prev) => {
+                    const next = new Set(prev);
+                    if (on) next.delete(w);
+                    else next.add(w);
+                    return next;
+                  })
+                }
+                className={`rounded-full border px-2 py-0.5 font-mono text-[10px] transition-colors ${
+                  on
+                    ? 'border-primary/60 bg-primary/15 text-primary'
+                    : 'border-border/60 text-muted-foreground hover:bg-muted/40'
+                }`}
+              >
+                {w.slice(0, 6)}…{w.slice(-4)} · {n}
+              </button>
+            );
+          })}
+          {walletPicks.size > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-primary"
+              onClick={() => setWalletPicks(new Set())}
+            >
+              清除多选 ({walletPicks.size})
+            </Button>
+          )}
+        </div>
+      )}
 
       {walletFilter && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs rounded-xl border border-primary/40 bg-primary/10 px-3 py-2">
@@ -987,7 +1019,7 @@ export default function SubsidiesPage() {
 
       <DataList<SubsidyTicket>
         columns={columns}
-        rows={visibleRows}
+        rows={pickedRows}
         getRowId={(r) => r.id}
         searchKeys={['wallet_address', 'id']}
         searchPlaceholder="搜索钱包 / 工单号…"
@@ -995,6 +1027,7 @@ export default function SubsidiesPage() {
         dateKey="applied_at"
         loading={loading}
         onRowClick={(r) => openTicket(r.id)}
+        onFilteredChange={setStatsRows}
         emptyText="暂无补贴工单"
       />
         </TabsContent>
@@ -1025,50 +1058,6 @@ export default function SubsidiesPage() {
         </Drawer>
       )}
 
-      {/* Program settings (可借比例) */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
-          <DialogHeader>
-            <DialogTitle>可借比例设置</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="rounded-xl cell-inset p-3 space-y-1.5">
-                <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">合伙人补贴 (%)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={settingsDraft.partnerSubsidyRatePct}
-                  onChange={(e) => setSettingsDraft((s) => ({ ...s, partnerSubsidyRatePct: e.target.value }))}
-                  className="w-full rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
-                />
-              </label>
-              <label className="rounded-xl cell-inset p-3 space-y-1.5">
-                <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">市场补贴 (%)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={settingsDraft.marketSubsidyRatePct}
-                  onChange={(e) => setSettingsDraft((s) => ({ ...s, marketSubsidyRatePct: e.target.value }))}
-                  className="w-full rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
-                />
-              </label>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              当前生效：合伙人 <span className="font-semibold text-primary">{settings.partnerSubsidyRatePct}%</span> · 市场 <span className="font-semibold text-primary">{settings.marketSubsidyRatePct}%</span>
-            </p>
-            {canWrite && (
-              <Button className="w-full sm:w-auto" disabled={settingsSaving} onClick={() => void saveSettings()}>
-                {settingsSaving ? '保存中…' : '保存比例'}
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </PageShell>
   );
 }
