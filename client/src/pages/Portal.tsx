@@ -118,7 +118,7 @@ export default function Portal() {
                   handleCopy();
                 }}
                 aria-label="Copy address"
-                className="shrink-0"
+                className="shrink-0 tap-press"
               >
                 {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />}
               </GlassIconButton>
@@ -140,7 +140,7 @@ export default function Portal() {
                   className="overflow-hidden"
                 >
                   <div className="px-4 pb-4">
-                    <div className={`rounded-2xl px-3.5 py-3 ${isDark ? 'bg-black/20 border border-white/10' : 'bg-white/85 border border-[#8A2B57]/12'}`}>
+                    <div className="ios-glass-inset rounded-2xl px-3.5 py-3">
                       <div className={`font-mono text-xs leading-relaxed break-all select-text ${isDark ? 'text-white/85' : 'text-[#160510]/90'}`}>
                         {wallet ?? '—'}
                       </div>
@@ -157,7 +157,7 @@ export default function Portal() {
                           setTimeout(() => setLinkCopied(false), 2000);
                         }}
                         aria-label="Copy referral link"
-                        className="shrink-0"
+                        className="shrink-0 tap-press"
                       >
                         {linkCopied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} className={isDark ? 'text-white/45' : 'text-[#160510]/45'} />}
                       </GlassIconButton>
