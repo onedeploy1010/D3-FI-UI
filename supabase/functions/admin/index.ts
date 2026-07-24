@@ -2408,13 +2408,28 @@ Deno.serve(async (req) => {
       if (action) q = q.ilike('action', `%${action}%`);
       const { data, error } = await q;
       if (error) throw new HttpError(502, error.message);
-      const rows = data ?? [];
-      // Resolve admin usernames for actor_id so the UI shows who did what.
+      let rows = data ?? [];
+      // Resolve admin usernames + roles for actor_id.
       const ids = [...new Set(rows.map((r) => r.actor_id).filter(Boolean) as string[])];
       const nameMap = new Map<string, string>();
+      const roleMap = new Map<string, string>();
       if (ids.length) {
-        const { data: admins } = await sb.from('admin_users').select('user_id, username').in('user_id', ids);
-        for (const a of admins ?? []) nameMap.set(a.user_id as string, a.username as string);
+        const { data: admins } = await sb
+          .from('admin_users')
+          .select('user_id, username, role')
+          .in('user_id', ids);
+        for (const a of admins ?? []) {
+          nameMap.set(a.user_id as string, a.username as string);
+          roleMap.set(a.user_id as string, a.role as string);
+        }
+      }
+      // 等级隔离: an admin only sees logs from actors at or BELOW their own
+      // rank — superadmin/超级合伙人(3) > admin(2) > 财务/客服/审计(1).
+      const rank = (role: string | undefined): number =>
+        role === 'superadmin' || role === 'super_partner' ? 3 : role === 'admin' ? 2 : 1;
+      const viewerRank = rank(admin.role);
+      if (viewerRank < 3) {
+        rows = rows.filter((r) => rank(roleMap.get(r.actor_id as string)) <= viewerRank);
       }
       return jsonResponse({
         ok: true,
