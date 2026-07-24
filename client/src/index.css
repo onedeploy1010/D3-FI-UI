@@ -585,6 +585,35 @@
     background: linear-gradient(180deg, rgba(224, 86, 143, 0.2), rgba(224, 86, 143, 0.1));
     border-color: rgba(224, 86, 143, 0.55);
   }
+  /* Desktop hover: bright pulsing accent border on the live rows. */
+  @media (hover: hover) {
+    .portal-site-row:not(.portal-site-row-muted):hover {
+      transform: translateY(-1px);
+      border-color: rgba(224, 86, 143, 0.7);
+      animation: portal-row-glow 1.6s ease-in-out infinite;
+    }
+  }
+  @keyframes portal-row-glow {
+    0%,
+    100% {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.9) inset,
+        0 0 0 1px rgba(224, 86, 143, 0.3),
+        0 12px 26px -12px rgba(224, 86, 143, 0.45);
+    }
+    50% {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.9) inset,
+        0 0 0 2px rgba(224, 86, 143, 0.5),
+        0 14px 30px -12px rgba(224, 86, 143, 0.6);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .portal-site-row:hover {
+      animation: none;
+    }
+  }
+
   /* Not-yet-live site row: flat, desaturated and dashed — visually apart from
      the raised live rows. */
   .portal-site-row-muted {

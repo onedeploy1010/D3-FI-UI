@@ -189,33 +189,16 @@ export default function Portal() {
           <PrivateSaleHeartbeat lang={lang} isDark={isDark} />
         </motion.div>
 
-        {/* Protocol hub: orbital animation on top, the three app entries below —
-            one card, raised rows with a pressed accent state. */}
+        {/* Protocol hub: the three app entries on top (受贿者联盟 → AI 分析站 → 贿赂金融),
+            orbital animation below. Raised rows, hover glow, pressed accent state. */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.5 }}
         >
           <GlassCard variant="default" className="p-0 overflow-hidden">
-            <div className="relative pt-4 px-4">
-              <PortalOrbitalDiagram lang={lang} isDark={isDark} />
-              <div className={`text-xs font-semibold text-center mt-1 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
-                {t('page.diagramCaption')}
-              </div>
-            </div>
-
-            <div className="p-4 space-y-3">
+            <div className="p-4 pb-1 space-y-3">
               {[
-                {
-                  key: 'ai',
-                  icon: <Sparkles size={19} className="text-[#E0568F]" />,
-                  title: t('ai.title'),
-                  desc: t('ai.desc'),
-                  badge: t('ai.badge'),
-                  badgeCls: 'text-emerald-500 !bg-emerald-500/10 !border-emerald-500/15',
-                  onClick: () => navigate('/ai/market'),
-                  disabled: false,
-                },
                 {
                   key: 'partner',
                   icon: <Handshake size={19} className="text-[#E0568F]" />,
@@ -224,6 +207,16 @@ export default function Portal() {
                   badge: t('partner.badge'),
                   badgeCls: 'text-emerald-500 !bg-emerald-500/10 !border-emerald-500/15',
                   onClick: () => navigate('/partner'),
+                  disabled: false,
+                },
+                {
+                  key: 'ai',
+                  icon: <Sparkles size={19} className="text-[#E0568F]" />,
+                  title: t('ai.title'),
+                  desc: t('ai.desc'),
+                  badge: t('ai.badge'),
+                  badgeCls: 'text-emerald-500 !bg-emerald-500/10 !border-emerald-500/15',
+                  onClick: () => navigate('/ai/market'),
                   disabled: false,
                 },
                 {
@@ -300,6 +293,13 @@ export default function Portal() {
                   </span>
                 </motion.button>
               ))}
+            </div>
+
+            <div className="relative px-4 pb-4">
+              <PortalOrbitalDiagram lang={lang} isDark={isDark} />
+              <div className={`text-xs font-semibold text-center mt-1 ${isDark ? 'text-white/40' : 'text-[#160510]/45'}`}>
+                {t('page.diagramCaption')}
+              </div>
             </div>
           </GlassCard>
         </motion.div>
